@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#pylint:disable=W0301
+#  
+#  Copyright 2018- William Martinez Bas <metfar@gmail.com>
+#  
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#  
+#
+#import warnings;
+#warnings.filterwarnings("ignore", category=UserWarning);
+from rich.console import Console;
+from rich.live import Live;
+
+from .backends import create_input_backend;
+from .events import Key, KeyEvent, ResizeEvent, normalize_key_spec;
+from .theme import DEFAULT_THEME, make_theme;
+from .overlay import ModalOverlay;
+
+
+class FocusManager:
+    def __init__(self, root=None):
+        self.widgets = [];
+        self.index = -1;
+        if root is not None:
+            self.refresh(root);
+
+    @property
+    def current(self):
+        if self.index < 0 or self.index >= len(self.widgets):
+            return None;
+        return self.widgets[self.index];
+
+    def refresh(self, root):
+        current = self.current;
+        for widget in self.widgets:
+            widget.focused = False;
+        self.widgets = root.focusables() if root is not None else [];
+        for widget in self.widgets:
+            widget._focus_manager = self;
+        if not self.widgets:
+            self.index = -1;
+            return None;
+        if current in self.widgets:
+            self.index = self.widgets.index(current);
+        else:
+            self.index = 0;
+        self.widgets[self.index].focused = True;
+        return self.current;
+
+    def set(self, widget):
+        if widget not in self.widgets:
+            return None;
+        if self.current is not None:
+            self.current.focused = False;
+        self.index = self.widgets.index(widget);
+        self.widgets[self.index].focused = True;
+        return self.current;
+
+    def move(self, delta):
+        if not self.widgets:
+            return None;
+        self.widgets[self.index].focused = False;
+        self.index = (self.index + int(delta)) % len(self.widgets);
+        self.widgets[self.index].focused = True;
+        return self.current;
+
+    def move_matching(self, widget, delta, widget_type):
+        if widget not in self.widgets:
+            return None;
+        start = self.widgets.index(widget);
+        left = start;
+        while left > 0 and isinstance(self.widgets[left - 1], widget_type):
+            left -= 1;
+        right = start;
+        while right + 1 < len(self.widgets) and isinstance(self.widgets[right + 1], widget_type):
+            right += 1;
+        matches = [item for item in self.widgets[left:right + 1] if isinstance(item, widget_type) and getattr(item, "enabled", True)];
+        if len(matches) <= 1 or widget not in matches:
+            return widget;
+        index = matches.index(widget);
+        target = matches[(index + int(delta)) % len(matches)];
+        return self.set(target);
+
+
+class Application:
+    def __init__(self, title="sumTUI", root=None, theme=None, console=None, capture_control_keys=False):
+        self.title = str(title);
+        self.theme = make_theme(theme) if isinstance(theme, str) else (theme or DEFAULT_THEME);
+        self.console = console or Console();
+        self.root = None;
+        self.focus = FocusManager();
+        self.bindings = {};
+        self.running = False;
+        self.last_size = self.console.size;
+        self.live = None;
+        self._modal_stack = [];
+        self._idle_callbacks = [];
+        self.capture_control_keys = bool(capture_control_keys);
+        if root is not None:
+            self.set_root(root);
+        if not self.capture_control_keys:
+            self.bind("ctrl+c", self.stop);
+
+    @property
+    def size(self):
+        """Current terminal size as Rich ConsoleDimensions."""
+        return self.last_size;
+
+    @property
+    def width(self):
+        return int(self.last_size.width);
+
+    @property
+    def height(self):
+        return int(self.last_size.height);
+
+    def set_root(self, root):
+        self.root = root;
+        self.root.set_theme(self.theme);
+        self.focus.refresh(self.root);
+        return root;
+
+    def set_theme(self, theme):
+        self.theme = make_theme(theme) if isinstance(theme, str) else theme;
+        if self.root is not None:
+            self.root.set_theme(self.theme);
+        for saved_root, _saved_bindings in self._modal_stack:
+            if saved_root is not None:
+                saved_root.set_theme(self.theme);
+        return self.theme;
+
+    @property
+    def modal_depth(self):
+        return len(self._modal_stack);
+
+    def push_modal(self, widget, bindings=None):
+        self._modal_stack.append((self.root, self.bindings));
+        self.bindings = {};
+        if not self.capture_control_keys:
+            self.bind("ctrl+c", self.stop);
+        for key, callback in (bindings or {}).items():
+            self.bind(key, callback);
+        self.set_root(widget);
+        return widget;
+
+    def pop_modal(self):
+        if not self._modal_stack:
+            return None;
+        closed = self.root;
+        root, bindings = self._modal_stack.pop();
+        self.bindings = bindings;
+        self.set_root(root);
+        return closed;
+
+
+    def add_idle(self, callback):
+        if callback not in self._idle_callbacks:
+            self._idle_callbacks.append(callback);
+        return callback;
+
+    def remove_idle(self, callback):
+        try:
+            self._idle_callbacks.remove(callback);
+            return True;
+        except ValueError:
+            return False;
+
+    def bind(self, key, callback):
+        self.bindings[normalize_key_spec(key)] = callback;
+        return callback;
+
+    def unbind(self, key):
+        return self.bindings.pop(normalize_key_spec(key), None);
+
+    def stop(self, *args, **kwargs):
+        self.running = False;
+        return True;
+
+    def _renderable(self):
+        if not self._modal_stack:
+            return self.root;
+        renderable = self._modal_stack[0][0];
+        for saved_root, _saved_bindings in self._modal_stack[1:]:
+            renderable = ModalOverlay(renderable, saved_root);
+        return ModalOverlay(renderable, self.root);
+
+    def invalidate(self):
+        if self.live is not None and self.root is not None:
+            self.live.update(self._renderable(), refresh=True);
+        return None;
+
+    def dispatch(self, event):
+        if isinstance(event, ResizeEvent):
+            return True;
+        if not isinstance(event, KeyEvent):
+            return False;
+        current = self.focus.current;
+        if event.key == Key.TAB:
+            # Focused widgets get first refusal on Tab.  This is required by
+            # composite editors such as CommandWindow READ mode, where Tab
+            # navigates between fields inside the widget.  If the widget does
+            # not consume it, Tab keeps its normal application focus behavior.
+            if current is not None and current.handle_event(event):
+                return True;
+            self.focus.move(-1 if event.shift else 1);
+            return True;
+        if current is not None and current.handle_event(event):
+            return True;
+        if self.root is not None and self.root is not current and self.root.handle_event(event):
+            return True;
+        callback = self.bindings.get(event.name);
+        if callback is not None:
+            callback();
+            return True;
+        return False;
+
+    def _poll_resize(self):
+        size = self.console.size;
+        if size != self.last_size:
+            self.last_size = size;
+            return ResizeEvent(size.width, size.height);
+        return None;
+
+    def run(self):
+        if self.root is None:
+            raise RuntimeError("Application has no root widget");
+        if not self.console.is_terminal:
+            raise RuntimeError("sumTUI interactive mode requires a terminal");
+        self.running = True;
+        backend = create_input_backend(capture_control_keys=self.capture_control_keys);
+        with backend:
+            with Live(self._renderable(), console=self.console, screen=True, auto_refresh=False, transient=False) as live:
+                self.live = live;
+                live.refresh();
+                while self.running:
+                    events = backend.read_events(0.05);
+                    resize = self._poll_resize();
+                    if resize is not None:
+                        events.append(resize);
+                    dirty = False;
+                    for event in events:
+                        dirty = self.dispatch(event) or dirty;
+                    for callback in list(self._idle_callbacks):
+                        try:
+                            dirty = bool(callback()) or dirty;
+                        except Exception:
+                            self.remove_idle(callback);
+                            raise;
+                    if dirty:
+                        live.update(self._renderable(), refresh=True);
+                self.live = None;
+        return 0;
