@@ -24,6 +24,7 @@
 #warnings.filterwarnings("ignore", category=UserWarning);
 import io;
 import os;
+import subprocess;
 import sys;
 import tempfile;
 import unittest;
@@ -1226,3 +1227,68 @@ class ThemeEditorTests(unittest.TestCase):
         self.assertEqual(app.current_name, "Ralesk's MC");
         self.assertIn("syntax_keyword", [row.value for row in app.role_list.rows]);
         self.assertIn("editor_gutter", [row.value for row in app.role_list.rows]);
+
+
+class SumDialogTests(unittest.TestCase):
+    def test_dialog_result_properties(self):
+        from sumtui.dialogs import DialogResult;
+        accepted = DialogResult("yes", 0);
+        self.assertTrue(accepted.accepted);
+        self.assertFalse(accepted.cancelled);
+        cancelled = DialogResult("", 1);
+        self.assertTrue(cancelled.cancelled);
+
+    def test_sumdialog_entry_uses_shared_input_engine(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        output = io.StringIO();
+        with patch.object(dialog_tool, "read_entry", return_value=DialogResult("Ada", 0)) as mocked:
+            with redirect_stdout(output):
+                status = dialog_tool.main(["--entry", "--text", "Name:", "--theme", "DOS", "--width", "20"]);
+        self.assertEqual(status, 0);
+        self.assertEqual(output.getvalue(), "Ada\n");
+        kwargs = mocked.call_args.kwargs;
+        self.assertEqual(kwargs["text"], "Name:");
+        self.assertEqual(kwargs["theme"], "DOS");
+        self.assertEqual(kwargs["width"], 20);
+
+    def test_sumdialog_question_exit_status(self):
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        with patch.object(dialog_tool, "ask_question", return_value=DialogResult("", 1)):
+            status = dialog_tool.main(["--question", "--text", "Continue?"]);
+        self.assertEqual(status, 1);
+
+    def test_sumdialog_checklist_writes_separator_output(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        output = io.StringIO();
+        with patch.object(dialog_tool, "choose_checklist", return_value=DialogResult("Python|SQL", 0)) as mocked:
+            with redirect_stdout(output):
+                status = dialog_tool.main(["--checklist", "--separator", "|", "Python", "SQL", "Bash"]);
+        self.assertEqual(status, 0);
+        self.assertEqual(output.getvalue(), "Python|SQL\n");
+        self.assertEqual(mocked.call_args.kwargs["separator"], "|");
+
+    def test_sumdialog_progress_delegates_to_sumprogress_engine(self):
+        from unittest.mock import patch;
+        from sumtui.tools import dialog as dialog_tool;
+        with patch.object(dialog_tool, "progress_main", return_value=0) as mocked:
+            status = dialog_tool.main(["--progress", "--label", "Job"]);
+        self.assertEqual(status, 0);
+        self.assertIn("--percent-input", mocked.call_args.args[0]);
+        self.assertIn("Job", mocked.call_args.args[0]);
+
+    def test_sumdialog_bash_examples_are_syntax_valid(self):
+        root = Path(__file__).resolve().parents[1];
+        scripts = sorted((root / "examples" / "bash" / "sumdialog").glob("*.sh"));
+        scripts.append(root / "examples" / "bash" / "sumdialog_examples.sh");
+        self.assertGreaterEqual(len(scripts), 21);
+        for script in scripts:
+            completed = subprocess.run(["bash", "-n", str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False);
+            self.assertEqual(completed.returncode, 0, msg="{}: {}".format(script.name, completed.stderr));

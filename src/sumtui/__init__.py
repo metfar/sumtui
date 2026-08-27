@@ -22,12 +22,13 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.5.11";
+__version__ = "0.5.13";
 
 from .app import Application, FocusManager;
 from .events import Key, KeyEvent, ResizeEvent, normalize_key_spec;
 from .inputmask import InputMask, parse_input_mask;
 from .keybindings import KeyBindingAction, KeyBindingManager, format_key_spec;
+from .dialogs import DialogResult, ask_question, choose_checklist, choose_file, choose_list, choose_radio, read_entry, show_message, show_text;
 from .prompt import InputResult, InputSpec, read_input;
 from .syntax import EditorSyntaxHighlighter, ExtendedBasicLexer, GenericLogLexer, SumXLexer, SYNTAX_MODES, detect_mode, mode_label, normalize_mode, semantic_role;
 from .theme import BUILTIN_THEME_NAMES, C64_COLORS, DEFAULT_THEME, DOS_COLORS, MSX_COLORS, SPECTRUM_COLORS, THEME_EDIT_ROLES, THEMES, Theme, available_theme_names, load_theme_file, load_user_themes, make_theme, refresh_user_themes, save_user_theme, theme_from_dict, theme_to_dict, user_theme_dir;
@@ -37,6 +38,7 @@ __all__ = [
     "__version__", "Application", "FocusManager",
     "Key", "KeyEvent", "ResizeEvent", "normalize_key_spec",
     "InputMask", "parse_input_mask", "InputSpec", "InputResult", "read_input",
+    "DialogResult", "show_message", "ask_question", "read_entry", "choose_file", "choose_list", "choose_radio", "choose_checklist", "show_text",
     "KeyBindingAction", "KeyBindingManager", "format_key_spec",
     "EditorSyntaxHighlighter", "ExtendedBasicLexer", "GenericLogLexer", "SumXLexer", "SYNTAX_MODES",
     "detect_mode", "mode_label", "normalize_mode", "semantic_role",

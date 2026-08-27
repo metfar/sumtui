@@ -1,4 +1,4 @@
-# sumTUI 0.5.11
+# sumTUI 0.5.13
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -65,7 +65,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.11
+## Widgets in 0.5.13
 
 ### Structure and layout
 
@@ -419,7 +419,6 @@ Syntax highlighting is enabled by default and uses `Auto` detection from filenam
 Markdown is treated as editable source rather than rendered documentation. Headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. In particular, the project closing line remains visible/editable as HTML source:
 
 ```html
-<p align=center><b>- oOo -</b></p>
 ```
 
 A rendered Markdown/document preview and possible sumDOC integration are intentionally **not** part of this lightweight editor stage; those remain suitable for a future optional `sumedit advanced`.
@@ -509,6 +508,8 @@ username=$(suminput "User: ")
 
 When `--dialog` is used as a standalone shell command, sumTUI uses the terminal's alternate screen so the previous shell screen is restored exactly when the dialog disappears.  When the same dialog components are used inside an existing sumTUI application, they composite over the live application background.
 
+`suminput` remains the compact input-oriented frontend. `sumdialog --entry` uses the same `InputSpec` / `read_input` engine, so PICTURE, hidden/masked input, KEYS, defaults, timeouts, WIDTH and HEIGHT do not fork into a second implementation.
+
 Exit status conventions are:
 
 ```text
@@ -528,9 +529,99 @@ bash examples/bash/eol_convert.sh README.md
 
 The equivalent Python-side positioned-window example is `examples/demo_positioned_dialog.py`. This keeps the documentation practical across Python and shell usage rather than leaving cross-environment behavior as prose only.
 
+## `sumdialog`: Zenity-style dialogs for the terminal
+
+`sumdialog` is the unified console-dialog frontend. The interface is drawn on the controlling terminal while stdout is kept for returned values, so it works naturally in shell command substitution. It reuses the same sumTUI widgets and input engine rather than maintaining a parallel dialog toolkit.
+
+Message and confirmation dialogs:
+
+```bash
+sumdialog --info --title "Finished" --text "Backup completed"
+sumdialog --warning --text "The destination already exists"
+sumdialog --error --text "Could not open database"
+
+if sumdialog --question --text "Continue?"; then
+    echo "yes"
+else
+    echo "no"
+fi
+```
+
+Entry mode is the dialog form of `suminput`:
+
+```bash
+name=$(sumdialog --entry --text "Name:")
+password=$(sumdialog --entry --hidden --text "Password:")
+phone=$(sumdialog --entry --picture "(999) 999-9999" --width 14 --text "Phone:")
+answer=$(sumdialog --entry --keys YN --default N --timeout N,10 --text "Continue?")
+```
+
+File, directory and list selection:
+
+```bash
+file=$(sumdialog --file-selection --title "Open")
+dir=$(sumdialog --directory-selection --title "Directory")
+language=$(sumdialog --list --text "Language" Python BASIC C R sumX)
+theme=$(sumdialog --radiolist --default "Ralesk's MC" "Ralesk's MC" DOS XBASE Light)
+features=$(sumdialog --checklist --separator '|' --selected Python Python BASIC SQL Bash)
+```
+
+Text viewers accept a filename or piped stdin:
+
+```bash
+sumdialog --text-info --filename CHANGELOG.md
+printf '# Report\n\nDone.\n' | sumdialog --markdown --title "Report"
+```
+
+Progress delegates to the same engine as `sumprogress`:
+
+```bash
+printf '10\n50\n100\n' | sumdialog --progress --label Job
+cat image.iso | sumdialog --progress --total 4.7G --label Copy > image-copy.iso
+```
+
+`sumdialog` uses the same exit statuses as `suminput`: `0` accepted/Yes, `1` cancelled/No/Escape, `2` usage error, `3` timeout, and `4` controlling-terminal/runtime error. `sumprogress` and `suminput` remain convenient short commands over their respective services.
+
+The reusable Python API is also public:
+
+```python
+from sumtui import ask_question, read_entry, show_message;
+
+show_message("Ready", title="Example", theme="Ralesk's MC");
+if ask_question("Name the result?").accepted:
+    result = read_entry("Name:", title="Result");
+    print(result.value);
+```
+
+See `examples/demo_sumdialog.py` and the complete Bash suite under `examples/bash/sumdialog/`. The dispatcher makes each example easy to launch:
+
+```bash
+bash examples/bash/sumdialog_examples.sh list
+bash examples/bash/sumdialog_examples.sh info
+bash examples/bash/sumdialog_examples.sh question
+bash examples/bash/sumdialog_examples.sh entry
+bash examples/bash/sumdialog_examples.sh entry-secret
+bash examples/bash/sumdialog_examples.sh entry-picture
+bash examples/bash/sumdialog_examples.sh entry-keys-timeout
+bash examples/bash/sumdialog_examples.sh entry-multiline
+bash examples/bash/sumdialog_examples.sh file
+bash examples/bash/sumdialog_examples.sh directory
+bash examples/bash/sumdialog_examples.sh listbox
+bash examples/bash/sumdialog_examples.sh radio
+bash examples/bash/sumdialog_examples.sh checklist
+bash examples/bash/sumdialog_examples.sh text
+bash examples/bash/sumdialog_examples.sh markdown
+bash examples/bash/sumdialog_examples.sh appearance
+bash examples/bash/sumdialog_examples.sh progress-percent
+bash examples/bash/sumdialog_examples.sh progress-bytes
+bash examples/bash/sumdialog_examples.sh exit-status
+```
+
+There is one focused `.sh` file per current mode/behavior, including hidden and masked entry, PICTURE and overflow, key filtering, default/timeout handling, multiline input, initial file paths, repeated checklist selections and custom separators, filename/stdin viewers, custom labels/themes/sizing, percentage progress, and byte-pass-through progress. `examples/bash/sumdialog/README.md` is the full coverage index.
+
 ## Small tools, fewer mandatory external utilities
 
-sumTUI intentionally exposes small reusable capabilities as tools when the implementation already exists inside the toolkit.  `sumedit`, `sumeol`, `suminput`, and `sumtheme` are examples: the goal is not to replace every Unix utility, but to keep basic educational/editor/input workflows usable without making unrelated external packages mandatory.  Optional system integrations may improve behavior, while the core path remains available from sumTUI itself.
+sumTUI intentionally exposes small reusable capabilities as tools when the implementation already exists inside the toolkit.  `sumedit`, `sumeol`, `suminput`, `sumdialog`, `sumprogress`, and `sumtheme` are examples: the goal is not to replace every Unix utility, but to keep basic educational/editor/input/dialog workflows usable without making unrelated external packages mandatory.  Optional system integrations may improve behavior, while the core path remains available from sumTUI itself.
 
 ## Theme editor and user themes
 
@@ -554,6 +645,5 @@ embedded = theme_to_dict(theme);
 ```
 
 See `examples/demo_theme_serialization.py` and `examples/bash/theme_editor.sh`.
-
 
 <p align=center><b>- oOo -</b></p>

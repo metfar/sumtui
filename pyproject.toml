@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sumtui"
-version = "0.5.11"
+version = "0.5.13"
 description = "A tiny, portable and retro-flavored TUI toolkit for Python and Rich."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -26,6 +26,7 @@ sumedit = "sumtui.tools.edit:main"
 sumeol = "sumtui.tools.eolconv:main"
 suminput = "sumtui.tools.input:main"
 sumtheme = "sumtui.tools.themeedit:main"
+sumdialog = "sumtui.tools.dialog:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

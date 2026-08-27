@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.13
+
+- Added a complete runnable Bash example suite for every current `sumdialog` mode: info, warning, error, question, entry, file/directory selection, list, radiolist, checklist, text-info, Markdown, and progress.
+- Added focused Bash examples for entry masks/secrets, PICTURE, key filtering/default/timeout, multiline input, custom labels/sizing/themes, initial paths, checklist separators/preselection, percentage progress, and byte-pass-through progress.
+- Reworked `examples/bash/sumdialog_examples.sh` into a small dispatcher so any demo can be launched by name, with `list` showing all available examples.
+- Added `examples/bash/sumdialog/README.md` as an executable-oriented catalog and documented shell result/status conventions.
+- Added regression checks that every documented `sumdialog` Bash script passes `bash -n`, and updated README references.
+
+## 0.5.12
+
+- Added `sumdialog`, a Zenity-style console dialog frontend built from existing sumTUI widgets. Initial modes are `--info`, `--warning`, `--error`, `--question`, `--entry`, `--file-selection`, `--directory-selection`, `--list`, `--radiolist`, `--checklist`, `--text-info`, `--markdown`, and `--progress`.
+- Dialog UI uses the controlling terminal while stdout is reserved for returned values, preserving clean Bash command substitution and pipeline behavior. Exit statuses are shared with `suminput`: 0 accepted/Yes, 1 cancelled/No/Escape, 2 usage, 3 timeout, and 4 terminal/runtime error.
+- `sumdialog --entry` reuses the existing `InputSpec` / `read_input` engine, including hidden/masked input, KEYS, PICTURE, WIDTH/HEIGHT, defaults and timeouts; `suminput` remains the compact compatibility frontend rather than becoming a separate implementation.
+- `sumdialog --progress` delegates to the existing `sumprogress` engine, so percentage-input and pv-like byte pass-through behavior stay centralized.
+- Added public Python dialog helpers (`DialogResult`, `show_message`, `ask_question`, `read_entry`, `choose_file`, `choose_list`, `choose_radio`, `choose_checklist`, `show_text`).
+- Added Python/Bash examples, README documentation, console entry point, and regression tests for CLI dispatch, returned stdout values, question status, checklist separators, and progress delegation.
+
 ## 0.5.11
 
 - Added `sumtheme`, a reusable interactive theme editor for sumTUI. It previews UI and syntax roles, lists built-in/user themes, keeps built-ins read-only, clones them into editable user themes, edits semantic Rich style roles, saves themes, reloads them, and deletes user themes.
