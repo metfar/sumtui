@@ -58,6 +58,7 @@ class InputSpec:
     timeout: float = None;
     dialog: bool = False;
     title: str = "Input";
+    theme: object = None;
 
     def normalize(self):
         self.prompt = str(self.prompt or "");
@@ -283,7 +284,7 @@ def read_dialog(spec, reader=None, writer=None):
         with controlling_terminal() as terminal:
             return read_dialog(spec, reader=terminal[0], writer=terminal[1]);
     console = Console(file=writer, force_terminal=True);
-    app = Application("suminput", theme="DOS", console=console);
+    app = Application("suminput", theme=(spec.theme or "DOS"), console=console);
     state = {"result": InputResult("", CANCELLED), "done": False};
     deadline = None if spec.timeout is None else time.monotonic() + spec.timeout;
     status = Label("");

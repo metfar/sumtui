@@ -1208,3 +1208,21 @@ class EditorWrappingTests(unittest.TestCase):
         self.assertEqual(editor.text, "123456789A\nB");
         self.assertTrue(editor.undo());
         self.assertEqual(editor.text, "123456789");
+
+class ThemeEditorTests(unittest.TestCase):
+    def test_user_theme_roundtrip_and_registration(self):
+        from sumtui import THEMES, load_theme_file, make_theme, save_user_theme;
+        with tempfile.TemporaryDirectory() as tempdir:
+            custom = make_theme("Ralesk's MC").copy(name="Teaching MC", style_overrides=(("syntax_keyword", "bold #abcdef"),));
+            path = save_user_theme(custom, path=tempdir);
+            loaded = load_theme_file(path);
+            self.assertEqual(loaded.name, "Teaching MC");
+            self.assertEqual(loaded.style("syntax_keyword"), "bold #abcdef");
+            THEMES.pop("Teaching MC", None);
+
+    def test_theme_preview_tool_lists_roles(self):
+        from sumtui.tools.themeedit import ThemeEditorApp;
+        app = ThemeEditorApp(theme="Ralesk's MC");
+        self.assertEqual(app.current_name, "Ralesk's MC");
+        self.assertIn("syntax_keyword", [row.value for row in app.role_list.rows]);
+        self.assertIn("editor_gutter", [row.value for row in app.role_list.rows]);

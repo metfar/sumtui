@@ -23,6 +23,9 @@
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
 from dataclasses import dataclass, replace;
+import json;
+import os;
+from pathlib import Path;
 
 
 def _hex(color):
@@ -236,6 +239,10 @@ class Theme:
 
 def make_theme(name="dark"):
     key = str(name).lower();
+    table = globals().get("THEMES", {});
+    for theme_name, theme in table.items():
+        if str(theme_name).casefold() == str(name).casefold():
+            return theme;
     if key in ("zx", "spectrum", "sinclair"):
         return Theme("ZX", (0, 0, 0), (0, 0, 90), (0, 255, 255), (255, 255, 255), (0, 205, 205), (255, 255, 0), (0, 0, 205), (0, 0, 0), (255, 80, 80), (255, 255, 0), (0, 0, 205), (255, 255, 255), (255, 255, 0), tuple(SPECTRUM_COLORS));
     if key in ("dos", "pc", "turbo"):
@@ -308,5 +315,153 @@ THEMES = {
     "Dark": make_theme("Dark"),
     "Light": make_theme("Light"),
 };
+
+BUILTIN_THEME_NAMES = tuple(THEMES.keys());
+THEME_COLOR_FIELDS = (
+    "bg", "panel", "line", "text", "muted", "button", "button_alt", "button_text",
+    "error", "cursor", "selection_bg", "selection_text", "title", "viewer_bg",
+    "viewer_text", "command_bg", "command_text", "command_prompt",
+);
+THEME_EDIT_ROLES = (
+    "screen", "panel", "border", "text", "muted", "title", "selection", "selection_unfocused",
+    "function_key", "function_label", "status", "error", "cursor", "table_header", "dialog",
+    "input", "input_focus", "input_border", "cursor_cell", "button_control", "button_focus",
+    "control_focus", "disabled", "progress_done", "progress_empty", "slider_fill", "slider_empty",
+    "slider_handle", "slider_handle_focus", "menu_bar", "menu_title", "menu_title_active", "menu",
+    "menu_selection", "menu_border", "scrollbar_track", "scrollbar_thumb", "scrollbar_thumb_focus",
+    "splitter", "splitter_focus", "editor_gutter", "editor_whitespace", "editor_space", "editor_tab",
+    "editor_eol", "editor_control", "syntax_keyword", "syntax_function", "syntax_builtin",
+    "syntax_variable", "syntax_type", "syntax_string", "syntax_number", "syntax_comment",
+    "syntax_operator", "syntax_constant", "syntax_heading", "syntax_strong", "syntax_emphasis",
+    "syntax_deleted", "syntax_tag", "syntax_markup", "syntax_attribute", "syntax_label",
+    "syntax_error", "viewer", "command", "command_prompt", "command_echo", "command_info",
+    "command_error", "command_field",
+);
+
+
+def _parse_color(value):
+    if isinstance(value, (tuple, list)) and len(value) == 3:
+        return tuple(max(0, min(255, int(item))) for item in value);
+    text = str(value or "").strip();
+    if text.startswith("#") and len(text) == 7:
+        return tuple(int(text[index:index + 2], 16) for index in (1, 3, 5));
+    raise ValueError("Invalid RGB color: {}".format(value));
+
+
+def user_theme_dir(path=None):
+    if path is not None:
+        return Path(path).expanduser();
+    base = os.environ.get("XDG_CONFIG_HOME");
+    if base:
+        return Path(base).expanduser() / "sumtui" / "themes";
+    return Path("~/.config/sumtui/themes").expanduser();
+
+
+def theme_to_dict(theme):
+    if isinstance(theme, str):
+        theme = make_theme(theme);
+    return {
+        "format": 1,
+        "name": theme.name,
+        "colors": {name: _hex(getattr(theme, name)) for name in THEME_COLOR_FIELDS},
+        "palette": [_hex(color) for color in tuple(theme.palette or ())],
+        "styles": {role: style for role, style in tuple(theme.style_overrides or ())},
+    };
+
+
+def theme_from_dict(data, fallback="Dark"):
+    if not isinstance(data, dict):
+        raise ValueError("Theme data must be an object");
+    base_name = data.get("base") or fallback;
+    base = make_theme(base_name);
+    name = str(data.get("name") or "Custom");
+    changes = {"name": name};
+    colors = data.get("colors") or {};
+    for field in THEME_COLOR_FIELDS:
+        if field in colors:
+            changes[field] = _parse_color(colors[field]);
+    if data.get("palette"):
+        changes["palette"] = tuple(_parse_color(value) for value in data.get("palette") or []);
+    styles = dict(tuple(base.style_overrides or ()));
+    for role, style in (data.get("styles") or {}).items():
+        if style is None or str(style).strip() == "":
+            styles.pop(str(role), None);
+        else:
+            styles[str(role)] = str(style);
+    changes["style_overrides"] = tuple(styles.items());
+    return base.copy(**changes);
+
+
+def save_user_theme(theme, path=None):
+    if isinstance(theme, str):
+        theme = make_theme(theme);
+    directory = user_theme_dir() if path is None else Path(path).expanduser();
+    if directory.suffix.lower() == ".json":
+        target = directory;
+    else:
+        safe = "".join(char.lower() if char.isalnum() else "-" for char in theme.name).strip("-") or "theme";
+        target = directory / (safe + ".json");
+    target.parent.mkdir(parents=True, exist_ok=True);
+    temporary = target.with_name(target.name + ".tmp");
+    temporary.write_text(json.dumps(theme_to_dict(theme), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8");
+    temporary.replace(target);
+    return target;
+
+
+def load_theme_file(path):
+    data = json.loads(Path(path).expanduser().read_text(encoding="utf-8"));
+    return theme_from_dict(data);
+
+
+def load_user_themes(path=None, register=True):
+    directory = user_theme_dir(path);
+    loaded = {};
+    if not directory.exists():
+        return loaded;
+    pending = list(sorted(directory.glob("*.json")));
+    # Multiple passes allow one user theme to derive from another already loaded theme.
+    for _pass in range(max(1, len(pending) + 1)):
+        if not pending:
+            break;
+        remaining = [];
+        progressed = False;
+        for file_path in pending:
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"));
+                base_name = data.get("base");
+                if base_name and str(base_name).casefold() not in {str(name).casefold() for name in THEMES}:
+                    remaining.append(file_path);
+                    continue;
+                theme = theme_from_dict(data);
+                loaded[theme.name] = theme;
+                if register:
+                    THEMES[theme.name] = theme;
+                progressed = True;
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                continue;
+        if not progressed:
+            break;
+        pending = remaining;
+    return loaded;
+
+
+def refresh_user_themes(path=None):
+    for name in list(THEMES):
+        if name not in BUILTIN_THEME_NAMES:
+            THEMES.pop(name, None);
+    return load_user_themes(path=path, register=True);
+
+
+def available_theme_names():
+    preferred = ("Ralesk's MC", "Dark", "Light", "DOS", "RAR", "DBASE", "FOXPRO", "XBASE", "C64", "MSX", "ZX");
+    names = [name for name in preferred if name in THEMES];
+    names.extend(name for name in THEMES if name not in names);
+    return tuple(names);
+
+
+try:
+    load_user_themes();
+except Exception:
+    pass;
 
 DEFAULT_THEME = THEMES["Dark"];

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.11
+
+- Added `sumtheme`, a reusable interactive theme editor for sumTUI. It previews UI and syntax roles, lists built-in/user themes, keeps built-ins read-only, clones them into editable user themes, edits semantic Rich style roles, saves themes, reloads them, and deletes user themes.
+- Added persistent user-theme discovery under `$XDG_CONFIG_HOME/sumtui/themes` or `~/.config/sumtui/themes`; user themes are available automatically to `sumedit`, sumX, and other applications using `make_theme()` / `THEMES`.
+- Added public theme serialization APIs (`theme_to_dict`, `theme_from_dict`, `save_user_theme`, `load_theme_file`, `refresh_user_themes`) so applications can carry an effective theme without depending on a local theme file.
+- `sumedit -> Options -> Theme` now includes discovered user themes as well as the built-in palettes.
+- `InputSpec` can carry an explicit theme for modal input dialogs, allowing generated/runtime applications to keep their own visual identity.
+- Added `sumtheme` as a console script plus Python/Bash examples and regression tests for user-theme round-tripping and the theme editor role registry.
+
 ## 0.5.10
 
 - Fixed shifted vertical/page selection on a broader range of real terminals. POSIX input now reads the active terminfo capabilities (`kri`, `kind`, `kPRV`, `kNXT`, shifted Home/End/Left/Right) and feeds those sequences into the decoder, while retaining xterm and rxvt/urxvt fallback encodings.

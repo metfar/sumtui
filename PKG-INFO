@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.5.10
+Version: 0.5.11
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -548,6 +548,30 @@ The equivalent Python-side positioned-window example is `examples/demo_positione
 
 ## Small tools, fewer mandatory external utilities
 
-sumTUI intentionally exposes small reusable capabilities as tools when the implementation already exists inside the toolkit.  `sumedit`, `sumeol`, and `suminput` are examples: the goal is not to replace every Unix utility, but to keep basic educational/editor/input workflows usable without making unrelated external packages mandatory.  Optional system integrations may improve behavior, while the core path remains available from sumTUI itself.
+sumTUI intentionally exposes small reusable capabilities as tools when the implementation already exists inside the toolkit.  `sumedit`, `sumeol`, `suminput`, and `sumtheme` are examples: the goal is not to replace every Unix utility, but to keep basic educational/editor/input workflows usable without making unrelated external packages mandatory.  Optional system integrations may improve behavior, while the core path remains available from sumTUI itself.
+
+## Theme editor and user themes
+
+`sumtheme` opens the generic sumTUI theme editor. Built-in themes are intentionally read-only: clone one first, then edit semantic roles such as `syntax_keyword`, `syntax_string`, `editor_gutter`, `menu`, `selection`, `dialog`, and `status` while a live preview uses the same theme engine as normal applications.
+
+```bash
+sumtheme
+sumtheme --theme "Ralesk's MC"
+sumtheme --list
+sumtheme --dir
+```
+
+User themes are stored as JSON under `$XDG_CONFIG_HOME/sumtui/themes` (or `~/.config/sumtui/themes`). They are discovered automatically on later starts and appear in `sumedit -> Options -> Theme` and in other clients of the public theme registry. The public `theme_to_dict()` / `theme_from_dict()` APIs serialize an **effective** theme, which is useful when an application must carry its palette without depending on the user's local theme files.
+
+```python
+from sumtui import make_theme, save_user_theme, theme_to_dict;
+
+theme = make_theme("Ralesk's MC").copy(name="Teaching MC");
+path = save_user_theme(theme);
+embedded = theme_to_dict(theme);
+```
+
+See `examples/demo_theme_serialization.py` and `examples/bash/theme_editor.sh`.
+
 
 <p align=center><b>- oOo -</b></p>

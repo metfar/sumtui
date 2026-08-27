@@ -37,7 +37,7 @@ from ..document import TextDocument;
 from ..events import Key;
 from ..keybindings import KeyBindingManager, format_key_spec;
 from ..syntax import SYNTAX_MODES, normalize_mode;
-from ..theme import THEMES;
+from ..theme import THEMES, available_theme_names, refresh_user_themes;
 from ..widgets import Button, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, VBox, Widget;
 
 
@@ -302,9 +302,10 @@ class EditApp:
             MenuItem("4", lambda: self.set_tab_width(4), radio=lambda: self.editor.tab_size == 4),
             MenuItem("8", lambda: self.set_tab_width(8), radio=lambda: self.editor.tab_size == 8),
         ]);
+        refresh_user_themes();
         theme_menu = Menu("Theme", [
             MenuItem(name, lambda selected=name: self.set_theme(selected), radio=lambda selected=name: self.app.theme.name.lower() == selected.lower())
-            for name in ("Ralesk's MC", "Dark", "Light", "DOS", "RAR", "DBASE", "FOXPRO", "XBASE", "C64", "MSX", "ZX") if name in THEMES
+            for name in available_theme_names() if name in THEMES
         ]);
         wrapping_menu = Menu("Line wrapping", [
             MenuItem("Auto (-1)", lambda: self.set_line_wrapping(-1), radio=lambda: self.editor.line_wrapping == -1),
