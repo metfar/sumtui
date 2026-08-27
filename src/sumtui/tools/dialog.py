@@ -23,14 +23,148 @@
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
 import argparse;
+import json;
 from pathlib import Path;
+import re;
 import sys;
 
 from .. import __version__;
-from ..dialogs import ask_question, choose_checklist, choose_file, choose_list, choose_radio, read_entry, show_message, show_text;
+from ..dialogs import DialogResult, FormFieldSpec, MenuItemSpec, ask_question, choose_checklist, choose_file, choose_list, choose_menu, choose_radio, read_entry, read_form, show_message, show_progress_demo, show_text;
+from ..dialogspec import DialogSpec, load_dialog_spec, parse_dialog_spec;
 from ..progress_cli import main as progress_main;
 from ..prompt import TERMINAL_ERROR;
 from .input import _parse_timeout;
+
+
+_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$");
+
+
+class _AddFormField(argparse.Action):
+    def __init__(self, option_strings, dest, nargs=None, kind="entry", **kwargs):
+        self.kind = str(kind);
+        super().__init__(option_strings, dest, nargs=nargs, **kwargs);
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        entries = list(getattr(namespace, self.dest, None) or []);
+        values = list(values) if isinstance(values, (tuple, list)) else [values];
+        entries.append((self.kind, values));
+        setattr(namespace, self.dest, entries);
+
+
+class _AddMenuButton(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        entries = list(getattr(namespace, self.dest, None) or []);
+        values = list(values) if isinstance(values, (tuple, list)) else [values];
+        entries.append(MenuItemSpec(value=str(values[0]), label=str(values[1])));
+        setattr(namespace, self.dest, entries);
+
+
+class _AddMenuSeparator(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        entries = list(getattr(namespace, self.dest, None) or []);
+        entries.append(MenuItemSpec(separator=True));
+        setattr(namespace, self.dest, entries);
+
+
+def _split_options(value):
+    return tuple(part for part in str(value or "").split("|") if part != "");
+
+
+def _field_assignment_map(values, option_name):
+    output = {};
+    for item in list(values or []):
+        text = str(item);
+        if "=" not in text:
+            raise ValueError("{} expects NAME=VALUE".format(option_name));
+        name, value = text.split("=", 1);
+        name = name.strip();
+        if not _VAR_RE.fullmatch(name):
+            raise ValueError("invalid form variable name: {}".format(name));
+        output[name] = value;
+    return output;
+
+
+def _form_specs(args):
+    defaults = _field_assignment_map(args.form_default, "--form-default");
+    required = set(str(name) for name in list(args.required or []));
+    for name in required:
+        if not _VAR_RE.fullmatch(name):
+            raise ValueError("invalid form variable name: {}".format(name));
+    specs = [];
+    seen = set();
+    for kind, values in list(args.form_fields or []):
+        if len(values) < 2:
+            raise ValueError("{} form field requires NAME and LABEL".format(kind));
+        name = str(values[0]);
+        label = str(values[1]);
+        if not _VAR_RE.fullmatch(name):
+            raise ValueError("invalid form variable name: {}".format(name));
+        if name in seen:
+            raise ValueError("duplicate form variable name: {}".format(name));
+        seen.add(name);
+        options = ();
+        if kind in ("combo", "radio", "list"):
+            if len(values) < 3:
+                raise ValueError("{} field {} requires a | separated option list".format(kind, name));
+            options = _split_options(values[2]);
+            if not options:
+                raise ValueError("{} field {} requires at least one option".format(kind, name));
+        default = defaults.get(name, "");
+        specs.append(FormFieldSpec(name=name, label=label, kind=kind, default=default, options=options, required=(name in required)));
+    unknown_defaults = sorted(set(defaults) - seen);
+    unknown_required = sorted(required - seen);
+    if unknown_defaults:
+        raise ValueError("--form-default references unknown field: {}".format(unknown_defaults[0]));
+    if unknown_required:
+        raise ValueError("--required references unknown field: {}".format(unknown_required[0]));
+    return specs;
+
+
+def _menu_specs(args):
+    specs = [item.normalize() for item in list(args.menu_entries or [])];
+    if not any(not item.separator for item in specs):
+        raise ValueError("--menu requires at least one --menu-button");
+    return specs;
+
+
+def _string_value(value):
+    if isinstance(value, bool):
+        return "true" if value else "false";
+    if value is None:
+        return "";
+    return str(value);
+
+
+def _shell_single_quote(value):
+    return "'" + _string_value(value).replace("'", "'\"'\"'") + "'";
+
+
+def _serialize_form(values, specs, output="shell", separator="\n"):
+    ordered = [(spec.name, values.get(spec.name)) for spec in specs];
+    if output == "shell":
+        return "\n".join("{}={}".format(name, _shell_single_quote(value)) for name, value in ordered) + "\n";
+    if output == "json":
+        return json.dumps({name: value for name, value in ordered}, ensure_ascii=False, indent=2) + "\n";
+    if output == "values":
+        return str(separator).join(_string_value(value) for _name, value in ordered) + "\n";
+    if output == "lines":
+        return "\n".join(_string_value(value) for _name, value in ordered) + "\n";
+    if output == "null":
+        return b"".join(name.encode("utf-8") + b"\0" + _string_value(value).encode("utf-8") + b"\0" for name, value in ordered);
+    raise ValueError("unknown form output: {}".format(output));
+
+
+def _write_form_result(values, specs, output, separator):
+    payload = _serialize_form(values, specs, output=output, separator=separator);
+    if isinstance(payload, bytes):
+        stream = getattr(sys.stdout, "buffer", None);
+        if stream is None:
+            raise RuntimeError("binary form output requires a binary-capable stdout");
+        stream.write(payload);
+        stream.flush();
+    else:
+        sys.stdout.write(payload);
+        sys.stdout.flush();
 
 
 def _parser():
@@ -39,7 +173,7 @@ def _parser():
         description="Console dialog helper built on sumTUI; stdout is reserved for returned values",
     );
     parser.add_argument("--version", action="version", version="sumdialog {}".format(__version__));
-    mode = parser.add_mutually_exclusive_group(required=True);
+    mode = parser.add_mutually_exclusive_group(required=False);
     mode.add_argument("--info", action="store_true", help="show an informational dialog");
     mode.add_argument("--warning", action="store_true", help="show a warning dialog");
     mode.add_argument("--error", action="store_true", help="show an error dialog");
@@ -53,7 +187,12 @@ def _parser():
     mode.add_argument("--text-info", action="store_true", help="show scrollable plain text");
     mode.add_argument("--markdown", action="store_true", help="show scrollable Markdown");
     mode.add_argument("--progress", action="store_true", help="read progress from stdin; compatible with sumprogress");
-    parser.add_argument("items", nargs="*", help="items used by --list/--radiolist/--checklist");
+    mode.add_argument("--forms", action="store_true", help="build a multi-field form and return its values");
+    mode.add_argument("--menu", action="store_true", help="show a retro vertical button menu and return the selected value");
+    mode.add_argument("--demo", action="store_true", help="open an interactive launcher demonstrating sumdialog modes");
+    mode.add_argument("--check", metavar="FILE", help="validate a declarative .sdlg file and exit");
+    mode.add_argument("--dump", metavar="FILE", help="parse a declarative .sdlg file and dump normalized JSON");
+    parser.add_argument("items", nargs="*", help="items used by list modes, or one declarative .sdlg file when no mode is given");
     parser.add_argument("--title", default=None, help="dialog title");
     parser.add_argument("--text", default="", help="message, prompt, or list description");
     parser.add_argument("--theme", default="DOS", help="sumTUI theme name");
@@ -61,8 +200,8 @@ def _parser():
     parser.add_argument("--height", type=int, default=None, help="dialog height; --entry uses it as input height");
     parser.add_argument("--timeout", metavar="[DEFAULT,]SECONDS", help="timeout in seconds; entry also accepts DEFAULT,SECONDS");
     parser.add_argument("--default", default="", help="default entry/list/radio value");
-    parser.add_argument("--ok-label", default=None, help="custom OK/Yes label for message/question dialogs");
-    parser.add_argument("--cancel-label", default=None, help="custom Cancel/No label for question dialogs");
+    parser.add_argument("--ok-label", default=None, help="custom OK/Yes label for message/question/form dialogs");
+    parser.add_argument("--cancel-label", default=None, help="custom Cancel/No label for question/form dialogs");
     parser.add_argument("--hidden", action="store_true", help="hide --entry input");
     parser.add_argument("--mask", nargs="?", const="*", help="visual echo mask for --entry; default: *");
     parser.add_argument("--keys", default="", help="accepted single-character set for --entry");
@@ -72,10 +211,25 @@ def _parser():
     parser.add_argument("--path", default=".", help="initial path for file/directory selection");
     parser.add_argument("--filename", help="file shown by --text-info or --markdown");
     parser.add_argument("--selected", action="append", default=[], help="preselect checklist item; may be repeated");
-    parser.add_argument("--separator", default="\n", help="checklist output separator; default newline");
+    parser.add_argument("--separator", default="\n", help="checklist/form output separator; default newline");
     parser.add_argument("--percent-input", action="store_true", help="with --progress, read percentage values from stdin");
     parser.add_argument("--total", help="with --progress, byte passthrough total such as 10M or 4.7G");
     parser.add_argument("--label", default=None, help="progress label");
+    parser.set_defaults(form_fields=[], menu_entries=[]);
+    parser.add_argument("--add-entry", dest="form_fields", action=_AddFormField, kind="entry", nargs=2, metavar=("NAME", "LABEL"), help="add a text field to --forms");
+    parser.add_argument("--add-password", dest="form_fields", action=_AddFormField, kind="password", nargs=2, metavar=("NAME", "LABEL"), help="add a password field to --forms");
+    parser.add_argument("--add-textarea", dest="form_fields", action=_AddFormField, kind="textarea", nargs=2, metavar=("NAME", "LABEL"), help="add a multiline field to --forms");
+    parser.add_argument("--add-checkbox", dest="form_fields", action=_AddFormField, kind="checkbox", nargs=2, metavar=("NAME", "LABEL"), help="add a checkbox field to --forms");
+    parser.add_argument("--add-combo", dest="form_fields", action=_AddFormField, kind="combo", nargs=3, metavar=("NAME", "LABEL", "A|B|C"), help="add a choice field to --forms");
+    parser.add_argument("--add-radio", dest="form_fields", action=_AddFormField, kind="radio", nargs=3, metavar=("NAME", "LABEL", "A|B|C"), help="add a radio group to --forms");
+    parser.add_argument("--add-list", dest="form_fields", action=_AddFormField, kind="list", nargs=3, metavar=("NAME", "LABEL", "A|B|C"), help="add a list field to --forms");
+    parser.add_argument("--add-file", dest="form_fields", action=_AddFormField, kind="file", nargs=2, metavar=("NAME", "LABEL"), help="add a file selector field to --forms");
+    parser.add_argument("--add-directory", dest="form_fields", action=_AddFormField, kind="directory", nargs=2, metavar=("NAME", "LABEL"), help="add a directory selector field to --forms");
+    parser.add_argument("--form-default", action="append", default=[], metavar="NAME=VALUE", help="set a default value for one --forms field; repeatable");
+    parser.add_argument("--required", action="append", default=[], metavar="NAME", help="mark one --forms field as required; repeatable");
+    parser.add_argument("--output", choices=("shell", "values", "lines", "json", "null"), default="shell", help="--forms output format; default shell");
+    parser.add_argument("--menu-button", dest="menu_entries", action=_AddMenuButton, nargs=2, metavar=("VALUE", "LABEL"), help="add one button to --menu; stdout receives VALUE");
+    parser.add_argument("--menu-separator", dest="menu_entries", action=_AddMenuSeparator, nargs=0, help="add a separator line to --menu");
     return parser;
 
 
@@ -97,13 +251,200 @@ def _mode_title(args, fallback):
     return str(args.title or fallback);
 
 
+def _load_spec_source(path=None):
+    if path not in (None, "", "-"):
+        return load_dialog_spec(path);
+    if sys.stdin.isatty():
+        raise ValueError("declarative input requires FILE, '-', or piped stdin");
+    return parse_dialog_spec(sys.stdin.read(), source="<stdin>");
+
+
+def _execute_spec(spec):
+    if spec.kind == "form":
+        result = read_form(
+            spec.fields,
+            title=spec.title or "Form",
+            text=spec.text,
+            theme=spec.theme,
+            width=(72 if spec.width is None else spec.width),
+            height=spec.height,
+            ok_label=spec.ok_label or "OK",
+            cancel_label=spec.cancel_label or "Cancel",
+            timeout=spec.timeout,
+        );
+        if result.accepted:
+            _write_form_result(result.value, spec.fields, spec.output, spec.separator);
+        return int(result.status);
+    if spec.kind == "menu":
+        result = choose_menu(
+            spec.menu_items,
+            title=spec.title or "MENU",
+            text=spec.text,
+            theme=spec.theme,
+            width=(48 if spec.width is None else spec.width),
+            height=spec.height,
+            timeout=spec.timeout,
+        );
+        if result.accepted:
+            _write_value(result.value);
+        return int(result.status);
+    raise ValueError("unsupported declarative dialog type: {}".format(spec.kind));
+
+
+def _show_demo_value(title, result, theme):
+    if result.accepted:
+        value = result.value;
+        if isinstance(value, dict):
+            value = json.dumps(value, ensure_ascii=False, indent=2);
+        show_text(str(value), title=title, theme=theme, width=68, height=16);
+    return result;
+
+
+def _retro_demo_menu(theme):
+    items = [
+        MenuItemSpec("enter", "Entrar datos"),
+        MenuItemSpec("list", "Listar datos"),
+        MenuItemSpec("search", "Buscar datos"),
+        MenuItemSpec("report", "Reporte"),
+        MenuItemSpec(separator=True),
+        MenuItemSpec("exit", "Salir"),
+    ];
+    return choose_menu(items, title="MENU", text="=====", theme=theme, width=44);
+
+
+def _run_demo(theme="DOS"):
+    launcher = [
+        MenuItemSpec("info", "Info"),
+        MenuItemSpec("warning", "Warning"),
+        MenuItemSpec("error", "Error"),
+        MenuItemSpec("question", "Question"),
+        MenuItemSpec(separator=True),
+        MenuItemSpec("entry", "Entry"),
+        MenuItemSpec("forms", "Forms"),
+        MenuItemSpec("list", "List"),
+        MenuItemSpec("radio", "Radio list"),
+        MenuItemSpec("check", "Checklist"),
+        MenuItemSpec(separator=True),
+        MenuItemSpec("text", "Text viewer"),
+        MenuItemSpec("markdown", "Markdown viewer"),
+        MenuItemSpec("progress", "Progress"),
+        MenuItemSpec("file", "File selection"),
+        MenuItemSpec("directory", "Directory selection"),
+        MenuItemSpec("retro", "Retro button MENU"),
+        MenuItemSpec(separator=True),
+        MenuItemSpec("exit", "Exit demo"),
+    ];
+    while True:
+        selected = choose_menu(launcher, title="sumdialog --demo", text="Choose a modality", theme=theme, width=54);
+        if not selected.accepted or selected.value == "exit":
+            return 0;
+        choice = selected.value;
+        if choice == "info":
+            show_message("Operation completed successfully.", title="Information", kind="info", theme=theme);
+        elif choice == "warning":
+            show_message("This is a warning example.", title="Warning", kind="warning", theme=theme);
+        elif choice == "error":
+            show_message("This is an error example.", title="Error", kind="error", theme=theme);
+        elif choice == "question":
+            result = ask_question("Continue with the demonstration?", title="Question", theme=theme);
+            show_message("Answer: {}".format("Yes" if result.accepted else "No"), title="Result", theme=theme);
+        elif choice == "entry":
+            result = read_entry("Description:", title="Entry", theme=theme, default="This is John's house");
+            _show_demo_value("Entry result", result, theme);
+        elif choice == "forms":
+            fields = [
+                FormFieldSpec("first_name", "First name", required=True),
+                FormFieldSpec("last_name", "Last name", required=True),
+                FormFieldSpec("born_date", "Born date", default="1985-02-28"),
+                FormFieldSpec("height", "Height", default="1.80"),
+            ];
+            result = read_form(fields, title="Personal information", text="Complete the data", theme=theme);
+            _show_demo_value("Form result", result, theme);
+        elif choice == "list":
+            _show_demo_value("List result", choose_list(["Python", "Bash", "C", "R", "sumX"], title="Language", theme=theme), theme);
+        elif choice == "radio":
+            _show_demo_value("Radio result", choose_radio(["Debug", "Release", "Teaching"], title="Profile", theme=theme), theme);
+        elif choice == "check":
+            _show_demo_value("Checklist result", choose_checklist(["Tests", "Docs", "Examples"], title="Features", theme=theme, separator="|"), theme);
+        elif choice == "text":
+            show_text("sumdialog can display plain text from strings, files, or stdin.\n\nPress Escape or Close to return.", title="Text info", theme=theme);
+        elif choice == "markdown":
+            show_text("# sumdialog\n\n- forms\n- menus\n- Bash output\n\n`sumdialog --demo`", title="Markdown", theme=theme, markdown=True);
+        elif choice == "progress":
+            show_progress_demo(title="Progress", text="Animated progress demo", theme=theme, duration=1.4);
+        elif choice == "file":
+            _show_demo_value("File result", choose_file(path=".", title="Open file", theme=theme), theme);
+        elif choice == "directory":
+            _show_demo_value("Directory result", choose_file(path=".", title="Select directory", theme=theme, directory=True), theme);
+        elif choice == "retro":
+            result = _retro_demo_menu(theme);
+            if result.accepted and result.value != "exit":
+                show_message("Selected action: {}".format(result.value), title="MENU result", theme=theme);
+    return 0;
+
+
+def _has_explicit_mode(args):
+    return any((
+        args.info, args.warning, args.error, args.question, args.entry,
+        args.file_selection, args.directory_selection, args.list, args.radiolist,
+        args.checklist, args.text_info, args.markdown, args.progress, args.forms,
+        args.menu, args.demo, args.check is not None, args.dump is not None,
+    ));
+
+
 def main(argv=None):
     parser = _parser();
     args = parser.parse_args(sys.argv[1:] if argv is None else list(argv));
     try:
+        if args.check is not None:
+            spec = _load_spec_source(args.check);
+            print("{}: OK ({})".format(spec.source, spec.kind));
+            return 0;
+        if args.dump is not None:
+            spec = _load_spec_source(args.dump);
+            print(json.dumps(spec.to_dict(), ensure_ascii=False, indent=2));
+            return 0;
+        if args.demo:
+            return int(_run_demo(args.theme));
+
+        if not _has_explicit_mode(args):
+            if len(args.items) > 1:
+                raise ValueError("declarative mode accepts at most one FILE");
+            path = args.items[0] if args.items else None;
+            return int(_execute_spec(_load_spec_source(path)));
+
         timeout, timeout_default = _parse_timeout(args.timeout, args.default);
         if timeout_default != "":
             args.default = timeout_default;
+        if args.forms:
+            specs = _form_specs(args);
+            result = read_form(
+                specs,
+                title=_mode_title(args, "Form"),
+                text=args.text,
+                theme=args.theme,
+                width=(72 if args.width is None else args.width),
+                height=args.height,
+                ok_label=args.ok_label or "OK",
+                cancel_label=args.cancel_label or "Cancel",
+                timeout=timeout,
+            );
+            if result.accepted:
+                _write_form_result(result.value, specs, args.output, args.separator);
+            return int(result.status);
+        if args.menu:
+            result = choose_menu(
+                _menu_specs(args),
+                title=_mode_title(args, "MENU"),
+                text=args.text,
+                theme=args.theme,
+                width=(48 if args.width is None else args.width),
+                height=args.height,
+                timeout=timeout,
+            );
+            if result.accepted:
+                _write_value(result.value);
+            return int(result.status);
         if args.progress:
             progress_args = [];
             if args.total:

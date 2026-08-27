@@ -14,6 +14,8 @@ Names:
   file, directory, listbox, radio, checklist
   text, markdown, appearance
   progress-percent, progress-bytes, exit-status
+  forms-personal, forms-components, forms-json, forms-shell-safety, forms-null
+  declarative-form, retro-menu, demo
 TXT
 }
 
@@ -42,5 +44,13 @@ case "$name" in
     progress-percent) exec bash "$base/18_progress_percent.sh" "$@" ;;
     progress-bytes) exec bash "$base/19_progress_bytes.sh" "$@" ;;
     exit-status) exec bash "$base/20_exit_status.sh" "$@" ;;
+    forms-personal) exec bash "$base/21_forms_personal_data.sh" "$@" ;;
+    forms-components) exec bash "$base/22_forms_components.sh" "$@" ;;
+    forms-json) exec bash "$base/23_forms_json.sh" "$@" ;;
+    forms-shell-safety) exec bash "$base/24_forms_shell_safety.sh" "$@" ;;
+    forms-null) exec bash "$base/25_forms_null.sh" "$@" ;;
+    declarative-form) exec bash "$base/26_declarative_form.sh" "$@" ;;
+    retro-menu) exec bash "$base/27_retro_menu.sh" "$@" ;;
+    demo) exec bash "$base/28_demo.sh" "$@" ;;
     *) usage >&2; exit 2 ;;
 esac

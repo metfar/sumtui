@@ -1,4 +1,4 @@
-# sumTUI 0.5.13
+# sumTUI 0.5.15
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -65,7 +65,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.13
+## Widgets in 0.5.15
 
 ### Structure and layout
 
@@ -566,6 +566,132 @@ theme=$(sumdialog --radiolist --default "Ralesk's MC" "Ralesk's MC" DOS XBASE Li
 features=$(sumdialog --checklist --separator '|' --selected Python Python BASIC SQL Bash)
 ```
 
+Multi-field forms are available through `--forms`. Field variable names are validated as shell identifiers, and `--output shell` always emits POSIX-safe single-quoted assignments. Apostrophes are escaped without changing the original data, so a value such as `This is John's house` is reconstructed naturally while strings such as `$(command)` remain literal data.
+
+```bash
+form_data="$(
+    sumdialog --forms \
+        --title "Personal information" \
+        --text "Please enter your personal data" \
+        --add-entry first_name "First name" \
+        --add-entry last_name "Last name" \
+        --add-entry born_date "Born date" \
+        --add-entry height "Height" \
+        --form-default born_date=1985-02-28 \
+        --required first_name \
+        --required last_name \
+        --ok-label "OK" \
+        --cancel-label "Cancel" \
+        --output shell
+)" || exit $?;
+
+eval "$form_data";
+printf 'NAME: %s %s\n' "$first_name" "$last_name";
+printf 'BORN DATE: %s\n' "$born_date";
+printf 'HEIGHT: %s\n' "$height";
+```
+
+Current form components are `--add-entry`, `--add-password`, `--add-textarea`, `--add-checkbox`, `--add-combo`, `--add-radio`, `--add-list`, `--add-file`, and `--add-directory`. Defaults use repeatable `--form-default NAME=VALUE`; required fields use repeatable `--required NAME`.
+
+Form output modes are:
+
+```text
+shell   shell assignments with validated names and safe single-quote escaping
+values  values joined with --separator
+lines   one natural value per line
+json    JSON object preserving booleans
+null    name\0value\0 pairs for Bash/process-substitution transport without eval
+```
+
+The full personal-data example is `examples/bash/sumdialog/21_forms_personal_data.sh`. Additional examples exercise every form component and each structured output style.
+
+### Declarative `.sdlg` forms
+
+Forms can also be described as data instead of command-line arguments. A declarative file may be piped to `sumdialog`, passed as a filename, or made executable with `#!/usr/bin/env sumdialog`:
+
+```ini
+#!/usr/bin/env sumdialog
+
+[form]
+title="Project form"
+text="Project configuration"
+add.entry:project="Project"
+add.password:secret="Secret"
+add.textarea:notes="Notes"
+add.checkbox:tests="Create tests"
+add.combo:language="Language","Python|Bash|C|R|sumX"
+add.radio:profile="Profile","Debug|Release|Teaching"
+add.list:target="Target","Linux|Android|Tablet"
+add.file:source="Source file"
+add.directory:directory="Directory"
+output="shell"
+```
+
+All three invocation styles use the same parser and `DialogSpec`/`FormFieldSpec`/`read_form()` engine:
+
+```bash
+cat project_form.sdlg | sumdialog
+sumdialog project_form.sdlg
+./project_form.sdlg
+```
+
+The declarative grammar does **not** expand `$()`, backticks, shell variables, pipes, or other shell syntax; those characters remain ordinary data. Validate a file without opening the UI or inspect the normalized representation with:
+
+```bash
+sumdialog --check project_form.sdlg
+sumdialog --dump project_form.sdlg
+```
+
+### Retro button menus
+
+`sumdialog --menu` renders a vertical classic button menu and returns only the selected action value on stdout. Separators may be inserted between groups:
+
+```bash
+action="$(
+    sumdialog --menu \
+        --title "MENU" \
+        --menu-button enter "Entrar datos" \
+        --menu-button list "Listar datos" \
+        --menu-button search "Buscar datos" \
+        --menu-button report "Reporte" \
+        --menu-separator \
+        --menu-button exit "Salir"
+)" || exit $?;
+
+case "$action" in
+    enter)  echo "enter data" ;;
+    list)   echo "list data" ;;
+    search) echo "search data" ;;
+    report) echo "report" ;;
+    exit)   exit 0 ;;
+esac
+```
+
+The same menu can be an executable `.sdlg` file:
+
+```ini
+#!/usr/bin/env sumdialog
+
+[menu]
+title="MENU"
+text="====="
+button:enter="Entrar datos"
+button:list="Listar datos"
+button:search="Buscar datos"
+button:report="Reporte"
+separator
+button:exit="Salir"
+```
+
+### Interactive demo launcher
+
+`sumdialog --demo` opens a retro launcher that executes examples of message, question, entry, forms, list/radio/checklist, text/Markdown, progress, file/directory selection, and the classic button menu. It is useful for quickly inspecting a theme or demonstrating the toolkit without remembering individual command lines:
+
+```bash
+sumdialog --demo
+sumdialog --demo --theme "Ralesk's MC"
+```
+
 Text viewers accept a filename or piped stdin:
 
 ```bash
@@ -585,12 +711,18 @@ cat image.iso | sumdialog --progress --total 4.7G --label Copy > image-copy.iso
 The reusable Python API is also public:
 
 ```python
-from sumtui import ask_question, read_entry, show_message;
+from sumtui import FormFieldSpec, MenuItemSpec, ask_question, choose_menu, read_entry, read_form, show_message;
 
 show_message("Ready", title="Example", theme="Ralesk's MC");
 if ask_question("Name the result?").accepted:
     result = read_entry("Name:", title="Result");
     print(result.value);
+
+form = read_form([
+    FormFieldSpec("first_name", "First name", required=True),
+    FormFieldSpec("born_date", "Born date", default="1985-02-28"),
+]);
+print(form.value);
 ```
 
 See `examples/demo_sumdialog.py` and the complete Bash suite under `examples/bash/sumdialog/`. The dispatcher makes each example easy to launch:
@@ -615,9 +747,17 @@ bash examples/bash/sumdialog_examples.sh appearance
 bash examples/bash/sumdialog_examples.sh progress-percent
 bash examples/bash/sumdialog_examples.sh progress-bytes
 bash examples/bash/sumdialog_examples.sh exit-status
+bash examples/bash/sumdialog_examples.sh forms-personal
+bash examples/bash/sumdialog_examples.sh forms-components
+bash examples/bash/sumdialog_examples.sh forms-json
+bash examples/bash/sumdialog_examples.sh forms-shell-safety
+bash examples/bash/sumdialog_examples.sh forms-null
+bash examples/bash/sumdialog_examples.sh declarative-form
+bash examples/bash/sumdialog_examples.sh retro-menu
+bash examples/bash/sumdialog_examples.sh demo
 ```
 
-There is one focused `.sh` file per current mode/behavior, including hidden and masked entry, PICTURE and overflow, key filtering, default/timeout handling, multiline input, initial file paths, repeated checklist selections and custom separators, filename/stdin viewers, custom labels/themes/sizing, percentage progress, and byte-pass-through progress. `examples/bash/sumdialog/README.md` is the full coverage index.
+There is one focused `.sh` file per current mode/behavior, including hidden and masked entry, PICTURE and overflow, key filtering, default/timeout handling, multiline input, initial file paths, repeated checklist selections and custom separators, filename/stdin viewers, custom labels/themes/sizing, percentage progress, byte-pass-through progress, declarative `.sdlg` forms, retro button menus, and the interactive demo launcher. `examples/bash/sumdialog/README.md` is the full coverage index.
 
 ## Small tools, fewer mandatory external utilities
 

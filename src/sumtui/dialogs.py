@@ -30,8 +30,9 @@ import time;
 from rich.console import Console;
 
 from .app import Application;
+from .events import Key;
 from .prompt import ACCEPTED, CANCELLED, TIMED_OUT, TERMINAL_ERROR, InputResult, InputSpec, controlling_terminal, read_input;
-from .widgets import Button, CheckBox, Dialog, DirectoryDialog, FileDialog, HBox, Label, ListView, MarkdownView, RadioGroup, TextView, VBox;
+from .widgets import Button, CheckBox, Choice, Dialog, DirectoryDialog, FileDialog, HBox, Label, ListView, MarkdownView, ProgressBar, RadioGroup, TextArea, TextInput, TextView, VBox;
 
 
 @dataclass
@@ -288,6 +289,336 @@ def choose_checklist(items, title="Select", text="", theme="DOS", width=60, heig
         _run_application(app, reader);
         return DialogResult(state["value"], state["status"]);
 
+
+
+@dataclass
+class MenuItemSpec:
+    value: str = "";
+    label: str = "";
+    separator: bool = False;
+
+    def normalize(self):
+        self.value = str(self.value or "");
+        self.label = str(self.label or self.value);
+        self.separator = bool(self.separator);
+        if not self.separator and not self.value:
+            raise ValueError("menu item value cannot be empty");
+        return self;
+
+
+def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None, timeout=None):
+    specs = [];
+    for item in list(items or []):
+        if item is None:
+            spec = MenuItemSpec(separator=True);
+        elif isinstance(item, MenuItemSpec):
+            spec = item;
+        elif isinstance(item, dict):
+            spec = MenuItemSpec(**item);
+        elif isinstance(item, (tuple, list)) and len(item) >= 2:
+            spec = MenuItemSpec(value=item[0], label=item[1]);
+        else:
+            raise ValueError("menu items must be MenuItemSpec, dict, (value, label), or None");
+        specs.append(spec.normalize());
+    if not any(not item.separator for item in specs):
+        raise ValueError("menu requires at least one selectable item");
+
+    with controlling_terminal() as terminal:
+        reader, writer = terminal;
+        console = Console(file=writer, force_terminal=True);
+        app = Application("sumdialog", theme=theme, console=console);
+        state = {"status": CANCELLED, "value": "", "done": False};
+        controls = [];
+        rows = [];
+        row_sizes = [];
+        button_width = max(16, min(max(16, int(width or 48) - 12), max([len(item.label) + 8 for item in specs if not item.separator] or [16])));
+
+        def finish(status_code, value=""):
+            if state["done"]:
+                return True;
+            state["status"] = int(status_code);
+            state["value"] = str(value or "") if status_code == ACCEPTED else "";
+            state["done"] = True;
+            app.stop();
+            return True;
+
+        for item in specs:
+            if item.separator:
+                rows.append(Label("─" * max(8, button_width), align="center"));
+                row_sizes.append(1);
+                continue;
+            button = Button(item.label, width=button_width, on_press=lambda value=item.value: finish(ACCEPTED, value));
+            controls.append(button);
+            rows.append(button);
+            row_sizes.append(1);
+
+        body_items = [];
+        body_sizes = [];
+        if text:
+            body_items.extend([Label(text, align="center"), Label("=" * max(8, min(button_width, len(str(text)) + 6)), align="center")]);
+            body_sizes.extend([1, 1]);
+        body_items.extend(rows);
+        body_sizes.extend(row_sizes);
+        body = VBox(*body_items, sizes=body_sizes);
+        resolved_width = max(30, int(width or 48));
+        minimum_height = sum(body_sizes) + 6;
+        resolved_height = max(9, int(height or minimum_height));
+        root = Dialog(body, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True);
+        app.set_root(root);
+        if controls:
+            app.focus.set(controls[0]);
+
+        def move(delta):
+            app.focus.move(int(delta));
+            return True;
+
+        app.bind(Key.UP, lambda: move(-1));
+        app.bind(Key.DOWN, lambda: move(1));
+        app.bind(Key.HOME, lambda: app.focus.set(controls[0]) if controls else True);
+        app.bind(Key.END, lambda: app.focus.set(controls[-1]) if controls else True);
+        _install_timeout(app, state, timeout);
+        _run_application(app, reader);
+        return DialogResult(state["value"], state["status"]);
+
+
+@dataclass
+class FormFieldSpec:
+    name: str;
+    label: str;
+    kind: str = "entry";
+    default: object = "";
+    options: tuple = ();
+    required: bool = False;
+    width: int = None;
+    height: int = None;
+
+    def normalize(self):
+        self.name = str(self.name or "");
+        self.label = str(self.label or self.name);
+        self.kind = str(self.kind or "entry").strip().lower();
+        self.options = tuple(str(value) for value in (self.options or ()));
+        self.required = bool(self.required);
+        self.width = None if self.width is None else max(3, int(self.width));
+        self.height = None if self.height is None else max(1, int(self.height));
+        return self;
+
+
+def _form_bool(value):
+    if isinstance(value, bool):
+        return value;
+    return str(value or "").strip().lower() in ("1", "true", "yes", "y", "on", "checked");
+
+
+def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
+              ok_label="OK", cancel_label="Cancel", timeout=None):
+    specs = [];
+    for item in list(fields or []):
+        if isinstance(item, FormFieldSpec):
+            spec = item;
+        elif isinstance(item, dict):
+            spec = FormFieldSpec(**item);
+        else:
+            raise ValueError("form fields must be FormFieldSpec or dict values");
+        specs.append(spec.normalize());
+    if not specs:
+        raise ValueError("form requires at least one field");
+
+    with controlling_terminal() as terminal:
+        reader, writer = terminal;
+        console = Console(file=writer, force_terminal=True);
+        app = Application("sumdialog", theme=theme, console=console);
+        state = {"status": CANCELLED, "value": {}, "done": False};
+        status = Label("");
+        controls = {};
+        focus_targets = {};
+        rows = [];
+        row_sizes = [];
+        label_width = min(28, max(10, max(len(spec.label) for spec in specs) + 2));
+
+        def field_value(spec):
+            control = controls[spec.name];
+            if spec.kind in ("entry", "password", "file", "directory"):
+                return control.value;
+            if spec.kind == "textarea":
+                return control.text;
+            if spec.kind == "checkbox":
+                return bool(control.value);
+            if spec.kind in ("combo", "radio"):
+                return control.value;
+            if spec.kind == "list":
+                return control.current_value;
+            return "";
+
+        def collect():
+            return {spec.name: field_value(spec) for spec in specs};
+
+        def validate(values):
+            for spec in specs:
+                if not spec.required:
+                    continue;
+                value = values.get(spec.name);
+                empty = (value is None) or (isinstance(value, str) and value.strip() == "") or (spec.kind == "checkbox" and not bool(value));
+                if empty:
+                    status.set_text("Required: {}".format(spec.label));
+                    target = focus_targets.get(spec.name);
+                    if target is not None:
+                        app.focus.set(target);
+                    return False;
+            status.set_text("");
+            return True;
+
+        def finish(status_code):
+            if state["done"]:
+                return True;
+            if status_code == ACCEPTED:
+                values = collect();
+                if not validate(values):
+                    return True;
+                state["value"] = values;
+            else:
+                state["value"] = {};
+            state["status"] = int(status_code);
+            state["done"] = True;
+            app.stop();
+            return True;
+
+        def open_picker(spec, control, directory=False):
+            initial = str(control.value or spec.default or ".");
+            path = Path(initial).expanduser();
+            if not path.is_dir():
+                path = path.parent if str(path.parent) else Path(".");
+            dialog_type = DirectoryDialog if directory else FileDialog;
+            def accepted(value):
+                app.pop_modal();
+                control.set(str(value));
+                app.focus.set(control);
+                return True;
+            def cancelled():
+                app.pop_modal();
+                app.focus.set(control);
+                return True;
+            picker = dialog_type(
+                path=path,
+                title="Select directory" if directory else "Open file",
+                on_accept=accepted,
+                on_cancel=cancelled,
+                width=max(48, min(76, int(width or 72))),
+                height=20,
+                theme=theme,
+            );
+            app.push_modal(picker);
+            app.focus.set(picker.table);
+            return True;
+
+        for spec in specs:
+            if spec.kind == "entry":
+                control = TextInput(value=str(spec.default or ""), width=spec.width);
+                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                size = 1;
+                target = control;
+            elif spec.kind == "password":
+                control = TextInput(value=str(spec.default or ""), password=True, width=spec.width);
+                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                size = 1;
+                target = control;
+            elif spec.kind == "textarea":
+                control = TextArea(str(spec.default or ""), line_numbers=False, tab_moves_focus=True, line_wrapping=-1);
+                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                size = spec.height or 5;
+                target = control;
+            elif spec.kind == "checkbox":
+                control = CheckBox(spec.label, checked=_form_bool(spec.default));
+                row = HBox(Label(""), control, sizes=[label_width, None]);
+                size = 1;
+                target = control;
+            elif spec.kind == "combo":
+                selected = str(spec.default) if str(spec.default or "") in spec.options else (spec.options[0] if spec.options else None);
+                control = Choice(spec.options, value=selected, width=spec.width);
+                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                size = 1;
+                target = control;
+            elif spec.kind == "radio":
+                selected = str(spec.default) if str(spec.default or "") in spec.options else (spec.options[0] if spec.options else None);
+                control = RadioGroup(spec.options, value=selected);
+                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                size = max(1, len(spec.options));
+                target = control.buttons[0] if control.buttons else None;
+            elif spec.kind == "list":
+                control = ListView(spec.options, title=spec.label);
+                if str(spec.default or "") in spec.options:
+                    control.select(spec.options.index(str(spec.default)));
+                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                size = spec.height or min(7, max(3, len(spec.options) + 1));
+                target = control;
+            elif spec.kind in ("file", "directory"):
+                control = TextInput(value=str(spec.default or ""), width=spec.width);
+                browse = Button("...", width=7);
+                browse.on_press = (lambda s=spec, c=control: open_picker(s, c, directory=(s.kind == "directory")));
+                field_box = HBox(control, browse, sizes=[None, 7]);
+                row = HBox(Label(spec.label + ":"), field_box, sizes=[label_width, None]);
+                size = 1;
+                target = control;
+            else:
+                raise ValueError("unsupported form field kind: {}".format(spec.kind));
+            controls[spec.name] = control;
+            focus_targets[spec.name] = target;
+            rows.append(row);
+            row_sizes.append(size);
+
+        buttons = HBox(
+            Button(ok_label or "OK", on_press=lambda: finish(ACCEPTED), default=True),
+            Button(cancel_label or "Cancel", on_press=lambda: finish(CANCELLED)),
+            ratios=[1, 1],
+        );
+        body_items = [];
+        body_sizes = [];
+        if text:
+            body_items.append(Label(text));
+            body_sizes.append(1);
+        body_items.extend(rows);
+        body_sizes.extend(row_sizes);
+        body_items.extend([status, buttons]);
+        body_sizes.extend([1, 1]);
+        body = VBox(*body_items, sizes=body_sizes);
+        resolved_width = max(44, int(width or 72));
+        minimum_height = sum(body_sizes) + 6;
+        resolved_height = max(9, int(height or minimum_height));
+        root = Dialog(
+            body,
+            title=title,
+            width=resolved_width,
+            height=resolved_height,
+            on_cancel=lambda: finish(CANCELLED),
+            shadow=True,
+        );
+        app.set_root(root);
+        first_target = next((focus_targets.get(spec.name) for spec in specs if focus_targets.get(spec.name) is not None), buttons.children()[0]);
+        app.focus.set(first_target);
+        _install_timeout(app, state, timeout);
+        _run_application(app, reader);
+        return DialogResult(state["value"], state["status"]);
+
+
+def show_progress_demo(title="Progress", text="Working...", theme="DOS", width=60, duration=1.5):
+    with controlling_terminal() as terminal:
+        reader, writer = terminal;
+        console = Console(file=writer, force_terminal=True);
+        app = Application("sumdialog", theme=theme, console=console);
+        bar = ProgressBar(0, maximum=100, label="Progress", width=max(20, int(width or 60) - 8));
+        body = VBox(Label(text, align="center"), bar, sizes=[1, 1]);
+        root = Dialog(body, title=title, width=max(36, int(width or 60)), height=9, on_cancel=app.stop, shadow=True);
+        app.set_root(root);
+        started = time.monotonic();
+        duration = max(0.2, float(duration));
+        def tick():
+            fraction = min(1.0, max(0.0, (time.monotonic() - started) / duration));
+            bar.set(fraction * 100.0);
+            if fraction >= 1.0:
+                app.stop();
+            return True;
+        app.add_idle(tick);
+        _run_application(app, reader);
+        return DialogResult("", ACCEPTED);
 
 def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=False):
     with controlling_terminal() as terminal:

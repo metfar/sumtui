@@ -1284,11 +1284,141 @@ class SumDialogTests(unittest.TestCase):
         self.assertIn("--percent-input", mocked.call_args.args[0]);
         self.assertIn("Job", mocked.call_args.args[0]);
 
+    def test_sumdialog_forms_shell_output_and_defaults(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        output = io.StringIO();
+        values = {"first_name": "John", "last_name": "O'Connor", "born_date": "1985-02-28", "height": "1.82"};
+        argv = [
+            "--forms", "--title", "Personal information",
+            "--add-entry", "first_name", "First name",
+            "--add-entry", "last_name", "Last name",
+            "--add-entry", "born_date", "Born date",
+            "--add-entry", "height", "Height",
+            "--form-default", "born_date=1985-02-28",
+            "--required", "first_name", "--required", "last_name",
+            "--output", "shell",
+        ];
+        with patch.object(dialog_tool, "read_form", return_value=DialogResult(values, 0)) as mocked:
+            with redirect_stdout(output):
+                status = dialog_tool.main(argv);
+        self.assertEqual(status, 0);
+        self.assertIn("first_name='John'", output.getvalue());
+        self.assertIn("last_name='O'\"'\"'Connor'", output.getvalue());
+        specs = mocked.call_args.args[0];
+        self.assertEqual([spec.name for spec in specs], ["first_name", "last_name", "born_date", "height"]);
+        self.assertEqual(specs[2].default, "1985-02-28");
+        self.assertTrue(specs[0].required);
+
+    def test_sumdialog_shell_serializer_preserves_data_without_execution(self):
+        from sumtui.dialogs import FormFieldSpec;
+        from sumtui.tools.dialog import _serialize_form;
+        with tempfile.TemporaryDirectory() as tempdir:
+            marker = Path(tempdir) / "PWNED";
+            value = "This is John's house; $(touch {})".format(marker);
+            specs = [FormFieldSpec("description", "Description")];
+            payload = _serialize_form({"description": value}, specs, output="shell");
+            command = 'eval "$1"; printf "%s" "$description"';
+            completed = subprocess.run(["bash", "-c", command, "_", payload], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False);
+            self.assertEqual(completed.returncode, 0, msg=completed.stderr);
+            self.assertEqual(completed.stdout, value);
+            self.assertFalse(marker.exists());
+
+    def test_sumdialog_forms_json_keeps_boolean_types(self):
+        import json;
+        from sumtui.dialogs import FormFieldSpec;
+        from sumtui.tools.dialog import _serialize_form;
+        specs = [FormFieldSpec("name", "Name"), FormFieldSpec("active", "Active", kind="checkbox")];
+        payload = _serialize_form({"name": "Ada", "active": True}, specs, output="json");
+        self.assertEqual(json.loads(payload), {"name": "Ada", "active": True});
+
+    def test_sumdialog_forms_rejects_unsafe_variable_names(self):
+        from sumtui.tools import dialog as dialog_tool;
+        args = dialog_tool._parser().parse_args(["--forms", "--add-entry", "bad;name", "Bad"]);
+        with self.assertRaises(ValueError):
+            dialog_tool._form_specs(args);
+
+    def test_sumdialog_declarative_form_parser(self):
+        from sumtui import parse_dialog_spec;
+        spec = parse_dialog_spec("""#!/usr/bin/env sumdialog
+[form]
+title=\"Project form\"
+add.entry:project=\"Project\"
+add.combo:language=\"Language\",\"Python|Bash|C|R|sumX\"
+field:project.required=true
+output=shell
+""", source="project.sdlg");
+        self.assertEqual(spec.kind, "form");
+        self.assertEqual(spec.title, "Project form");
+        self.assertEqual([field.name for field in spec.fields], ["project", "language"]);
+        self.assertTrue(spec.fields[0].required);
+        self.assertEqual(spec.fields[1].options, ("Python", "Bash", "C", "R", "sumX"));
+
+    def test_sumdialog_declarative_menu_parser_keeps_separator_order(self):
+        from sumtui import parse_dialog_spec;
+        spec = parse_dialog_spec("""[menu]
+title=\"MENU\"
+button:enter=\"Entrar datos\"
+button:list=\"Listar datos\"
+separator
+button:exit=\"Salir\"
+""", source="menu.sdlg");
+        self.assertEqual(spec.kind, "menu");
+        self.assertEqual([item.value for item in spec.menu_items if not item.separator], ["enter", "list", "exit"]);
+        self.assertTrue(spec.menu_items[2].separator);
+
+    def test_sumdialog_declarative_file_executes_same_form_engine(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "personal.sdlg";
+            path.write_text("""[form]
+title=\"Personal information\"
+add.entry:first_name=\"First name\"
+add.entry:born_date=\"Born date\"
+field:born_date.default=\"1985-02-28\"
+output=shell
+""", encoding="utf-8");
+            output = io.StringIO();
+            with patch.object(dialog_tool, "read_form", return_value=DialogResult({"first_name": "John", "born_date": "1985-02-28"}, 0)) as mocked:
+                with redirect_stdout(output):
+                    status = dialog_tool.main([str(path)]);
+            self.assertEqual(status, 0);
+            self.assertIn("first_name='John'", output.getvalue());
+            self.assertIn("born_date='1985-02-28'", output.getvalue());
+            self.assertEqual(mocked.call_args.args[0][1].default, "1985-02-28");
+
+    def test_sumdialog_menu_cli_writes_selected_value(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        output = io.StringIO();
+        argv = ["--menu", "--title", "MENU", "--menu-button", "enter", "Entrar datos", "--menu-separator", "--menu-button", "exit", "Salir"];
+        with patch.object(dialog_tool, "choose_menu", return_value=DialogResult("enter", 0)) as mocked:
+            with redirect_stdout(output):
+                status = dialog_tool.main(argv);
+        self.assertEqual(status, 0);
+        self.assertEqual(output.getvalue(), "enter\n");
+        items = mocked.call_args.args[0];
+        self.assertTrue(items[1].separator);
+
+    def test_sumdialog_demo_dispatches_demo_launcher(self):
+        from unittest.mock import patch;
+        from sumtui.tools import dialog as dialog_tool;
+        with patch.object(dialog_tool, "_run_demo", return_value=0) as mocked:
+            self.assertEqual(dialog_tool.main(["--demo", "--theme", "Ralesk's MC"]), 0);
+        mocked.assert_called_once_with("Ralesk's MC");
+
     def test_sumdialog_bash_examples_are_syntax_valid(self):
         root = Path(__file__).resolve().parents[1];
         scripts = sorted((root / "examples" / "bash" / "sumdialog").glob("*.sh"));
         scripts.append(root / "examples" / "bash" / "sumdialog_examples.sh");
-        self.assertGreaterEqual(len(scripts), 21);
+        self.assertGreaterEqual(len(scripts), 26);
         for script in scripts:
             completed = subprocess.run(["bash", "-n", str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False);
             self.assertEqual(completed.returncode, 0, msg="{}: {}".format(script.name, completed.stderr));

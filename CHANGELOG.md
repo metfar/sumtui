@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.15
+
+- Added declarative `.sdlg` input for `sumdialog`. A form may be piped (`cat form.sdlg | sumdialog`), passed as a filename (`sumdialog form.sdlg`), or executed directly with `#!/usr/bin/env sumdialog`; all paths build the same `FormFieldSpec` objects used by CLI `--forms`.
+- Added `[form]` declarative syntax for entry/password/textarea/checkbox/combo/radio/list/file/directory fields, field defaults/required/width/height properties, standard form appearance/output settings, and literal non-shell evaluation of `$()`, backticks, variables and operators.
+- Added `sumdialog --check FILE` for syntax/semantic validation and `sumdialog --dump FILE` for normalized JSON inspection of declarative definitions.
+- Added reusable retro vertical button menus through public `MenuItemSpec` / `choose_menu()` plus CLI `--menu`, repeatable `--menu-button VALUE LABEL`, and ordered `--menu-separator`; the selected action value is returned on stdout for direct Bash `case` dispatch.
+- Added declarative `[menu]` files with ordered `button:VALUE="Label"` entries and `separator` rows. The bundled example recreates a classic `MENU` with Entrar datos, Listar datos, Buscar datos, Reporte, and Salir.
+- Added `sumdialog --demo`, an interactive retro launcher that executes examples of messages, question, entry, forms, list/radio/checklist, text/Markdown, animated progress, file/directory selection, and the retro button menu.
+- Added Bash/declarative examples `26_declarative_form.sh`, `project_form.sdlg`, `27_retro_menu.sh`, `retro_menu.sdlg`, and `28_demo.sh`, and expanded regression coverage for the parser, menu ordering/output, direct declarative execution, and demo dispatch.
+
+## 0.5.14
+
+- Added `sumdialog --forms`, a reusable multi-field dialog built from the existing sumTUI controls. Initial field types are entry, password, textarea, checkbox, combo, radio, list, file selector, and directory selector.
+- Added repeatable per-field defaults (`--form-default NAME=VALUE`) and required-field validation (`--required NAME`), plus custom OK/Cancel labels, theme, width/height, and timeout integration.
+- Added structured form outputs for Bash and other consumers: `shell`, `values`, `lines`, `json`, and NUL-delimited `null`. Shell output validates variable identifiers and always uses POSIX single-quote escaping, preserving apostrophes exactly without allowing shell-looking values such as `$()` to become commands.
+- Added public `FormFieldSpec` and `read_form()` APIs so Python and sumX/runtime clients can build the same forms without launching the CLI frontend.
+- Added the canonical Bash personal-data example with `first_name`, `last_name`, `born_date` defaulting to `1985-02-28`, `height`, and OK/Cancel, plus examples covering all current form components, JSON output, shell-safety behavior, and NUL-delimited transport.
+- Added regression tests for form parsing/defaults, safe apostrophe-preserving shell serialization, JSON booleans, variable-name validation, and Bash example syntax.
+
 ## 0.5.13
 
 - Added a complete runnable Bash example suite for every current `sumdialog` mode: info, warning, error, question, entry, file/directory selection, list, radiolist, checklist, text-info, Markdown, and progress.

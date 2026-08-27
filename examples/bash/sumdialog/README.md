@@ -1,6 +1,6 @@
 # sumdialog Bash examples
 
-Every current `sumdialog` mode has a runnable Bash example in this directory.
+Every current `sumdialog` mode has a runnable Bash example in this directory, including multi-field `--forms`, declarative `.sdlg` forms, retro button menus, and the interactive `--demo` launcher.
 Run them from the project root, for example:
 
 ```bash
@@ -41,6 +41,34 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 | `18_progress_percent.sh` | `--progress`, percentage input, `--label`, `--width` |
 | `19_progress_bytes.sh` | `--progress`, `--total`, byte pass-through |
 | `20_exit_status.sh` | status codes and safe shell branching |
+| `21_forms_personal_data.sh` | personal-data form; first/last name, born date default `1985-02-28`, height, OK/Cancel, shell output |
+| `22_forms_components.sh` | entry/password/textarea/checkbox/combo/radio/list/file/directory fields |
+| `23_forms_json.sh` | form result as JSON |
+| `24_forms_shell_safety.sh` | apostrophes and shell-looking text preserved as data |
+| `25_forms_null.sh` | NUL-delimited name/value transport without `eval` |
+| `26_declarative_form.sh` | executes `project_form.sdlg` directly through `#!/usr/bin/env sumdialog`; also shows the `cat form.sdlg | sumdialog` equivalent |
+| `27_retro_menu.sh` | executes `retro_menu.sdlg` and branches on the selected retro button value |
+| `28_demo.sh` | launches `sumdialog --demo` with the Ralesk's MC theme |
+| `project_form.sdlg` | declarative form containing entry/password/textarea/checkbox/combo/radio/list/file/directory fields |
+| `retro_menu.sdlg` | classic vertical button menu with Entrar/Listar/Buscar/Reporte/Salir |
+
+`--forms --output shell` emits validated Bash variable names and values protected with POSIX single-quote escaping. For example, `This is John's house` is reconstructed exactly after `eval`, while text such as `$(command)` remains data. `--output null` is available when a script wants to avoid `eval` entirely.
+
+Declarative files may be piped or executed directly:
+
+```bash
+cat examples/bash/sumdialog/project_form.sdlg | sumdialog
+./examples/bash/sumdialog/project_form.sdlg
+```
+
+Validate or inspect one without opening the UI:
+
+```bash
+sumdialog --check examples/bash/sumdialog/project_form.sdlg
+sumdialog --dump examples/bash/sumdialog/project_form.sdlg
+```
+
+The retro menu returns only the selected action value on stdout, so Bash can use a normal `case` statement.
 
 `--version` is demonstrated by the dispatcher `version` action.
 

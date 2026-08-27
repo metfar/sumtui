@@ -1,0 +1,11 @@
+#!/usr/bin/env sumdialog
+
+[menu]
+title="MENU"
+text="====="
+button:enter="Entrar datos"
+button:list="Listar datos"
+button:search="Buscar datos"
+button:report="Reporte"
+separator
+button:exit="Salir"
