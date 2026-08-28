@@ -2,7 +2,7 @@
 
 [menu]
 title="MENU"
-text="====="
+separator.blank
 button:enter="Entrar datos"
 button:list="Listar datos"
 button:search="Buscar datos"

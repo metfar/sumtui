@@ -387,8 +387,8 @@ def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None
         body_items = [];
         body_sizes = [];
         if text:
-            body_items.extend([Label(text, align="center"), Label("=" * max(8, min(button_width, len(str(text)) + 6)), align="center")]);
-            body_sizes.extend([1, 1]);
+            body_items.append(Label(text, align="center"));
+            body_sizes.append(1);
         body_items.extend(rows);
         body_sizes.extend(row_sizes);
         body = VBox(*body_items, sizes=body_sizes);
