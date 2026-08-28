@@ -15,7 +15,7 @@ Names:
   text, markdown, appearance
   progress-percent, progress-bytes, exit-status
   forms-personal, forms-components, forms-json, forms-shell-safety, forms-null
-  declarative-form, retro-menu, demo
+  declarative-form, retro-menu, retro-menu-separators, demo
 TXT
 }
 
@@ -51,6 +51,7 @@ case "$name" in
     forms-null) exec bash "$base/25_forms_null.sh" "$@" ;;
     declarative-form) exec bash "$base/26_declarative_form.sh" "$@" ;;
     retro-menu) exec bash "$base/27_retro_menu.sh" "$@" ;;
+    retro-menu-separators) exec bash "$base/29_retro_menu_separators.sh" "$@" ;;
     demo) exec bash "$base/28_demo.sh" "$@" ;;
     *) usage >&2; exit 2 ;;
 esac

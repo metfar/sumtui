@@ -32,7 +32,7 @@ from rich.console import Console;
 from .app import Application;
 from .events import Key;
 from .prompt import ACCEPTED, CANCELLED, TIMED_OUT, TERMINAL_ERROR, InputResult, InputSpec, controlling_terminal, read_input;
-from .widgets import Button, CheckBox, Choice, Dialog, DirectoryDialog, FileDialog, HBox, Label, ListView, MarkdownView, ProgressBar, RadioGroup, TextArea, TextInput, TextView, VBox;
+from .widgets import Button, CheckBox, Choice, Dialog, DirectoryDialog, FileDialog, HBox, Label, ListView, MarkdownView, ProgressBar, RadioGroup, ScrollBar, TextArea, TextInput, TextView, VBox;
 
 
 @dataclass
@@ -70,6 +70,26 @@ def _run_application(app, reader):
         sys.stdin = previous_stdin;
 
 
+class _TextAreaVScroll(ScrollBar):
+    def __init__(self, editor, **kwargs):
+        self.editor = editor;
+        kwargs.setdefault("on_change", self._changed);
+        super().__init__(orientation="vertical", **kwargs);
+
+    def _changed(self, _scrollbar, value):
+        self.editor.y_offset = max(0, int(value));
+        self.editor._clamp_viewport();
+        return True;
+
+    def __rich_console__(self, console, options):
+        self.page = max(1, self.editor.page_height);
+        body_width = max(1, self.editor.page_width - self.editor._gutter_width());
+        total = self.editor.visual_line_count(body_width);
+        self.maximum = max(0, total - self.page);
+        self.value = max(0, min(self.maximum, self.editor.y_offset));
+        yield from super().__rich_console__(console, options);
+
+
 def _install_timeout(app, state, timeout, default_status=TIMED_OUT):
     if timeout is None:
         return None;
@@ -95,7 +115,7 @@ def show_message(text, title="Message", kind="info", theme="DOS", width=None, he
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "done": False};
         def finish(status):
             if state["done"]:
@@ -163,7 +183,7 @@ def choose_file(path=".", title="Open file", theme="DOS", width=76, height=24, d
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": "", "done": False};
         def finish(status, value=""):
             if state["done"]:
@@ -190,7 +210,7 @@ def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": "", "done": False};
         listing = None;
         def finish(status, value=""):
@@ -226,7 +246,7 @@ def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=N
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": "", "done": False};
         group = RadioGroup(values, value=selected);
         def finish(status):
@@ -259,7 +279,7 @@ def choose_checklist(items, title="Select", text="", theme="DOS", width=60, heig
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": "", "done": False};
         boxes = [CheckBox(value, checked=(value in selected_values)) for value in values];
         def finish(status):
@@ -296,11 +316,19 @@ class MenuItemSpec:
     value: str = "";
     label: str = "";
     separator: bool = False;
+    separator_style: str = "line";
+    separator_char: str = "─";
+    separator_height: int = 1;
 
     def normalize(self):
         self.value = str(self.value or "");
         self.label = str(self.label or self.value);
         self.separator = bool(self.separator);
+        self.separator_style = str(self.separator_style or "line").strip().lower();
+        if self.separator_style not in ("line", "blank"):
+            raise ValueError("separator_style must be 'line' or 'blank'");
+        self.separator_char = str(self.separator_char or "─")[:1] or "─";
+        self.separator_height = max(1, int(self.separator_height or 1));
         if not self.separator and not self.value:
             raise ValueError("menu item value cannot be empty");
         return self;
@@ -326,7 +354,7 @@ def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": "", "done": False};
         controls = [];
         rows = [];
@@ -344,8 +372,12 @@ def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None
 
         for item in specs:
             if item.separator:
-                rows.append(Label("─" * max(8, button_width), align="center"));
-                row_sizes.append(1);
+                if item.separator_style == "blank":
+                    rows.append(Label("", align="center"));
+                    row_sizes.append(item.separator_height);
+                else:
+                    rows.append(Label(item.separator_char * max(8, button_width), align="center"));
+                    row_sizes.append(item.separator_height);
                 continue;
             button = Button(item.label, width=button_width, on_press=lambda value=item.value: finish(ACCEPTED, value));
             controls.append(button);
@@ -426,7 +458,7 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": {}, "done": False};
         status = Label("");
         controls = {};
@@ -523,7 +555,9 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
                 target = control;
             elif spec.kind == "textarea":
                 control = TextArea(str(spec.default or ""), line_numbers=False, tab_moves_focus=True, line_wrapping=-1);
-                row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
+                area_scroll = _TextAreaVScroll(control);
+                area_box = HBox(control, area_scroll, sizes=[None, 1]);
+                row = HBox(Label(spec.label + ":"), area_box, sizes=[label_width, None]);
                 size = spec.height or 5;
                 target = control;
             elif spec.kind == "checkbox":
@@ -603,7 +637,7 @@ def show_progress_demo(title="Progress", text="Working...", theme="DOS", width=6
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         bar = ProgressBar(0, maximum=100, label="Progress", width=max(20, int(width or 60) - 8));
         body = VBox(Label(text, align="center"), bar, sizes=[1, 1]);
         root = Dialog(body, title=title, width=max(36, int(width or 60)), height=9, on_cancel=app.stop, shadow=True);
@@ -624,7 +658,7 @@ def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=Fal
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
-        app = Application("sumdialog", theme=theme, console=console);
+        app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "done": False};
         def finish(status):
             if state["done"]:

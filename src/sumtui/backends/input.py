@@ -27,7 +27,7 @@ import re;
 import sys;
 import time;
 
-from ..events import Key, KeyEvent;
+from ..events import Key, KeyEvent, MouseEvent;
 
 
 ANSI_KEYS = {
@@ -87,6 +87,7 @@ ANSI_MOD_KEYS = {
 };
 
 ANSI_SHIFT_TAB = b"\x1b[Z";
+_SGR_MOUSE_RE = re.compile(br"^\x1b\[<(\d+);(\d+);(\d+)([Mm])");
 
 
 _XTERM_MODIFIERS = {
@@ -148,6 +149,9 @@ class AnsiDecoder:
         return output;
 
     def _consume_escape(self, now, flush):
+        mouse = self._consume_sgr_mouse(now, flush);
+        if mouse is not False:
+            return mouse;
         if self.buffer == ANSI_SHIFT_TAB:
             self.buffer = self.buffer[len(ANSI_SHIFT_TAB):];
             self.escape_since = None;
@@ -236,6 +240,44 @@ class AnsiDecoder:
                 return index + 1;
         return None;
 
+    def _consume_sgr_mouse(self, now, flush):
+        if not self.buffer.startswith(b"\x1b[<"):
+            return False;
+        match = _SGR_MOUSE_RE.match(self.buffer);
+        if match is None:
+            if self.escape_since is None:
+                self.escape_since = now;
+            if not flush and now - self.escape_since < self.escape_timeout:
+                return None;
+            # Invalid/incomplete mouse sequence: let the generic escape parser
+            # make progress instead of keeping the decoder blocked forever.
+            return False;
+        code = int(match.group(1));
+        x = max(0, int(match.group(2)) - 1);
+        y = max(0, int(match.group(3)) - 1);
+        final = match.group(4);
+        self.buffer = self.buffer[match.end():];
+        self.escape_since = None;
+        shift = bool(code & 4);
+        alt = bool(code & 8);
+        ctrl = bool(code & 16);
+        motion = bool(code & 32);
+        wheel = bool(code & 64);
+        button_code = code & 3;
+        if wheel:
+            action = "scroll_up" if button_code == 0 else "scroll_down";
+            button = "wheel";
+        elif motion:
+            action = "move";
+            button = ("left", "middle", "right", "none")[button_code];
+        elif final == b"m" or button_code == 3:
+            action = "release";
+            button = ("left", "middle", "right", "none")[button_code] if button_code != 3 else "left";
+        else:
+            action = "press";
+            button = ("left", "middle", "right", "none")[button_code];
+        return MouseEvent(x, y, button=button, action=action, ctrl=ctrl, alt=alt, shift=shift);
+
     def _consume_plain(self):
         first = self.buffer[0];
         if first in (10, 13):
@@ -314,11 +356,13 @@ def _terminfo_shift_sequences(fd=None):
 
 
 class PosixInput:
-    def __init__(self, capture_control_keys=False):
+    def __init__(self, capture_control_keys=False, mouse=False):
         self.fd = None;
         self.saved = None;
         self.decoder = AnsiDecoder();
         self.capture_control_keys = bool(capture_control_keys);
+        self.mouse = bool(mouse);
+        self.mouse_fd = None;
 
     def __enter__(self):
         import termios;
@@ -331,6 +375,12 @@ class PosixInput:
             key, ctrl, alt, shift = spec;
             self.decoder.add_sequence(sequence, key, ctrl=ctrl, alt=alt, shift=shift);
         tty.setcbreak(self.fd);
+        if self.mouse:
+            try:
+                self.mouse_fd = os.open("/dev/tty", os.O_WRONLY | getattr(os, "O_NOCTTY", 0));
+                os.write(self.mouse_fd, b"\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+            except OSError:
+                self.mouse_fd = None;
         if self.capture_control_keys:
             current = termios.tcgetattr(self.fd);
             current[0] &= ~getattr(termios, "IXON", 0);
@@ -340,6 +390,12 @@ class PosixInput:
         return self;
 
     def __exit__(self, exc_type, exc_value, traceback):
+        if self.mouse_fd is not None:
+            try:
+                os.write(self.mouse_fd, b"\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+            finally:
+                os.close(self.mouse_fd);
+                self.mouse_fd = None;
         if self.fd is not None and self.saved is not None:
             import termios;
             termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved);
@@ -413,7 +469,7 @@ def _windows_char_event(char, ctrl=False, alt=False, shift=False):
     return KeyEvent(char.lower(), text=char, ctrl=ctrl, alt=alt, shift=shift);
 
 
-def create_input_backend(capture_control_keys=False):
+def create_input_backend(capture_control_keys=False, mouse=False):
     if os.name == "nt":
         return WindowsInput();
-    return PosixInput(capture_control_keys=capture_control_keys);
+    return PosixInput(capture_control_keys=capture_control_keys, mouse=mouse);

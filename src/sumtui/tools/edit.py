@@ -66,6 +66,13 @@ Keyboard
   Ctrl+H              Search and replace
   Ctrl+G              Go to line
 
+Mouse (POSIX terminals with SGR mouse reporting)
+  Left click          Place the caret / focus a control
+  Left drag           Extend editor selection
+  Wheel               Scroll vertically
+  Scrollbar click     Page the viewport
+  Scrollbar drag      Move the viewport thumb
+
 Search options
   Case sensitive, whole word, regular expression and wrap-around are optional.
 
@@ -136,7 +143,13 @@ class _ShortcutCapture(Widget):
 class _EditorVScroll(ScrollBar):
     def __init__(self, editor, **kwargs):
         self.editor = editor;
+        kwargs.setdefault("on_change", self._changed);
         super().__init__(orientation="vertical", **kwargs);
+
+    def _changed(self, _scrollbar, value):
+        self.editor.y_offset = max(0, int(value));
+        self.editor._clamp_viewport();
+        return True;
 
     def __rich_console__(self, console, options):
         self.page = max(1, self.editor.page_height);
@@ -149,7 +162,14 @@ class _EditorVScroll(ScrollBar):
 class _EditorHScroll(ScrollBar):
     def __init__(self, editor, **kwargs):
         self.editor = editor;
+        kwargs.setdefault("on_change", self._changed);
         super().__init__(orientation="horizontal", **kwargs);
+
+    def _changed(self, _scrollbar, value):
+        if self.editor.line_wrapping == 0:
+            self.editor.x_offset = max(0, int(value));
+            self.editor._clamp_viewport();
+        return True;
 
     def __rich_console__(self, console, options):
         gutter = self.editor._gutter_width();
@@ -171,7 +191,7 @@ class EditApp:
         self.config = _load_config(self.config_path);
         selected_theme = theme or self.config.get("theme") or "Ralesk's MC";
         self.document = self._load_document(path);
-        self.app = Application(title="sumTUI edit", theme=selected_theme, capture_control_keys=True);
+        self.app = Application(title="sumTUI edit", theme=selected_theme, capture_control_keys=True, mouse=True);
         self.search_query = "";
         self.replace_text = "";
         self.search_case_sensitive = False;

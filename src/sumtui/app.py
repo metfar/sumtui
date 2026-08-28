@@ -26,7 +26,7 @@ from rich.console import Console;
 from rich.live import Live;
 
 from .backends import create_input_backend;
-from .events import Key, KeyEvent, ResizeEvent, normalize_key_spec;
+from .events import Key, KeyEvent, MouseEvent, ResizeEvent, normalize_key_spec;
 from .theme import DEFAULT_THEME, make_theme;
 from .overlay import ModalOverlay;
 
@@ -97,7 +97,7 @@ class FocusManager:
 
 
 class Application:
-    def __init__(self, title="sumTUI", root=None, theme=None, console=None, capture_control_keys=False):
+    def __init__(self, title="sumTUI", root=None, theme=None, console=None, capture_control_keys=False, mouse=False):
         self.title = str(title);
         self.theme = make_theme(theme) if isinstance(theme, str) else (theme or DEFAULT_THEME);
         self.console = console or Console();
@@ -110,6 +110,7 @@ class Application:
         self._modal_stack = [];
         self._idle_callbacks = [];
         self.capture_control_keys = bool(capture_control_keys);
+        self.mouse = bool(mouse);
         if root is not None:
             self.set_root(root);
         if not self.capture_control_keys:
@@ -206,6 +207,13 @@ class Application:
     def dispatch(self, event):
         if isinstance(event, ResizeEvent):
             return True;
+        if isinstance(event, MouseEvent):
+            if self.root is not None and self.root.handle_event(event):
+                return True;
+            current = self.focus.current;
+            if current is not None and current is not self.root and current.handle_event(event):
+                return True;
+            return False;
         if not isinstance(event, KeyEvent):
             return False;
         current = self.focus.current;
@@ -241,7 +249,7 @@ class Application:
         if not self.console.is_terminal:
             raise RuntimeError("sumTUI interactive mode requires a terminal");
         self.running = True;
-        backend = create_input_backend(capture_control_keys=self.capture_control_keys);
+        backend = create_input_backend(capture_control_keys=self.capture_control_keys, mouse=self.mouse);
         with backend:
             with Live(self._renderable(), console=self.console, screen=True, auto_refresh=False, transient=False) as live:
                 self.live = live;

@@ -1,0 +1,13 @@
+#!/usr/bin/env sumdialog
+
+[menu]
+title="MENU"
+text="Retro separators"
+button:enter="Entrar datos"
+button:list="Listar datos"
+button:search="Buscar datos"
+button:report="Reporte"
+separator.blank
+separator.line="="
+separator.blank=1
+button:exit="Salir"

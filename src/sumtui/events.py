@@ -85,6 +85,28 @@ class ResizeEvent:
     height: int;
 
 
+@dataclass(frozen=True)
+class MouseEvent:
+    x: int;
+    y: int;
+    button: str = "none";
+    action: str = "press";
+    ctrl: bool = False;
+    alt: bool = False;
+    shift: bool = False;
+
+    def translated(self, left=0, top=0):
+        return MouseEvent(
+            int(self.x) - int(left),
+            int(self.y) - int(top),
+            button=self.button,
+            action=self.action,
+            ctrl=self.ctrl,
+            alt=self.alt,
+            shift=self.shift,
+        );
+
+
 def normalize_key_spec(spec):
     parts = [part.strip().lower() for part in str(spec).replace("-", "+").split("+") if part.strip()];
     modifiers = [];

@@ -24,7 +24,7 @@
 #warnings.filterwarnings("ignore", category=UserWarning);
 from rich.text import Text;
 
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from .base import Widget;
 
 
@@ -40,6 +40,11 @@ class ScrollBar(Widget):
             raise ValueError("orientation must be 'vertical' or 'horizontal'");
         self.focusable = bool(interactive);
         self.on_change = on_change;
+        self._last_length = 3;
+        self._last_thumb = 1;
+        self._last_pos = 0;
+        self._mouse_dragging = False;
+        self._mouse_drag_offset = 0;
 
     def set(self, value, notify=True):
         old = self.value;
@@ -48,7 +53,38 @@ class ScrollBar(Widget):
             self.on_change(self, self.value);
         return self.value != old;
 
+    def _value_from_track(self, position):
+        room = max(0, int(self._last_length) - int(self._last_thumb));
+        if self.maximum <= 0 or room <= 0:
+            return 0;
+        track_pos = max(0, min(room, int(position)));
+        return int(round(track_pos * self.maximum / room));
+
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            axis = int(event.y) if self.orientation == "vertical" else int(event.x);
+            if event.action == "scroll_up":
+                return self.set(self.value - max(1, min(3, self.page)));
+            if event.action == "scroll_down":
+                return self.set(self.value + max(1, min(3, self.page)));
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None and self in self._focus_manager.widgets:
+                    self._focus_manager.set(self);
+                if self._last_pos <= axis < self._last_pos + self._last_thumb:
+                    self._mouse_dragging = True;
+                    self._mouse_drag_offset = axis - self._last_pos;
+                    return True;
+                if axis < self._last_pos:
+                    return self.set(self.value - self.page) or True;
+                if axis >= self._last_pos + self._last_thumb:
+                    return self.set(self.value + self.page) or True;
+                return True;
+            if event.action == "move" and event.button == "left" and self._mouse_dragging:
+                return self.set(self._value_from_track(axis - self._mouse_drag_offset)) or True;
+            if event.action == "release" and self._mouse_dragging:
+                self._mouse_dragging = False;
+                return True;
+            return False;
         key = getattr(event, "key", "");
         if self.orientation == "vertical":
             if key == Key.UP:
@@ -79,6 +115,9 @@ class ScrollBar(Widget):
         thumb = max(1, min(length, int(round(length * self.page / span))));
         room = max(0, length - thumb);
         pos = 0 if self.maximum <= 0 else int(round(room * self.value / self.maximum));
+        self._last_length = length;
+        self._last_thumb = thumb;
+        self._last_pos = pos;
         normal = self.theme.style("scrollbar_track");
         selected = self.theme.style("scrollbar_thumb_focus" if self.focused else "scrollbar_thumb");
         if self.orientation == "horizontal":

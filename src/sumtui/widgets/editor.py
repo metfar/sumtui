@@ -28,7 +28,7 @@ from rich.segment import Segment;
 from rich.style import Style;
 
 from ..clipboard import clipboard as default_clipboard;
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from ..syntax import EditorSyntaxHighlighter;
 from .base import Widget;
 
@@ -73,6 +73,7 @@ class TextArea(Widget):
         self.line_end_markers = None;
         self._undo = [];
         self._redo = [];
+        self._mouse_selecting = False;
 
     @staticmethod
     def _split_text(text):
@@ -444,6 +445,33 @@ class TextArea(Widget):
             return False;
         return self._replace_range(offset, offset + 1, "", kind="delete");
 
+    def _clamp_viewport(self):
+        body_width = max(1, self.page_width - self._gutter_width());
+        if self.line_wrapping != 0:
+            mapping = self._visual_map(body_width);
+            self.y_offset = max(0, min(self.y_offset, max(0, len(mapping) - self.page_height)));
+            self.x_offset = 0;
+            return self;
+        self.y_offset = max(0, min(self.y_offset, max(0, len(self.lines) - self.page_height)));
+        longest = max([len(line) for line in self.lines] or [0]);
+        self.x_offset = max(0, min(self.x_offset, max(0, longest - body_width)));
+        return self;
+
+    def _mouse_position(self, x, y):
+        gutter = self._gutter_width();
+        body_width = max(1, self.page_width - gutter);
+        body_x = max(0, int(x) - gutter);
+        visible_y = max(0, min(self.page_height - 1, int(y)));
+        if self.line_wrapping != 0:
+            mapping = self._visual_map(body_width);
+            index = max(0, min(len(mapping) - 1, self.y_offset + visible_y));
+            row, start, end, _last = mapping[index];
+            column = max(start, min(end, start + body_x));
+            return row, min(len(self.lines[row]), column);
+        row = max(0, min(len(self.lines) - 1, self.y_offset + visible_y));
+        column = max(0, min(len(self.lines[row]), self.x_offset + body_x));
+        return row, column;
+
     def _ensure_visible(self):
         body_width = max(1, self.page_width - self._gutter_width());
         if self.line_wrapping != 0:
@@ -532,6 +560,40 @@ class TextArea(Widget):
         return self._apply_move(row, column, selecting=selecting);
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action == "scroll_up":
+                old = self.y_offset;
+                self.y_offset = max(0, self.y_offset - 3);
+                self._clamp_viewport();
+                return self.y_offset != old;
+            if event.action == "scroll_down":
+                old = self.y_offset;
+                self.y_offset += 3;
+                self._clamp_viewport();
+                return self.y_offset != old;
+            if event.button == "left" and event.action == "press":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                row, column = self._mouse_position(event.x, event.y);
+                if event.shift:
+                    changed = self._apply_move(row, column, selecting=True);
+                else:
+                    changed = self._apply_move(row, column, selecting=False);
+                    self.anchor = (self.row, self.column);
+                self._mouse_selecting = True;
+                return changed or True;
+            if event.button == "left" and event.action == "move" and self._mouse_selecting:
+                row, column = self._mouse_position(event.x, event.y);
+                return self._apply_move(row, column, selecting=True) or True;
+            if event.action == "release" and self._mouse_selecting:
+                row, column = self._mouse_position(event.x, event.y);
+                self._apply_move(row, column, selecting=True);
+                if self.anchor == (self.row, self.column):
+                    self.anchor = None;
+                self._mouse_selecting = False;
+                self._notify_cursor();
+                return True;
+            return False;
         key = getattr(event, "key", "");
         ctrl = bool(getattr(event, "ctrl", False));
         shift = bool(getattr(event, "shift", False));
@@ -626,7 +688,7 @@ class TextArea(Widget):
     def __rich_console__(self, console, options):
         self.page_height = max(1, int(options.height or options.max_height or console.height));
         self.page_width = max(1, int(options.max_width));
-        self._ensure_visible();
+        self._clamp_viewport();
         gutter = self._gutter_width();
         body_width = max(1, self.page_width - gutter);
         normal = Style.parse(self.theme.style("viewer"));

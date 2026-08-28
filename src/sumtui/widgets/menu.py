@@ -29,7 +29,7 @@ from rich.console import Group;
 from rich.panel import Panel as RichPanel;
 from rich.text import Text;
 
-from ..events import Key, normalize_key_spec;
+from ..events import Key, MouseEvent, normalize_key_spec;
 from ..overlay import ModalOverlay;
 from .base import Widget;
 from .layout import VBox;
@@ -174,6 +174,52 @@ class MenuBar(Widget):
         return done;
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action in ("scroll_up", "scroll_down") and self.active:
+                return self._move_item(-1 if event.action == "scroll_up" else 1);
+            if event.action != "press" or event.button != "left":
+                return False;
+            if event.y == 0:
+                cursor = 0;
+                for index, menu in enumerate(self.menus):
+                    span = len(" {} ".format(menu.title));
+                    if cursor <= event.x < cursor + span:
+                        if self._focus_manager is not None:
+                            self._focus_manager.set(self);
+                        return self.open(index);
+                    cursor += span;
+                if self.active:
+                    return self.close();
+                return False;
+            if self.active and self.path:
+                left = self.popup_left;
+                menu = self.menus[self.menu_index];
+                for depth, selected in enumerate(list(self.path)):
+                    width = self._menu_content_width(menu) + 2;
+                    height = len(menu.items) + 2;
+                    if left <= event.x < left + width and 1 <= event.y < 1 + height:
+                        row = event.y - 2;
+                        if 0 <= row < len(menu.items):
+                            item = menu.items[row];
+                            if item.enabled and not isinstance(item, Separator):
+                                self.path = self.path[:depth] + [row];
+                                if item.submenu is not None:
+                                    first = self._first(item.submenu);
+                                    if first >= 0:
+                                        self.path.append(first);
+                                    return True;
+                                done = item.invoke();
+                                if done:
+                                    self.close();
+                                return True;
+                        return True;
+                    item = menu.items[selected] if 0 <= selected < len(menu.items) else None;
+                    if item is None or item.submenu is None:
+                        break;
+                    left += width;
+                    menu = item.submenu;
+                return self.close();
+            return False;
         key = getattr(event, "key", "");
         if self.activation_key and getattr(event, "name", "") == self.activation_key:
             return self.close() if self.active else self.open();
@@ -346,38 +392,35 @@ class MenuBar(Widget):
         yield Group(bar, Columns(panels, padding=(0, 0), expand=False));
 
 
-class _MenuPopupSurface:
-    def __init__(self, menu_bar):
+class _MenuPanelSurface:
+    def __init__(self, menu_bar, menu, selected, left, top=1):
         self.menu_bar = menu_bar;
-        self.top = 1;
+        self.menu = menu;
+        self.selected = selected;
+        self.top = int(top);
+        self.left = int(left);
         self.shadow = False;
 
     @property
-    def left(self):
-        return self.menu_bar.popup_left;
-
-    @property
     def width(self):
-        return self.menu_bar.popup_width;
+        return self.menu_bar._menu_content_width(self.menu) + 2;
 
     @property
     def height(self):
-        return self.menu_bar.popup_height;
+        return len(self.menu.items) + 2;
 
     def __rich_console__(self, console, options):
-        popup = self.menu_bar.popup_renderable();
-        if popup is not None:
-            yield popup;
+        yield self.menu_bar._render_menu(self.menu, self.selected);
 
 
 class MenuDesktop(Widget):
     """One-line MenuBar with dropdowns composited over the client area.
 
-    The menu bar always occupies exactly one terminal row.  When a menu is
-    open its popup is drawn over the client surface instead of participating
-    in the normal VBox layout, so editor/viewer widgets cannot cover it and
-    opening a menu does not resize the client area.
-    """
+    Each visible popup panel is overlaid independently.  This matters when a
+    submenu is taller than its parent: the cells below the shorter panel stay
+    transparent and the underlying editor/viewer remains visible instead of
+    being replaced by terminal-default black padding.
+    """;
     def __init__(self, menu, body, theme=None):
         super().__init__(theme=theme);
         self.menu = menu;
@@ -389,16 +432,36 @@ class MenuDesktop(Widget):
 
     @property
     def items(self):
-        """Compatibility view of body layout items for simple hosts/tests."""
+        """Compatibility view of body layout items for simple hosts/tests.""";
         return getattr(self.body, "items", []);
+
+    def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.y == 0 or self.menu.active:
+                handled = self.menu.handle_event(event);
+                if handled:
+                    return True;
+            if event.y > 0:
+                return bool(self.body.handle_event(event.translated(0, 1)));
+            return False;
+        return False;
 
     def __rich_console__(self, console, options):
         base = VBox(self.menu, self.body, sizes=[1, None]);
         base.set_theme(self.theme);
+        renderable = base;
         if self.menu.active and self.menu.path:
-            yield ModalOverlay(base, _MenuPopupSurface(self.menu));
-            return;
-        yield base;
+            left = self.menu.popup_left;
+            menu = self.menu.menus[self.menu.menu_index];
+            for depth, selected in enumerate(self.menu.path):
+                panel = _MenuPanelSurface(self.menu, menu, selected, left=left, top=1);
+                renderable = ModalOverlay(renderable, panel);
+                item = menu.items[selected] if 0 <= selected < len(menu.items) else None;
+                if item is None or item.submenu is None:
+                    break;
+                left += panel.width;
+                menu = item.submenu;
+        yield renderable;
 
 
 class ContextMenu(MenuBar):

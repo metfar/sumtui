@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.16
+
+- Added optional POSIX SGR mouse reporting to the core input backend and public `MouseEvent` dispatch. Applications opt in with `Application(..., mouse=True)` and gracefully keep keyboard operation when mouse reporting is unavailable.
+- `sumedit` now supports left-click caret placement, click-drag text selection, mouse-wheel scrolling, and click/drag operation of its vertical and horizontal scrollbars. Wrapped editor rows remain mapped back to logical document offsets.
+- Added mouse interaction across reusable controls used by `sumdialog`: buttons, text inputs, checkboxes, radio buttons, choices, lists/tables, scrollbars and modal dialogs. Form textareas now display a synchronized vertical scrollbar.
+- List widgets can show an explicit selected-row marker; `sumdialog` list fields use it so the selected target remains visible even when another control owns focus.
+- Fixed nested menu composition so each popup is overlaid independently. A taller submenu no longer creates a black rectangle below its shorter parent menu; the covered editor/background text is preserved wherever no popup actually exists.
+- Added flexible retro menu separators: blank rows (`separator.blank`, optional height) and full-width rules (`separator.line`, optional character), with CLI counterparts `--menu-blank` and `--menu-line`; existing `separator` / `--menu-separator` remains the full-width line form.
+- Added Bash/declarative separator examples and regression tests for SGR mouse decoding, editor mouse selection/routing, scrollbar mouse control, visible list selection, popup transparency and declarative separator parsing.
+
 ## 0.5.15
 
 - Added declarative `.sdlg` input for `sumdialog`. A form may be piped (`cat form.sdlg | sumdialog`), passed as a filename (`sumdialog form.sdlg`), or executed directly with `#!/usr/bin/env sumdialog`; all paths build the same `FormFieldSpec` objects used by CLI `--forms`.

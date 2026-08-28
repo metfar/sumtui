@@ -284,7 +284,7 @@ def read_dialog(spec, reader=None, writer=None):
         with controlling_terminal() as terminal:
             return read_dialog(spec, reader=terminal[0], writer=terminal[1]);
     console = Console(file=writer, force_terminal=True);
-    app = Application("suminput", theme=(spec.theme or "DOS"), console=console);
+    app = Application("suminput", theme=(spec.theme or "DOS"), console=console, mouse=True);
     state = {"result": InputResult("", CANCELLED), "done": False};
     deadline = None if spec.timeout is None else time.monotonic() + spec.timeout;
     status = Label("");

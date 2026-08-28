@@ -26,6 +26,7 @@ from rich.align import Align;
 from rich.panel import Panel as RichPanel;
 from rich.text import Text;
 
+from ..events import MouseEvent;
 from .base import Widget;
 
 
@@ -56,6 +57,8 @@ class Panel(Widget):
         self.subtitle = str(subtitle);
         self.padding = padding;
         self.content_style = None if content_style is None else str(content_style);
+        self._last_width = 1;
+        self._last_height = 1;
         if self.child is not None:
             self.child.set_theme(self.theme);
 
@@ -68,9 +71,30 @@ class Panel(Widget):
             child.set_theme(self.theme);
         return child;
 
+    def _padding_values(self):
+        if isinstance(self.padding, int):
+            return int(self.padding), int(self.padding);
+        if isinstance(self.padding, (tuple, list)) and len(self.padding) >= 2:
+            return int(self.padding[0]), int(self.padding[1]);
+        return 0, 0;
+
+    def handle_event(self, event):
+        if not isinstance(event, MouseEvent) or self.child is None:
+            return False;
+        vertical, horizontal = self._padding_values();
+        left = 1 + horizontal;
+        top = 1 + vertical;
+        right = max(left, self._last_width - 1 - horizontal);
+        bottom = max(top, self._last_height - 1 - vertical);
+        if left <= event.x < right and top <= event.y < bottom:
+            return bool(self.child.handle_event(event.translated(left, top)));
+        return False;
+
     def __rich_console__(self, console, options):
         content = self.child if self.child is not None else Text("");
         height = options.height or options.max_height;
+        self._last_width = max(1, int(options.max_width));
+        self._last_height = max(1, int(height or console.height));
         yield RichPanel(
             content,
             title=self.title or None,

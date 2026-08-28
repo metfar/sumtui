@@ -27,7 +27,7 @@ from .table import Column, TableView;
 
 class ListView(TableView):
     def __init__(self, items=None, title="", on_change=None, on_activate=None, theme=None):
-        super().__init__([Column(title or "", ratio=1)], rows=None, on_change=on_change, on_activate=on_activate, theme=theme);
+        super().__init__([Column(title or "", ratio=1)], rows=None, on_change=on_change, on_activate=on_activate, theme=theme, show_selection_marker=True);
         for item in list(items or []):
             if isinstance(item, tuple) and len(item) == 2:
                 self.add_row([str(item[0])], value=item[1]);

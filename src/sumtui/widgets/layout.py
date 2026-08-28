@@ -26,6 +26,7 @@ from dataclasses import dataclass;
 
 from rich.layout import Layout;
 
+from ..events import MouseEvent;
 from .base import Widget;
 
 
@@ -45,6 +46,7 @@ class _Box(Widget):
         sizes = list(sizes or []);
         ratios = list(ratios or []);
         self.items = [];
+        self._mouse_rects = [];
         for index, child in enumerate(children):
             size = sizes[index] if index < len(sizes) else None;
             ratio = ratios[index] if index < len(ratios) else 1;
@@ -59,19 +61,73 @@ class _Box(Widget):
         widget.set_theme(self.theme);
         return widget;
 
+    @staticmethod
+    def _axis_sizes(total, fixed_sizes, ratios):
+        total = max(0, int(total));
+        output = [None] * len(fixed_sizes);
+        used = 0;
+        flexible = [];
+        for index, size in enumerate(fixed_sizes):
+            if size is None:
+                flexible.append(index);
+            else:
+                output[index] = max(0, int(size));
+                used += output[index];
+        remaining = max(0, total - used);
+        if flexible:
+            ratio_total = sum(max(1, int(ratios[index])) for index in flexible);
+            allocated = 0;
+            for pos, index in enumerate(flexible):
+                if pos + 1 == len(flexible):
+                    size = max(0, remaining - allocated);
+                else:
+                    size = int(remaining * max(1, int(ratios[index])) / ratio_total);
+                    allocated += size;
+                output[index] = size;
+        return [max(0, int(value or 0)) for value in output];
+
+    def handle_event(self, event):
+        if not isinstance(event, MouseEvent):
+            return False;
+        for item, rect in zip(self.items, self._mouse_rects):
+            left, top, width, height = rect;
+            if left <= event.x < left + width and top <= event.y < top + height:
+                return bool(item.widget.handle_event(event.translated(left, top)));
+        return False;
+
     def __rich_console__(self, console, options):
         root = Layout(name="root");
         layouts = [];
+        fixed_sizes = [];
+        ratios = [];
         for index, item in enumerate(self.items):
             size = item.size;
             if size is None and self.direction == "column" and hasattr(item.widget, "preferred_height"):
                 preferred = item.widget.preferred_height(options.max_width);
                 if preferred is not None:
                     size = max(1, int(preferred));
+            fixed_sizes.append(size);
+            ratios.append(max(1, int(item.ratio)));
             layouts.append(Layout(item.widget, name=item.name or "item{}".format(index), size=size, ratio=max(1, int(item.ratio))));
         if self.direction == "row":
+            total = max(1, int(options.max_width));
+            height = max(1, int(options.height or options.max_height or console.height));
+            sizes = self._axis_sizes(total, fixed_sizes, ratios);
+            cursor = 0;
+            self._mouse_rects = [];
+            for size in sizes:
+                self._mouse_rects.append((cursor, 0, size, height));
+                cursor += size;
             root.split_row(*layouts);
         else:
+            total = max(1, int(options.height or options.max_height or console.height));
+            width = max(1, int(options.max_width));
+            sizes = self._axis_sizes(total, fixed_sizes, ratios);
+            cursor = 0;
+            self._mouse_rects = [];
+            for size in sizes:
+                self._mouse_rects.append((0, cursor, width, size));
+                cursor += size;
             root.split_column(*layouts);
         yield from console.render(root, options);
 

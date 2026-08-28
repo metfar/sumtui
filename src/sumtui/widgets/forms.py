@@ -25,7 +25,7 @@
 from rich.align import Align;
 from rich.text import Text;
 
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from .base import Widget;
 
 
@@ -48,6 +48,12 @@ class Button(Widget):
         return True;
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                return self.press();
+            return False;
         if getattr(event, "key", "") in (Key.ENTER, Key.SPACE):
             return self.press();
         return False;
@@ -151,6 +157,25 @@ class TextInput(Widget):
         return True;
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                inner_x = max(0, int(event.x) - 1);
+                display, display_cursor = self._display();
+                target_display = self.view_offset + inner_x;
+                if self.display_transform is None and self.echo_mask is None:
+                    self.cursor = max(0, min(len(self.value), target_display));
+                elif self.echo_mask is not None:
+                    mask_width = max(1, len(str(self.echo_mask)));
+                    self.cursor = max(0, min(len(self.value), target_display // mask_width));
+                else:
+                    # Transformed fields may not have a reversible display map;
+                    # move to the closest sensible logical position.
+                    self.cursor = max(0, min(len(self.value), target_display));
+                self._first_edit_pending = False;
+                return True;
+            return False;
         key = getattr(event, "key", "");
         if key == Key.LEFT:
             old = self.cursor;
@@ -284,6 +309,12 @@ class CheckBox(Widget):
         return self.set_checked(not self.checked);
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                return self.toggle();
+            return False;
         key = getattr(event, "key", "");
         if key in (Key.SPACE, Key.ENTER):
             return self.toggle();
@@ -335,6 +366,12 @@ class RadioButton(Widget):
         return changed;
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                return self.select() or True;
+            return False;
         key = getattr(event, "key", "");
         if key in (Key.SPACE, Key.ENTER):
             return self.select();
@@ -500,6 +537,16 @@ class Choice(Widget):
         return self.select(self.index + int(delta));
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                return self.move(1) or True;
+            if event.action == "scroll_up":
+                return self.move(-1);
+            if event.action == "scroll_down":
+                return self.move(1);
+            return False;
         key = getattr(event, "key", "");
         if key in (Key.LEFT, Key.UP):
             return self.move(-1);

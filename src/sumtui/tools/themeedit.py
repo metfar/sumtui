@@ -74,7 +74,7 @@ class ThemeEditorApp:
     def __init__(self, theme=None):
         refresh_user_themes();
         selected = theme if theme in THEMES else ("Ralesk's MC" if "Ralesk's MC" in THEMES else next(iter(THEMES)));
-        self.app = Application("sumTUI Theme Editor", theme=selected, capture_control_keys=True);
+        self.app = Application("sumTUI Theme Editor", theme=selected, capture_control_keys=True, mouse=True);
         self.current_name = selected;
         self.status = StatusBar("");
         self.preview = ThemePreview();

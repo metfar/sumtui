@@ -62,7 +62,23 @@ class _AddMenuButton(argparse.Action):
 class _AddMenuSeparator(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         entries = list(getattr(namespace, self.dest, None) or []);
-        entries.append(MenuItemSpec(separator=True));
+        entries.append(MenuItemSpec(separator=True, separator_style="line"));
+        setattr(namespace, self.dest, entries);
+
+
+class _AddMenuBlank(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        entries = list(getattr(namespace, self.dest, None) or []);
+        height = int(values) if values not in (None, "") else 1;
+        entries.append(MenuItemSpec(separator=True, separator_style="blank", separator_height=max(1, height)));
+        setattr(namespace, self.dest, entries);
+
+
+class _AddMenuLine(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        entries = list(getattr(namespace, self.dest, None) or []);
+        char = str(values or "─")[:1] or "─";
+        entries.append(MenuItemSpec(separator=True, separator_style="line", separator_char=char));
         setattr(namespace, self.dest, entries);
 
 
@@ -229,7 +245,9 @@ def _parser():
     parser.add_argument("--required", action="append", default=[], metavar="NAME", help="mark one --forms field as required; repeatable");
     parser.add_argument("--output", choices=("shell", "values", "lines", "json", "null"), default="shell", help="--forms output format; default shell");
     parser.add_argument("--menu-button", dest="menu_entries", action=_AddMenuButton, nargs=2, metavar=("VALUE", "LABEL"), help="add one button to --menu; stdout receives VALUE");
-    parser.add_argument("--menu-separator", dest="menu_entries", action=_AddMenuSeparator, nargs=0, help="add a separator line to --menu");
+    parser.add_argument("--menu-separator", dest="menu_entries", action=_AddMenuSeparator, nargs=0, help="add a full-width separator line to --menu");
+    parser.add_argument("--menu-blank", dest="menu_entries", action=_AddMenuBlank, nargs="?", const="1", metavar="ROWS", help="add one or more blank separator rows to --menu");
+    parser.add_argument("--menu-line", dest="menu_entries", action=_AddMenuLine, nargs="?", const="─", metavar="CHAR", help="add a full-width separator using CHAR");
     return parser;
 
 

@@ -84,6 +84,16 @@ class ModalOverlay:
         requested_left = getattr(self.dialog, "left", None);
         top = max(0, (height - len(dialog_lines)) // 2) if requested_top is None else max(0, min(int(requested_top), max(0, height - len(dialog_lines))));
         left = max(0, (width - dialog_width) // 2) if requested_left is None else max(0, min(int(requested_left), max(0, width - dialog_width)));
+        # Keep absolute mouse geometry in sync for real Dialog objects and
+        # other overlay surfaces that choose to expose these attributes.
+        if hasattr(self.dialog, "_mouse_left"):
+            self.dialog._mouse_left = left;
+        if hasattr(self.dialog, "_mouse_top"):
+            self.dialog._mouse_top = top;
+        if hasattr(self.dialog, "_mouse_width"):
+            self.dialog._mouse_width = dialog_width;
+        if hasattr(self.dialog, "_mouse_height"):
+            self.dialog._mouse_height = len(dialog_lines);
         output_lines = [];
         for row in range(height):
             base_line = base_lines[row] if row < len(base_lines) else [Segment(" " * width)];

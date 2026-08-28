@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.5.15
+Version: 0.5.16
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ Requires-Dist: rich>=13.0
 Requires-Dist: pygments>=2.15
 Dynamic: license-file
 
-# sumTUI 0.5.15
+# sumTUI 0.5.16
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -49,7 +49,9 @@ python -m pip install -e .
 
 `TextArea` is the reusable multiline editing engine and `TextEditor` is its source-oriented form with line numbers enabled by default. They provide cursor movement, insert/delete, Home/End, PageUp/PageDown, Ctrl+Home/Ctrl+End, vertical/horizontal scrolling, Tab/newline editing and a modified flag suitable for IDE-style hosts.
 
-Shift+Up/Down and Shift+PageUp/PageDown extend the current selection while moving the caret. On POSIX, sumTUI now consults the active terminfo entry for shifted cursor/page sequences and also keeps xterm/rxvt fallbacks, because terminal families do not encode these combinations identically.
+Shift+Up/Down and Shift+PageUp/PageDown extend the current selection while moving the caret. On POSIX, sumTUI consults the active terminfo entry for shifted cursor/page sequences and also keeps xterm/rxvt fallbacks, because terminal families do not encode these combinations identically.
+
+POSIX applications may opt in to SGR mouse reporting with `Application(..., mouse=True)`. `sumedit`, `sumdialog`, `suminput`, and `sumtheme` enable it while they own the terminal and disable it again on exit. Mouse events are normalized as `MouseEvent` objects: left-click can focus controls, editor clicks place the caret, drag extends a text selection, the wheel scrolls supported views, and scrollbars accept track clicks and thumb dragging. Keyboard operation remains complete when the terminal does not provide mouse reporting.
 
 The Ralesk's MC theme uses the original Geany scheme's green line-number margin (`#393`) with dark-blue (`#114`) line numbers, matching the classic MC-like source view.
 
@@ -83,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.15
+## Widgets in 0.5.16
 
 ### Structure and layout
 
@@ -185,7 +187,7 @@ Nested modal levels are supported. Dialogs may opt in to maximize/restore suppor
 
 ## Menu navigation
 
-`MenuDesktop(menu, body)` is the recommended host for full-screen editor/IDE applications. The menu bar remains one row high; active dropdowns are composited over the client area rather than consuming layout height, so an editor panel cannot paint over the menu and opening a menu does not resize the document viewport. See `examples/demo_menu_desktop.py`.
+`MenuDesktop(menu, body)` is the recommended host for full-screen editor/IDE applications. The menu bar remains one row high; active dropdowns are composited over the client area rather than consuming layout height, so an editor panel cannot paint over the menu and opening a menu does not resize the document viewport. Popup panels are composited independently, so a taller submenu no longer fills the area below a shorter parent menu with terminal-default black cells; the covered editor text becomes visible again as soon as the parent panel ends. See `examples/demo_menu_desktop.py`.
 
 
 The intended Commander/DOS behaviour is:
@@ -430,7 +432,7 @@ BrowseForm(["id", "name", "amount"], rows)
 
 ## Generic editor and text-file tools
 
-`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. Its top `File / Edit / Search / View / Options / Help` menu is always visible; **F9** opens the menu and **F10** exits. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
+`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Help` menu is always visible; **F9** opens the menu and **F10** exits. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
@@ -609,7 +611,7 @@ printf 'BORN DATE: %s\n' "$born_date";
 printf 'HEIGHT: %s\n' "$height";
 ```
 
-Current form components are `--add-entry`, `--add-password`, `--add-textarea`, `--add-checkbox`, `--add-combo`, `--add-radio`, `--add-list`, `--add-file`, and `--add-directory`. Defaults use repeatable `--form-default NAME=VALUE`; required fields use repeatable `--required NAME`.
+Current form components are `--add-entry`, `--add-password`, `--add-textarea`, `--add-checkbox`, `--add-combo`, `--add-radio`, `--add-list`, `--add-file`, and `--add-directory`. Defaults use repeatable `--form-default NAME=VALUE`; required fields use repeatable `--required NAME`. Multiline textarea fields include a synchronized vertical scrollbar, and list fields always prefix the selected row with `> ` so the current value remains visible even when focus is on another control. Mouse-enabled terminals can click buttons/checkboxes/radio choices/list rows, place the caret in text controls, use the wheel, and operate scrollbars.
 
 Form output modes are:
 
@@ -701,6 +703,17 @@ separator
 button:exit="Salir"
 ```
 
+Menu separators can also be visual spacing or a full-width rule with a chosen character:
+
+```ini
+separator.blank
+separator.blank=2
+separator.line
+separator.line="="
+```
+
+The command-line equivalents are `--menu-blank [ROWS]`, `--menu-separator`, and `--menu-line [CHAR]`. A plain `separator` remains the backward-compatible full-width line form.
+
 ### Interactive demo launcher
 
 `sumdialog --demo` opens a retro launcher that executes examples of message, question, entry, forms, list/radio/checklist, text/Markdown, progress, file/directory selection, and the classic button menu. It is useful for quickly inspecting a theme or demonstrating the toolkit without remembering individual command lines:
@@ -772,6 +785,7 @@ bash examples/bash/sumdialog_examples.sh forms-shell-safety
 bash examples/bash/sumdialog_examples.sh forms-null
 bash examples/bash/sumdialog_examples.sh declarative-form
 bash examples/bash/sumdialog_examples.sh retro-menu
+bash examples/bash/sumdialog_examples.sh retro-menu-separators
 bash examples/bash/sumdialog_examples.sh demo
 ```
 

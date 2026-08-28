@@ -27,7 +27,7 @@ from dataclasses import dataclass;
 from rich.table import Table;
 from rich.text import Text;
 
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from .base import Widget;
 
 
@@ -49,7 +49,7 @@ class TableRow:
 class TableView(Widget):
     focusable = True;
 
-    def __init__(self, columns, rows=None, on_change=None, on_activate=None, theme=None):
+    def __init__(self, columns, rows=None, on_change=None, on_activate=None, theme=None, show_selection_marker=False):
         super().__init__(theme=theme);
         self.columns = [column if isinstance(column, Column) else Column(str(column)) for column in columns];
         self.rows = [];
@@ -58,6 +58,7 @@ class TableView(Widget):
         self.page_size = 1;
         self.on_change = on_change;
         self.on_activate = on_activate;
+        self.show_selection_marker = bool(show_selection_marker);
         for row in rows or []:
             if isinstance(row, TableRow):
                 self.rows.append(row);
@@ -152,6 +153,21 @@ class TableView(Widget):
         self.offset = max(0, min(self.offset, max_offset));
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action in ("scroll_up", "scroll_down"):
+                delta = -3 if event.action == "scroll_up" else 3;
+                return self.move(delta);
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                row_y = int(event.y) - 1;
+                if 0 <= row_y < self.page_size:
+                    index = self.offset + row_y;
+                    if index < len(self.rows):
+                        self.select(index);
+                        return True;
+                return True;
+            return False;
         key = getattr(event, "key", "");
         if key == Key.UP:
             return self.move(-1);
@@ -199,6 +215,9 @@ class TableView(Widget):
             cells = list(row.cells[:len(self.columns)]);
             while len(cells) < len(self.columns):
                 cells.append("");
+            if self.show_selection_marker and cells:
+                marker = "> " if visible_index == self.selected else "  ";
+                cells[0] = marker + str(cells[0]);
             table.add_row(*cells, style=style);
         if not visible:
             table.add_row(Text("<empty>", style=self.theme.style("muted")), *["" for _ in self.columns[1:]]);

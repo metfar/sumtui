@@ -49,8 +49,10 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 | `26_declarative_form.sh` | executes `project_form.sdlg` directly through `#!/usr/bin/env sumdialog`; also shows the `cat form.sdlg | sumdialog` equivalent |
 | `27_retro_menu.sh` | executes `retro_menu.sdlg` and branches on the selected retro button value |
 | `28_demo.sh` | launches `sumdialog --demo` with the Ralesk's MC theme |
+| `29_retro_menu_separators.sh` | retro menu using blank spacing and a configurable full-width separator rule |
 | `project_form.sdlg` | declarative form containing entry/password/textarea/checkbox/combo/radio/list/file/directory fields |
 | `retro_menu.sdlg` | classic vertical button menu with Entrar/Listar/Buscar/Reporte/Salir |
+| `retro_menu_spacing.sdlg` | declarative `separator.blank`, `separator.blank=N`, and `separator.line="CHAR"` spacing/rules |
 
 `--forms --output shell` emits validated Bash variable names and values protected with POSIX single-quote escaping. For example, `This is John's house` is reconstructed exactly after `eval`, while text such as `$(command)` remains data. `--output null` is available when a script wants to avoid `eval` entirely.
 
@@ -67,6 +69,17 @@ Validate or inspect one without opening the UI:
 sumdialog --check examples/bash/sumdialog/project_form.sdlg
 sumdialog --dump examples/bash/sumdialog/project_form.sdlg
 ```
+
+Retro menu separators may be empty spacing or full-width rules. For example:
+
+```ini
+separator.blank
+separator.blank=2
+separator.line
+separator.line="="
+```
+
+The CLI equivalents are `--menu-blank [ROWS]`, `--menu-separator`, and `--menu-line [CHAR]`.
 
 The retro menu returns only the selected action value on stdout, so Bash can use a normal `case` statement.
 

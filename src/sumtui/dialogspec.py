@@ -84,7 +84,12 @@ class DialogSpec:
             });
         if self.kind == "menu":
             data["menu_items"] = [
-                {"separator": True} if item.separator else {"value": item.value, "label": item.label}
+                ({
+                    "separator": True,
+                    "style": item.separator_style,
+                    "char": item.separator_char,
+                    "height": item.separator_height,
+                } if item.separator else {"value": item.value, "label": item.label})
                 for item in self.menu_items
             ];
         return data;
@@ -174,9 +179,27 @@ def parse_dialog_spec(text, source="<memory>"):
             continue;
         if section is None:
             fail(line_number, "expected [form] or [menu] before properties");
-        if section == "menu" and line.lower() in ("separator", "separator=true", "separator=yes", "separator=1"):
-            menu_items.append(MenuItemSpec(separator=True));
-            continue;
+        if section == "menu":
+            lowered_line = line.lower();
+            if lowered_line in ("separator", "separator=true", "separator=yes", "separator=1", "separator.line"):
+                menu_items.append(MenuItemSpec(separator=True, separator_style="line"));
+                continue;
+            if lowered_line.startswith("separator.blank"):
+                _key, _raw = _split_assignment(line);
+                height = 1;
+                if _raw is not None and str(_raw).strip() != "":
+                    try:
+                        height = max(1, int(str(_raw).strip()));
+                    except ValueError:
+                        fail(line_number, "separator.blank expects an integer height");
+                menu_items.append(MenuItemSpec(separator=True, separator_style="blank", separator_height=height));
+                continue;
+            if lowered_line.startswith("separator.line="):
+                _key, _raw = _split_assignment(line);
+                parsed_line = _parse_values(_raw) if _raw is not None else ["─"];
+                char = (parsed_line[0] if parsed_line else "─") or "─";
+                menu_items.append(MenuItemSpec(separator=True, separator_style="line", separator_char=str(char)[:1]));
+                continue;
 
         key, raw_value = _split_assignment(line);
         key_lower = key.lower();

@@ -35,7 +35,7 @@ from rich.style import Style;
 
 from sumtui import Application, BrowseForm, Button, CheckBox, Choice, Column, CommandWindow, ContextMenu, Dialog, FileDialog, FormField, GroupBox, HBox, HexView, KeyBindingManager, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RecordForm, ScrollBar, Separator, Slider, Splitter, RadioGroup, TableView, TextEditor, TextInput, TextView, TreeNode, TreeView, VBox, format_key_spec;
 from sumtui.backends import AnsiDecoder, PosixInput;
-from sumtui.events import Key, KeyEvent, normalize_key_spec;
+from sumtui.events import Key, KeyEvent, MouseEvent, normalize_key_spec;
 from sumtui.theme import make_theme;
 from sumtui.progress_cli_support import parse_size;
 from sumtui.tools.edit import EditApp;
@@ -1418,7 +1418,81 @@ output=shell
         root = Path(__file__).resolve().parents[1];
         scripts = sorted((root / "examples" / "bash" / "sumdialog").glob("*.sh"));
         scripts.append(root / "examples" / "bash" / "sumdialog_examples.sh");
-        self.assertGreaterEqual(len(scripts), 26);
+        self.assertGreaterEqual(len(scripts), 29);
         for script in scripts:
             completed = subprocess.run(["bash", "-n", str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False);
             self.assertEqual(completed.returncode, 0, msg="{}: {}".format(script.name, completed.stderr));
+
+
+class MouseAndOverlayRegressionTests(unittest.TestCase):
+    def test_sgr_mouse_decoder_press_drag_release_and_wheel(self):
+        decoder = AnsiDecoder();
+        press = decoder.feed(b"\x1b[<0;12;5M")[0];
+        self.assertIsInstance(press, MouseEvent);
+        self.assertEqual((press.x, press.y, press.button, press.action), (11, 4, "left", "press"));
+        drag = decoder.feed(b"\x1b[<32;13;5M")[0];
+        self.assertEqual((drag.x, drag.y, drag.button, drag.action), (12, 4, "left", "move"));
+        release = decoder.feed(b"\x1b[<0;13;5m")[0];
+        self.assertEqual((release.button, release.action), ("left", "release"));
+        wheel = decoder.feed(b"\x1b[<65;13;5M")[0];
+        self.assertEqual((wheel.button, wheel.action), ("wheel", "scroll_down"));
+
+    def test_texteditor_mouse_click_and_drag_selection(self):
+        editor = TextEditor("abcdef\nghijkl", line_numbers=False, line_wrapping=0);
+        console = Console(width=12, height=4, record=True, force_terminal=False, file=io.StringIO());
+        console.print(editor, height=4);
+        self.assertTrue(editor.handle_event(MouseEvent(1, 0, button="left", action="press")));
+        self.assertTrue(editor.handle_event(MouseEvent(4, 0, button="left", action="move")));
+        self.assertTrue(editor.handle_event(MouseEvent(4, 0, button="left", action="release")));
+        self.assertEqual(editor.selected_text, "bcd");
+        self.assertEqual((editor.row, editor.column), (0, 4));
+
+    def test_sumedit_mouse_coordinates_route_to_editor(self):
+        editor_app = EditApp();
+        editor_app.editor.set_text("abcdefghij\nsecond", modified=False);
+        console = Console(width=60, height=15, record=True, force_terminal=False, file=io.StringIO());
+        console.print(editor_app.desktop, height=15);
+        self.assertTrue(editor_app.app.dispatch(MouseEvent(10, 2, button="left", action="press")));
+        self.assertTrue(editor_app.app.dispatch(MouseEvent(13, 2, button="left", action="move")));
+        self.assertTrue(editor_app.app.dispatch(MouseEvent(13, 2, button="left", action="release")));
+        self.assertGreater(editor_app.editor.selection_length, 0);
+
+    def test_scrollbar_mouse_track_and_drag_changes_value(self):
+        scroll = ScrollBar(0, maximum=100, page=10, orientation="vertical");
+        console = Console(width=1, height=10, record=True, force_terminal=False, file=io.StringIO());
+        console.print(scroll, height=10);
+        self.assertTrue(scroll.handle_event(MouseEvent(0, 9, button="left", action="press")));
+        self.assertGreater(scroll.value, 0);
+
+    def test_listview_always_marks_selected_value(self):
+        view = ListView(["Linux", "Android", "Tablet"], title="Target");
+        view.select(1);
+        console = Console(width=30, height=8, record=True, force_terminal=False, file=io.StringIO());
+        console.print(view, height=8);
+        output = console.export_text();
+        self.assertIn("> Android", output);
+
+    def test_menu_desktop_does_not_black_fill_below_short_parent_popup(self):
+        submenu = Menu("Theme", [MenuItem("Theme {}".format(index)) for index in range(9)]);
+        bar = MenuBar([Menu("Options", [MenuItem("Theme", submenu=submenu), MenuItem("Save")])]);
+        bar.open(0);
+        self.assertTrue(bar._open_submenu());
+        body = TextView("\n".join("BODY{:02d} abcdefghijklmnopqrstuvwxyz".format(index) for index in range(20)));
+        console = Console(width=70, height=16, record=True, force_terminal=False, file=io.StringIO());
+        console.print(MenuDesktop(bar, body));
+        lines = console.export_text().splitlines();
+        self.assertTrue(any(line.startswith("BODY04") for line in lines), console.export_text());
+
+    def test_declarative_menu_blank_and_line_separators(self):
+        from sumtui import parse_dialog_spec;
+        spec = parse_dialog_spec("""[menu]
+title=MENU
+button:one=One
+separator.blank=2
+separator.line="="
+button:exit=Exit
+""", source="separators.sdlg");
+        self.assertEqual(spec.menu_items[1].separator_style, "blank");
+        self.assertEqual(spec.menu_items[1].separator_height, 2);
+        self.assertEqual(spec.menu_items[2].separator_style, "line");
+        self.assertEqual(spec.menu_items[2].separator_char, "=");

@@ -26,7 +26,7 @@ from rich.align import Align;
 from rich.panel import Panel as RichPanel;
 from rich.text import Text;
 
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from .base import Widget;
 
 
@@ -68,6 +68,10 @@ class Dialog(Widget):
         self.shadow = bool(shadow);
         self.panel = bool(panel);
         self.color_scheme = None if color_scheme is None else int(color_scheme);
+        self._mouse_left = 0;
+        self._mouse_top = 0;
+        self._mouse_width = self.width;
+        self._mouse_height = self.height or 1;
         if self.child is not None:
             self.child.set_theme(self.theme);
 
@@ -111,7 +115,36 @@ class Dialog(Widget):
         self.maximized = not self.maximized;
         return True;
 
+    def _padding_values(self):
+        if isinstance(self.padding, int):
+            return int(self.padding), int(self.padding);
+        if isinstance(self.padding, (tuple, list)) and len(self.padding) >= 2:
+            return int(self.padding[0]), int(self.padding[1]);
+        return 0, 0;
+
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if self.child is None:
+                return False;
+            local_x = int(event.x) - int(self._mouse_left);
+            local_y = int(event.y) - int(self._mouse_top);
+            vertical, horizontal = self._padding_values();
+            left = 1 + horizontal;
+            top = 1 + vertical;
+            right = max(left, int(self._mouse_width) - 1 - horizontal);
+            bottom = max(top, int(self._mouse_height) - 1 - vertical);
+            if left <= local_x < right and top <= local_y < bottom:
+                translated = MouseEvent(
+                    local_x - left,
+                    local_y - top,
+                    button=event.button,
+                    action=event.action,
+                    ctrl=event.ctrl,
+                    alt=event.alt,
+                    shift=event.shift,
+                );
+                return bool(self.child.handle_event(translated));
+            return False;
         key = getattr(event, "key", "");
         if key == self.maximize_key and self.maximizable:
             return self.toggle_maximize();
@@ -161,4 +194,9 @@ class Dialog(Widget):
         else:
             width = min(self.width, max(12, options.max_width));
             height = None if self.height is None else min(self.height, max(5, int(max_height)));
+        actual_height = max(1, int(height or max_height));
+        self._mouse_width = max(1, int(width));
+        self._mouse_height = actual_height;
+        self._mouse_left = max(0, (int(options.max_width) - self._mouse_width) // 2) if self.left is None else max(0, int(self.left));
+        self._mouse_top = max(0, (int(max_height) - self._mouse_height) // 2) if self.top is None else max(0, int(self.top));
         yield Align(self.as_panel(width=width, height=height), align="center", vertical="middle", width=options.max_width, height=max_height);
