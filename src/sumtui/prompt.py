@@ -59,6 +59,8 @@ class InputSpec:
     dialog: bool = False;
     title: str = "Input";
     theme: object = None;
+    button_width: int = None;
+    button_height: int = 1;
 
     def normalize(self):
         self.prompt = str(self.prompt or "");
@@ -73,6 +75,8 @@ class InputSpec:
         self.timeout = None if self.timeout is None else max(0.0, float(self.timeout));
         self.dialog = bool(self.dialog or self.height > 1);
         self.title = str(self.title or "Input");
+        self.button_width = None if self.button_width is None else max(4, int(self.button_width));
+        self.button_height = max(1, int(self.button_height or 1));
         if self.height > 1 and (self.hidden or self.mask is not None):
             raise ValueError("hidden/masked input is currently single-line only");
         if self.height > 1 and self.picture:
@@ -320,11 +324,11 @@ def read_dialog(spec, reader=None, writer=None):
         body_entry = entry;
         entry_height = spec.height;
 
-    buttons = HBox(Button("OK", on_press=lambda: finish(entry.value if hasattr(entry, "value") else entry.text, ACCEPTED), default=True), Button("Cancel", on_press=cancel), ratios=[1, 1]);
+    buttons = HBox(Button("OK", on_press=lambda: finish(entry.value if hasattr(entry, "value") else entry.text, ACCEPTED), default=True, width=spec.button_width, height=spec.button_height), Button("Cancel", on_press=cancel, width=spec.button_width, height=spec.button_height), ratios=[1, 1]);
     prompt_label = Label(spec.prompt);
-    body = VBox(prompt_label, body_entry, status, buttons, sizes=[1, entry_height, 1, 1]);
+    body = VBox(prompt_label, body_entry, status, buttons, sizes=[1, entry_height, 1, None]);
     dialog_width = max(28, (spec.width or max(20, len(spec.prompt))) + 8);
-    dialog_height = max(8, entry_height + 7);
+    dialog_height = max(8, entry_height + 6 + spec.button_height);
     root = Dialog(body, title=spec.title, width=dialog_width, height=dialog_height, on_cancel=cancel);
     app.set_root(root);
     app.focus.set(entry);

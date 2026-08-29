@@ -33,12 +33,12 @@ from sumtui import ask_question, read_entry, show_message;
 
 def main():
     theme = "Ralesk's MC";
-    show_message("sumdialog services are available from Python too.", title="sumTUI", theme=theme);
-    if not ask_question("Enter a small example value?", title="Question", theme=theme).accepted:
+    show_message("sumdialog services are available from Python too.", title="sumTUI", theme=theme, button_width=18, button_height=3);
+    if not ask_question("Enter a small example value?", title="Question", theme=theme, button_width=18, button_height=3).accepted:
         return 0;
-    result = read_entry("Value:", title="Input", theme=theme, width=30);
+    result = read_entry("Value:", title="Input", theme=theme, width=30, button_width=18, button_height=3);
     if result.accepted:
-        show_message("You entered: {}".format(result.value), title="Result", theme=theme);
+        show_message("You entered: {}".format(result.value), title="Result", theme=theme, button_width=18, button_height=3);
     return int(result.status);
 
 

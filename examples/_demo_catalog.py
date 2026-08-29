@@ -58,8 +58,10 @@ def build(name, theme="RAR"):
     if name == "statusbar":
         return _app("StatusBar", VBox(Panel(TextView("Status bar stays at the bottom."), title="Main"), StatusBar("READY."), sizes=[None, 1]), theme);
     if name == "button":
-        status = StatusBar("Tab moves focus; Enter/Space presses");
-        return _app("Button", VBox(Button("One", on_press=lambda: status.set("One pressed")), Button("Two", on_press=lambda: status.set("Two pressed")), status, sizes=[1, 1, 1]), theme);
+        status = StatusBar("Buttons are 24x3 cells; Tab moves focus; Enter/Space presses");
+        first = Button("One", width=24, height=3, on_press=lambda: status.set("One pressed"));
+        second = Button("Two", width=24, height=3, on_press=lambda: status.set("Two pressed"));
+        return _app("Button", VBox(first, second, status, sizes=[None, None, 1]), theme);
     if name == "textinput":
         return _app("TextInput", VBox(Label("Edit with arrows, Home/End and Backspace"), TextInput("sumTUI", width=40)), theme);
     if name == "checkbox":

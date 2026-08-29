@@ -1,4 +1,4 @@
-# sumTUI 0.5.16
+# sumTUI 0.5.17
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -67,7 +67,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.16
+## Widgets in 0.5.17
 
 ### Structure and layout
 
@@ -97,6 +97,19 @@ sumtui --themes
 - `Choice` / `ComboBox`
 - `Slider`
 - `ProgressBar`
+
+`Button` accepts terminal-cell `width` and `height`. The complete rectangular button area is styled and mouse-active; text is horizontally and vertically aligned inside it. `height=1` preserves the original compact one-row control, while taller buttons are useful for touch-oriented terminal applications and tablets:
+
+```python
+from sumtui import Button, VBox;
+
+buttons = VBox(
+    Button("Run", width=24, height=3),
+    Button("Edit", width=24, height=3),
+);
+```
+
+`align="left|center|right"` and `valign="top|middle|bottom"` control the label placement. `HBox` and `VBox` consult widget preferred dimensions when no explicit layout `size` is supplied, so `Button(height=3)` really occupies three terminal rows rather than painting over neighbouring controls. Every `Widget` also exposes its latest flow-layout `bounds` as `(x, y, width, height)` together with `x`, `y`, `layout_width`, and `layout_height`; this is the common geometry foundation for progressively giving more controls explicit size semantics.
 
 ### Viewer widgets
 
@@ -414,7 +427,7 @@ BrowseForm(["id", "name", "amount"], rows)
 
 ## Generic editor and text-file tools
 
-`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Help` menu is always visible; **F9** opens the menu and **F10** exits. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
+`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Help` menu is always visible; **F6** is reserved as **Next Window** for IDE-style work areas, **F9** opens the menu and **F10** exits. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
@@ -541,6 +554,9 @@ Message and confirmation dialogs:
 sumdialog --info --title "Finished" --text "Backup completed"
 sumdialog --warning --text "The destination already exists"
 sumdialog --error --text "Could not open database"
+
+# Action buttons may use explicit terminal-cell geometry:
+sumdialog --info --text "Touch-friendly action" --button-width 20 --button-height 3
 
 if sumdialog --question --text "Continue?"; then
     echo "yes"
@@ -719,6 +735,9 @@ printf '10\n50\n100\n' | sumdialog --progress --label Job
 cat image.iso | sumdialog --progress --total 4.7G --label Copy > image-copy.iso
 ```
 
+
+Button geometry is shared by message, question, entry, file/directory, list/radio/checklist, form, text, and retro-menu modes. Declarative `.sdlg` files use the equivalent `button_width = 20` and `button_height = 3` properties. The action row itself is no longer hard-coded to one terminal line, so the requested height participates in normal layout.
+
 `sumdialog` uses the same exit statuses as `suminput`: `0` accepted/Yes, `1` cancelled/No/Escape, `2` usage error, `3` timeout, and `4` controlling-terminal/runtime error. `sumprogress` and `suminput` remain convenient short commands over their respective services.
 
 The reusable Python API is also public:
@@ -800,4 +819,4 @@ embedded = theme_to_dict(theme);
 
 See `examples/demo_theme_serialization.py` and `examples/bash/theme_editor.sh`.
 
-<p align=center><b>- oOo -</b></p>
+<p align=center><b>- oOo -<b></p>

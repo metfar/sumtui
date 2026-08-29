@@ -258,6 +258,7 @@ class EditApp:
             ("search.previous", "Find Previous", ["shift+f3"], self.find_previous),
             ("search.replace", "Search & Replace", ["ctrl+h"], self.replace_dialog),
             ("search.goto_line", "Go to Line", ["ctrl+g"], self.goto_line_dialog),
+            ("window.next", "Next Window", ["f6"], self.switch_window),
             ("menu.activate", "Menu", ["f9"], self.open_menu),
             ("menu.file", "File menu", ["alt+f"], lambda: self.open_menu(0)),
             ("menu.edit", "Edit menu", ["alt+e"], lambda: self.open_menu(1)),
@@ -275,7 +276,7 @@ class EditApp:
 
     def _make_function_bar(self):
         actions = [];
-        for action_name, label in (("help.editor", "Help"), ("file.save", "Save"), ("search.next", "Find"), ("menu.activate", "Menu"), ("app.exit", "Exit")):
+        for action_name, label in (("help.editor", "Help"), ("file.save", "Save"), ("search.next", "Find"), ("window.next", "Window"), ("menu.activate", "Menu"), ("app.exit", "Exit")):
             key = self.keys.primary(action_name);
             if key:
                 actions.append((key, label, None));
@@ -290,6 +291,24 @@ class EditApp:
         self.menu.activation_key = self.keys.primary("menu.activate");
         self.bar.actions = self._make_function_bar().actions;
         self._install_keybindings();
+        self.app.invalidate();
+        return True;
+
+    def window_targets(self):
+        """Focusable top-level work areas cycled by F6 in IDE-style applications."""
+        return [self.editor] if getattr(self, "editor", None) is not None else [];
+
+    def switch_window(self):
+        targets = [item for item in self.window_targets() if item is not None];
+        if not targets:
+            return False;
+        current = self.app.focus.current;
+        try:
+            index = targets.index(current);
+        except ValueError:
+            index = -1;
+        target = targets[(index + 1) % len(targets)];
+        self.app.focus.set(target);
         self.app.invalidate();
         return True;
 
@@ -497,7 +516,7 @@ class EditApp:
             self.editor.configure_syntax(filename=self.document.path.name);
             close();
             self.save();
-        body = VBox(entry, HBox(Button("Save", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, 1]);
+        body = VBox(entry, HBox(Button("Save", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, None]);
         self.app.push_modal(Dialog(body, title="Save As", width=72, height=7, on_cancel=close));
         self.app.focus.set(entry);
         self.app.invalidate();
@@ -663,7 +682,7 @@ class EditApp:
             Label("Find:"), entry,
             case_box, word_box, regex_box, wrap_box,
             HBox(Button("Find", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]),
-            sizes=[1, 1, 1, 1, 1, 1, 1],
+            sizes=[1, 1, 1, 1, 1, 1, None],
         );
         self.app.push_modal(Dialog(body, title="Find", width=70, height=13, on_cancel=close, shadow=True));
         self.app.focus.set(entry);
@@ -696,7 +715,7 @@ class EditApp:
             Label("Replace:"), replace_entry,
             case_box, word_box, regex_box, wrap_box,
             HBox(Button("Find Next", on_press=find_action), Button("Replace", on_press=replace_action, default=True), Button("Replace All", on_press=replace_all_action), Button("Cancel", on_press=close), ratios=[1, 1, 1, 1]),
-            sizes=[1, 1, 1, 1, 1, 1, 1, 1, 1],
+            sizes=[1, 1, 1, 1, 1, 1, 1, 1, None],
         );
         self.app.push_modal(Dialog(body, title="Search & Replace", width=78, height=16, on_cancel=close, shadow=True));
         self.app.focus.set(find_entry);
@@ -718,7 +737,7 @@ class EditApp:
             self._update_status("Line {}".format(self.editor.cursor_line));
             return True;
         entry.on_submit = lambda _value: accepted();
-        body = VBox(Label("Line number:"), entry, HBox(Button("Go", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, 1, 1]);
+        body = VBox(Label("Line number:"), entry, HBox(Button("Go", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, 1, None]);
         self.app.push_modal(Dialog(body, title="Go to Line", width=48, height=8, on_cancel=close, shadow=True));
         self.app.focus.set(entry);
         self.app.invalidate();
@@ -809,7 +828,7 @@ class EditApp:
             return on_accept(value);
         entry.on_submit = lambda _value: accepted();
         help_text = "-1 = Auto, 0 = Off, N = columns" if allow_auto else "0 = Off, N = columns";
-        body = VBox(Label(help_text), entry, HBox(Button("Apply", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, 1, 1]);
+        body = VBox(Label(help_text), entry, HBox(Button("Apply", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, 1, None]);
         self.app.push_modal(Dialog(body, title=title, width=58, height=9, on_cancel=close, shadow=True));
         self.app.focus.set(entry);
         self.app.invalidate();
@@ -871,7 +890,7 @@ class EditApp:
             body = VBox(
                 Label("{} is already assigned to:\n{}\n\nReplace that assignment?".format(format_key_spec(spec), conflict_names)),
                 HBox(Button("Replace", on_press=replace_conflict, default=True), Button("Cancel", on_press=close_conflict), ratios=[1, 1]),
-                sizes=[None, 1],
+                sizes=[None, None],
             );
             self.app.push_modal(Dialog(body, title="Shortcut conflict", width=68, height=10, on_cancel=close_conflict, shadow=True));
             self.app.invalidate();
@@ -918,7 +937,7 @@ class EditApp:
             Label("Remove a shortcut from {}:".format(action.label)),
             choices,
             HBox(Button("Remove", on_press=remove, default=True), Button("Cancel", on_press=close), ratios=[1, 1]),
-            sizes=[1, None, 1],
+            sizes=[1, None, None],
         );
         self.app.push_modal(Dialog(body, title="Remove shortcut", width=58, height=12, on_cancel=close, shadow=True));
         self.app.focus.set(choices);
@@ -966,7 +985,7 @@ class EditApp:
             Label("Select an action. Change replaces its shortcuts; Add keeps existing ones."),
             listing,
             HBox(Button("Change", on_press=change, default=True), Button("Add", on_press=add), Button("Remove", on_press=remove), Button("Defaults", on_press=defaults), Button("Close", on_press=close), ratios=[1, 1, 1, 1, 1]),
-            sizes=[1, None, 1],
+            sizes=[1, None, None],
         );
         self.app.push_modal(Dialog(body, title="Keyboard shortcuts", width=86, height=24, on_cancel=close, shadow=True));
         self.app.focus.set(listing);
@@ -1005,7 +1024,7 @@ class EditApp:
             self.app.pop_modal();
             self.app.focus.set(self.editor);
             self.app.invalidate();
-        body = VBox(view, Button("Close", on_press=close, default=True), sizes=[None, 1]);
+        body = VBox(view, Button("Close", on_press=close, default=True), sizes=[None, None]);
         dialog = Dialog(body, title=title, width=width, height=height, on_cancel=close, shadow=True);
         self.app.push_modal(dialog);
         self.app.focus.set(view);

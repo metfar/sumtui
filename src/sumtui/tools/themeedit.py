@@ -180,7 +180,7 @@ class ThemeEditorApp:
     def _message(self, title, text):
         def close(*_args):
             return self._close_modal(self.theme_list);
-        body = VBox(Label(text), Button("OK", on_press=close, default=True), sizes=[None, 1]);
+        body = VBox(Label(text), Button("OK", on_press=close, default=True), sizes=[None, None]);
         self.app.push_modal(Dialog(body, title=title, width=70, height=10, on_cancel=close, shadow=True));
         return True;
 
@@ -206,7 +206,7 @@ class ThemeEditorApp:
             self.app.set_theme(clone);
             self._update_status("Cloned -> {}".format(path));
             return True;
-        body = VBox(Label("New theme name:"), entry, HBox(Button("Clone", on_press=accept, default=True), Button("Cancel", on_press=close)), sizes=[1, 1, 1]);
+        body = VBox(Label("New theme name:"), entry, HBox(Button("Clone", on_press=accept, default=True), Button("Cancel", on_press=close)), sizes=[1, 1, None]);
         self.app.push_modal(Dialog(body, title="Clone theme", width=58, height=9, on_cancel=close, shadow=True));
         self.app.focus.set(entry);
         return True;
@@ -243,7 +243,7 @@ class ThemeEditorApp:
             Label("Rich style (examples: bold #f4d432, #c0c0c0 on #111144):"),
             entry,
             HBox(Button("Apply", on_press=accept, default=True), Button("Cancel", on_press=close)),
-            sizes=[1, 1, 1, 1],
+            sizes=[1, 1, 1, None],
         );
         self.app.push_modal(Dialog(body, title="Edit role", width=78, height=11, on_cancel=close, shadow=True));
         self.app.focus.set(entry);

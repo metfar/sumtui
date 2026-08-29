@@ -23,6 +23,7 @@
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
 from rich.align import Align;
+from rich.cells import cell_len;
 from rich.text import Text;
 
 from ..events import Key, MouseEvent;
@@ -32,13 +33,47 @@ from .base import Widget;
 class Button(Widget):
     focusable = True;
 
-    def __init__(self, label="Button", on_press=None, width=None, default=False, enabled=True, theme=None):
+    def __init__(self, label="Button", on_press=None, width=None, height=1, default=False, enabled=True,
+                 align="center", valign="middle", theme=None):
         super().__init__(theme=theme);
         self.label = str(label);
         self.on_press = on_press;
         self.width = None if width is None else max(4, int(width));
+        self.height = max(1, int(height));
         self.default = bool(default);
         self.enabled = bool(enabled);
+        self.align = str(align or "center").lower();
+        self.valign = str(valign or "middle").lower();
+        if self.align not in ("left", "center", "right"):
+            raise ValueError("Button align must be left, center, or right");
+        if self.valign not in ("top", "middle", "bottom"):
+            raise ValueError("Button valign must be top, middle, or bottom");
+        self._last_hit_left = 0;
+        self._last_hit_top = 0;
+        self._last_hit_width = self.width or 1;
+        self._last_hit_height = self.height;
+
+    def _decorated_label(self):
+        if self.focused:
+            return "> {} <".format(self.label);
+        if self.default:
+            return "< {} >".format(self.label);
+        return "[ {} ]".format(self.label);
+
+    def preferred_width(self, height=None):
+        if self.width is not None:
+            return self.width;
+        return max(8, cell_len(self._decorated_label()));
+
+    def preferred_height(self, width=None):
+        return self.height;
+
+    def _content_row(self, height):
+        if self.valign == "top":
+            return 0;
+        if self.valign == "bottom":
+            return max(0, height - 1);
+        return max(0, (height - 1) // 2);
 
     def press(self):
         if not self.enabled:
@@ -50,6 +85,9 @@ class Button(Widget):
     def handle_event(self, event):
         if isinstance(event, MouseEvent):
             if event.action == "press" and event.button == "left":
+                if not (self._last_hit_left <= event.x < self._last_hit_left + self._last_hit_width and
+                        self._last_hit_top <= event.y < self._last_hit_top + self._last_hit_height):
+                    return False;
                 if self._focus_manager is not None:
                     self._focus_manager.set(self);
                 return self.press();
@@ -59,21 +97,31 @@ class Button(Widget):
         return False;
 
     def __rich_console__(self, console, options):
-        if self.focused:
-            label = "> {} <".format(self.label);
-        elif self.default:
-            label = "< {} >".format(self.label);
-        else:
-            label = "[ {} ]".format(self.label);
-        width = self.width or min(max(8, len(label)), max(8, options.max_width));
-        label = label[:width].center(width);
+        label = self._decorated_label();
+        available_width = max(1, int(options.max_width));
+        available_height = max(1, int(options.height or options.max_height or self.height));
+        width = min(max(1, int(self.preferred_width())), available_width);
+        height = min(max(1, int(self.height)), available_height);
         if not self.enabled:
-            style = self.theme.style("disabled");
+            style = "{} on {}".format(self.theme.color("muted"), self.theme.color("button"));
         elif self.focused:
             style = self.theme.style("button_focus");
         else:
             style = self.theme.style("button_control");
-        yield Align(Text(label, style=style, no_wrap=True, overflow="crop"), align="center");
+        content_row = self._content_row(height);
+        block = Text();
+        for row in range(height):
+            line = Text(label if row == content_row else "", style=style, no_wrap=True, overflow="crop");
+            line.truncate(width, overflow="crop", pad=False);
+            line.align(self.align, width, character=" ");
+            block.append_text(line);
+            if row + 1 < height:
+                block.append("\n");
+        self._last_hit_left = max(0, (available_width - width) // 2);
+        self._last_hit_top = 0;
+        self._last_hit_width = width;
+        self._last_hit_height = height;
+        yield Align(block, align="center", vertical="top");
 
 
 class TextInput(Widget):

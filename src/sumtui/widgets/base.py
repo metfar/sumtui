@@ -32,6 +32,29 @@ class Widget:
         self.theme = make_theme(theme) if isinstance(theme, str) else (theme or DEFAULT_THEME);
         self.focused = False;
         self._focus_manager = None;
+        self.x = 0;
+        self.y = 0;
+        self.layout_width = None;
+        self.layout_height = None;
+
+    @property
+    def bounds(self):
+        return self.x, self.y, self.layout_width, self.layout_height;
+
+    def set_bounds(self, x=0, y=0, width=None, height=None):
+        self.x = int(x or 0);
+        self.y = int(y or 0);
+        self.layout_width = None if width is None else max(0, int(width));
+        self.layout_height = None if height is None else max(0, int(height));
+        return self;
+
+    def preferred_width(self, height=None):
+        value = getattr(self, "width", None);
+        return None if value is None else max(1, int(value));
+
+    def preferred_height(self, width=None):
+        value = getattr(self, "height", None);
+        return None if value is None else max(1, int(value));
 
     def set_theme(self, theme):
         self.theme = make_theme(theme) if isinstance(theme, str) else theme;

@@ -86,6 +86,48 @@ class _Box(Widget):
                 output[index] = size;
         return [max(0, int(value or 0)) for value in output];
 
+    def preferred_width(self, height=None):
+        if not self.items:
+            return 0;
+        if self.direction == "row":
+            total = 0;
+            for item in self.items:
+                value = item.size;
+                if value is None and hasattr(item.widget, "preferred_width"):
+                    value = item.widget.preferred_width(height);
+                if value is None:
+                    return None;
+                total += max(0, int(value));
+            return total;
+        values = [];
+        for item in self.items:
+            if hasattr(item.widget, "preferred_width"):
+                value = item.widget.preferred_width(height);
+                if value is not None:
+                    values.append(max(0, int(value)));
+        return max(values) if values else None;
+
+    def preferred_height(self, width=None):
+        if not self.items:
+            return 0;
+        if self.direction == "column":
+            total = 0;
+            for item in self.items:
+                value = item.size;
+                if value is None and hasattr(item.widget, "preferred_height"):
+                    value = item.widget.preferred_height(width);
+                if value is None:
+                    return None;
+                total += max(0, int(value));
+            return total;
+        values = [];
+        for item in self.items:
+            if hasattr(item.widget, "preferred_height"):
+                value = item.widget.preferred_height(width);
+                if value is not None:
+                    values.append(max(0, int(value)));
+        return max(values) if values else None;
+
     def handle_event(self, event):
         if not isinstance(event, MouseEvent):
             return False;
@@ -102,6 +144,10 @@ class _Box(Widget):
         ratios = [];
         for index, item in enumerate(self.items):
             size = item.size;
+            if size is None and self.direction == "row" and hasattr(item.widget, "preferred_width"):
+                preferred = item.widget.preferred_width(options.height or options.max_height);
+                if preferred is not None:
+                    size = max(1, int(preferred));
             if size is None and self.direction == "column" and hasattr(item.widget, "preferred_height"):
                 preferred = item.widget.preferred_height(options.max_width);
                 if preferred is not None:
@@ -115,8 +161,9 @@ class _Box(Widget):
             sizes = self._axis_sizes(total, fixed_sizes, ratios);
             cursor = 0;
             self._mouse_rects = [];
-            for size in sizes:
+            for item, size in zip(self.items, sizes):
                 self._mouse_rects.append((cursor, 0, size, height));
+                item.widget.set_bounds(cursor, 0, size, height);
                 cursor += size;
             root.split_row(*layouts);
         else:
@@ -125,8 +172,9 @@ class _Box(Widget):
             sizes = self._axis_sizes(total, fixed_sizes, ratios);
             cursor = 0;
             self._mouse_rects = [];
-            for size in sizes:
+            for item, size in zip(self.items, sizes):
                 self._mouse_rects.append((0, cursor, width, size));
+                item.widget.set_bounds(0, cursor, width, size);
                 cursor += size;
             root.split_column(*layouts);
         yield from console.render(root, options);

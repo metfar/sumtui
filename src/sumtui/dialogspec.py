@@ -48,6 +48,8 @@ class DialogSpec:
     separator: str = "\n";
     ok_label: str = "OK";
     cancel_label: str = "Cancel";
+    button_width: int = None;
+    button_height: int = 1;
     fields: list = field(default_factory=list);
     menu_items: list = field(default_factory=list);
     source: str = "<memory>";
@@ -61,6 +63,8 @@ class DialogSpec:
             "width": self.width,
             "height": self.height,
             "timeout": self.timeout,
+            "button_width": self.button_width,
+            "button_height": self.button_height,
         };
         if self.kind == "form":
             data.update({
@@ -266,7 +270,7 @@ def parse_dialog_spec(text, source="<memory>"):
 
         allowed = {
             "title", "text", "theme", "width", "height", "timeout",
-            "output", "separator", "ok_label", "cancel_label",
+            "output", "separator", "ok_label", "cancel_label", "button_width", "button_height",
         };
         if key_lower not in allowed:
             fail(line_number, "unknown property {!r}".format(key));
@@ -285,6 +289,8 @@ def parse_dialog_spec(text, source="<memory>"):
         width = _int_or_none(values.get("width"), "width");
         height = _int_or_none(values.get("height"), "height");
         timeout = _float_or_none(values.get("timeout"), "timeout");
+        button_width = _int_or_none(values.get("button_width"), "button_width");
+        button_height = _int_or_none(values.get("button_height"), "button_height");
     except ValueError as exc:
         raise ValueError("{}: {}".format(source, exc)) from exc;
     output = str(values.get("output", "shell"));
@@ -303,6 +309,8 @@ def parse_dialog_spec(text, source="<memory>"):
         separator=str(values.get("separator", "\n")),
         ok_label=str(values.get("ok_label", "OK")),
         cancel_label=str(values.get("cancel_label", "Cancel")),
+        button_width=button_width,
+        button_height=max(1, int(button_height or 1)),
         fields=form_fields,
         menu_items=[item.normalize() for item in menu_items],
         source=str(source),

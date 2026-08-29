@@ -218,6 +218,8 @@ def _parser():
     parser.add_argument("--default", default="", help="default entry/list/radio value");
     parser.add_argument("--ok-label", default=None, help="custom OK/Yes label for message/question/form dialogs");
     parser.add_argument("--cancel-label", default=None, help="custom Cancel/No label for question/form dialogs");
+    parser.add_argument("--button-width", type=int, default=None, help="width of action/menu buttons in terminal cells");
+    parser.add_argument("--button-height", type=int, default=1, help="height of action/menu buttons in terminal rows; default 1");
     parser.add_argument("--hidden", action="store_true", help="hide --entry input");
     parser.add_argument("--mask", nargs="?", const="*", help="visual echo mask for --entry; default: *");
     parser.add_argument("--keys", default="", help="accepted single-character set for --entry");
@@ -289,6 +291,8 @@ def _execute_spec(spec):
             ok_label=spec.ok_label or "OK",
             cancel_label=spec.cancel_label or "Cancel",
             timeout=spec.timeout,
+            button_width=spec.button_width,
+            button_height=spec.button_height,
         );
         if result.accepted:
             _write_form_result(result.value, spec.fields, spec.output, spec.separator);
@@ -302,6 +306,8 @@ def _execute_spec(spec):
             width=(48 if spec.width is None else spec.width),
             height=spec.height,
             timeout=spec.timeout,
+            button_width=spec.button_width,
+            button_height=spec.button_height,
         );
         if result.accepted:
             _write_value(result.value);
@@ -446,6 +452,8 @@ def main(argv=None):
                 ok_label=args.ok_label or "OK",
                 cancel_label=args.cancel_label or "Cancel",
                 timeout=timeout,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.accepted:
                 _write_form_result(result.value, specs, args.output, args.separator);
@@ -459,6 +467,8 @@ def main(argv=None):
                 width=(48 if args.width is None else args.width),
                 height=args.height,
                 timeout=timeout,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.accepted:
                 _write_value(result.value);
@@ -486,6 +496,8 @@ def main(argv=None):
                 height=args.height,
                 timeout=timeout,
                 ok_label=args.ok_label or "OK",
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             return int(result.status);
         if args.question:
@@ -498,6 +510,8 @@ def main(argv=None):
                 timeout=timeout,
                 yes_label=args.ok_label or "Yes",
                 no_label=args.cancel_label or "No",
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             return int(result.status);
         if args.entry:
@@ -515,6 +529,8 @@ def main(argv=None):
                 case_sensitive=args.case_sensitive,
                 default=args.default,
                 timeout=timeout,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.status in (0, 3):
                 _write_value(result.value);
@@ -527,6 +543,8 @@ def main(argv=None):
                 width=(76 if args.width is None else args.width),
                 height=(24 if args.height is None else args.height),
                 directory=args.directory_selection,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.accepted:
                 _write_value(result.value);
@@ -541,6 +559,8 @@ def main(argv=None):
                 height=(18 if args.height is None else args.height),
                 default=args.default,
                 timeout=timeout,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.accepted:
                 _write_value(result.value);
@@ -555,6 +575,8 @@ def main(argv=None):
                 height=args.height,
                 default=args.default,
                 timeout=timeout,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.accepted:
                 _write_value(result.value);
@@ -570,6 +592,8 @@ def main(argv=None):
                 selected=args.selected,
                 separator=args.separator,
                 timeout=timeout,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             if result.accepted:
                 _write_value(result.value);
@@ -583,6 +607,8 @@ def main(argv=None):
                 width=(80 if args.width is None else args.width),
                 height=(24 if args.height is None else args.height),
                 markdown=args.markdown,
+                button_width=args.button_width,
+                button_height=args.button_height,
             );
             return int(result.status);
         return 2;

@@ -86,8 +86,8 @@ def statusbar(text="Ready"):
     return StatusBar(text=text, theme=app().theme);
 
 
-def button(text="Button", do=None, width=None, default=False, enabled=True):
-    return Button(text, on_press=do, width=width, default=default, enabled=enabled, theme=app().theme);
+def button(text="Button", do=None, width=None, height=1, default=False, enabled=True, align="center", valign="middle"):
+    return Button(text, on_press=do, width=width, height=height, default=default, enabled=enabled, align=align, valign=valign, theme=app().theme);
 
 
 def textinput(value="", placeholder="", password=False, width=None, max_length=None, on_change=None, on_submit=None):

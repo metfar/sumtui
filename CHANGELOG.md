@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.18
+
+- Completed the multi-row `Button` integration across the toolkit instead of limiting it to the primitive/demo: nested `HBox`/`VBox` containers now report useful preferred cross-axis geometry, so a row containing `Button(height=3)` asks its parent for three terminal rows automatically.
+- Removed hard-coded one-row action areas from `sumdialog`, `sumedit`, file dialogs, input dialogs, and theme dialogs where the child button row can now size itself. Compact one-row buttons remain the default.
+- Added `sumdialog --button-width` and `--button-height`; the same geometry is available through the Python dialog APIs and declarative `.sdlg` properties `button_width` / `button_height`. File-selection and entry dialogs use the same settings.
+- `sumtui.easy.button()` now exposes width, height, horizontal alignment, and vertical alignment.
+- The generic editor/IDE base reserves **F6 = Next Window** through a reusable `window.next` action. IDE flavours can return their editor/output work areas from `window_targets()` while retaining one common key convention.
+- Updated Python, Bash, and declarative sumdialog examples to exercise 3-row buttons.
+- Regression suite: 135 tests.
+
+## 0.5.17
+
+- `Button` now accepts both `width` and `height` in terminal cells. `height=1` keeps the existing compact appearance; taller buttons style the complete rectangular area and vertically center their label by default.
+- Added `align` (`left`, `center`, `right`) and `valign` (`top`, `middle`, `bottom`) to button label placement. Width calculations use Rich terminal-cell width so wide Unicode text does not corrupt the requested geometry.
+- Button mouse hit-testing now follows the actual visible rectangle instead of the complete cross-axis allocation supplied by a parent layout.
+- `HBox` and `VBox` now consult `preferred_width()` / `preferred_height()` when an item has no explicit layout size. A `Button(width=24, height=3)` therefore consumes 24 columns in an `HBox` and three rows in a `VBox` automatically.
+- Added common flow-layout geometry to `Widget`: `bounds`, `x`, `y`, `layout_width`, and `layout_height`, plus preferred-size hooks for gradual adoption by other controls.
+- Updated the button demo to show two 24x3 controls and added regression coverage for multi-row rendering, mouse footprint, and preferred-size layout allocation.
+
 ## 0.5.16
 
 - Added optional POSIX SGR mouse reporting to the core input backend and public `MouseEvent` dispatch. Applications opt in with `Application(..., mouse=True)` and gracefully keep keyboard operation when mouse reporting is unavailable.

@@ -281,6 +281,47 @@ class FormTests(unittest.TestCase):
         console.print(button);
         self.assertIn("> OK <", console.export_text());
 
+    def test_button_width_height_and_vertical_centering(self):
+        console = Console(width=20, height=5, record=True, force_terminal=False, file=io.StringIO());
+        button = Button("OK", width=10, height=3);
+        console.print(button);
+        lines = console.export_text().splitlines();
+        self.assertEqual(len(lines), 3);
+        self.assertEqual(button.preferred_width(), 10);
+        self.assertEqual(button.preferred_height(), 3);
+        self.assertNotIn("OK", lines[0]);
+        self.assertIn("[ OK ]", lines[1]);
+        self.assertNotIn("OK", lines[2]);
+
+    def test_button_auto_width_uses_terminal_cell_width(self):
+        from rich.cells import cell_len;
+        button = Button("界界界界");
+        self.assertEqual(button.preferred_width(), max(8, cell_len("[ 界界界界 ]")));
+
+    def test_button_mouse_hit_area_matches_visible_rectangle(self):
+        pressed = [];
+        console = Console(width=20, height=5, record=True, force_terminal=False, file=io.StringIO());
+        button = Button("OK", width=10, height=3, on_press=lambda: pressed.append(True));
+        console.print(button);
+        self.assertFalse(button.handle_event(MouseEvent(1, 1, button="left", action="press")));
+        self.assertTrue(button.handle_event(MouseEvent(7, 1, button="left", action="press")));
+        self.assertEqual(pressed, [True]);
+        self.assertFalse(button.handle_event(MouseEvent(7, 4, button="left", action="press")));
+
+    def test_box_layout_uses_widget_preferred_dimensions(self):
+        first = Button("One", width=10, height=3);
+        second = Button("Two", width=12, height=3);
+        console = Console(width=40, height=8, record=True, force_terminal=False, file=io.StringIO());
+        row = HBox(first, second);
+        console.print(row);
+        self.assertEqual(first.bounds, (0, 0, 10, 8));
+        self.assertEqual(second.bounds, (10, 0, 12, 8));
+        column = VBox(first, second);
+        console = Console(width=30, height=10, record=True, force_terminal=False, file=io.StringIO());
+        console.print(column);
+        self.assertEqual(first.bounds, (0, 0, 30, 3));
+        self.assertEqual(second.bounds, (0, 3, 30, 3));
+
     def test_text_view(self):
         view = TextView("one\ntwo\nthree");
         view.page_size = 1;
@@ -1496,3 +1537,40 @@ button:exit=Exit
         self.assertEqual(spec.menu_items[1].separator_height, 2);
         self.assertEqual(spec.menu_items[2].separator_style, "line");
         self.assertEqual(spec.menu_items[2].separator_char, "=");
+
+
+class GeometryAndIDEIntegrationTests(unittest.TestCase):
+    def test_nested_button_row_reports_cross_axis_height(self):
+        row = HBox(Button("One", width=12, height=3), Button("Two", width=12, height=2));
+        self.assertEqual(row.preferred_height(), 3);
+        root = VBox(TextView("body"), row, sizes=[None, None]);
+        console = Console(width=40, height=10, record=True, force_terminal=False, file=io.StringIO());
+        console.print(root, height=10);
+        self.assertEqual(row.layout_height, 3);
+
+    def test_sumedit_f6_cycles_registered_work_windows(self):
+        editor = EditApp();
+        other = TextView("Output");
+        editor.app.set_root(VBox(editor.editor, other, sizes=[None, 3]));
+        editor.window_targets = lambda: [editor.editor, other];
+        editor.app.focus.set(editor.editor);
+        self.assertEqual(editor.keys.primary("window.next"), "f6");
+        self.assertTrue(editor.app.dispatch(KeyEvent(Key.F6)));
+        self.assertIs(editor.app.focus.current, other);
+        self.assertTrue(editor.app.dispatch(KeyEvent(Key.F6)));
+        self.assertIs(editor.app.focus.current, editor.editor);
+
+    def test_sumdialog_declarative_button_geometry(self):
+        from sumtui import parse_dialog_spec;
+        spec = parse_dialog_spec("""[menu]\nbutton_width=24\nbutton_height=3\nbutton:one=One\n""", source="buttons.sdlg");
+        self.assertEqual(spec.button_width, 24);
+        self.assertEqual(spec.button_height, 3);
+        dumped = spec.to_dict();
+        self.assertEqual(dumped["button_width"], 24);
+        self.assertEqual(dumped["button_height"], 3);
+
+    def test_sumdialog_cli_accepts_button_geometry(self):
+        from sumtui.tools import dialog as dialog_tool;
+        args = dialog_tool._parser().parse_args(["--info", "--text", "Hello", "--button-width", "20", "--button-height", "3"]);
+        self.assertEqual(args.button_width, 20);
+        self.assertEqual(args.button_height, 3);

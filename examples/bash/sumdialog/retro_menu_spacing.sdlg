@@ -1,6 +1,8 @@
 #!/usr/bin/env sumdialog
 
 [menu]
+button_width = 24
+button_height = 3
 title="MENU"
 text="Retro separators"
 button:enter="Entrar datos"

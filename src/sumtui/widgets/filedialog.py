@@ -33,15 +33,15 @@ from .table import Column, TableRow, TableView;
 
 class FileDialog(Dialog):
     def __init__(self, path=".", title="Open file", directory_only=False, on_accept=None, on_cancel=None,
-                 width=76, height=24, theme=None):
+                 width=76, height=24, button_width=None, button_height=1, theme=None):
         self.path = Path(path).expanduser().resolve();
         self.directory_only = bool(directory_only);
         self.on_accept = on_accept;
         self.path_input = TextInput(str(self.path), on_submit=self._path_submit, theme=theme);
         self.table = TableView([Column("Name", ratio=4), Column("Size", width=12, justify="right"), Column("Type", width=12)], on_activate=self._activate, theme=theme);
-        self.ok_button = Button("Open" if not directory_only else "Select", on_press=self.accept, default=True, theme=theme);
-        self.cancel_button = Button("Cancel", on_press=on_cancel, theme=theme);
-        body = VBox(self.path_input, self.table, HBox(self.ok_button, self.cancel_button, ratios=[1, 1], theme=theme), sizes=[1, None, 1], theme=theme);
+        self.ok_button = Button("Open" if not directory_only else "Select", on_press=self.accept, default=True, width=button_width, height=button_height, theme=theme);
+        self.cancel_button = Button("Cancel", on_press=on_cancel, width=button_width, height=button_height, theme=theme);
+        body = VBox(self.path_input, self.table, HBox(self.ok_button, self.cancel_button, ratios=[1, 1], theme=theme), sizes=[1, None, None], theme=theme);
         super().__init__(body, title=title, width=width, height=height, on_cancel=on_cancel, padding=(0, 1), theme=theme);
         self.refresh();
 
@@ -103,8 +103,8 @@ class FileDialog(Dialog):
 
 
 class DirectoryDialog(FileDialog):
-    def __init__(self, path=".", title="Select directory", on_accept=None, on_cancel=None, width=76, height=24, theme=None):
-        super().__init__(path=path, title=title, directory_only=True, on_accept=on_accept, on_cancel=on_cancel, width=width, height=height, theme=theme);
+    def __init__(self, path=".", title="Select directory", on_accept=None, on_cancel=None, width=76, height=24, button_width=None, button_height=1, theme=None):
+        super().__init__(path=path, title=title, directory_only=True, on_accept=on_accept, on_cancel=on_cancel, width=width, height=height, button_width=button_width, button_height=button_height, theme=theme);
 
 
 def _format_size(size):

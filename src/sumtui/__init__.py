@@ -22,7 +22,7 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.5.16";
+__version__ = "0.5.18";
 
 from .app import Application, FocusManager;
 from .events import Key, KeyEvent, MouseEvent, ResizeEvent, normalize_key_spec;

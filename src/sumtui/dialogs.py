@@ -107,7 +107,8 @@ def _install_timeout(app, state, timeout, default_status=TIMED_OUT):
 
 
 def show_message(text, title="Message", kind="info", theme="DOS", width=None, height=None,
-                 timeout=None, ok_label="OK", cancel_label="Cancel", question=False):
+                 timeout=None, ok_label="OK", cancel_label="Cancel", question=False,
+                 button_width=None, button_height=1):
     kind = str(kind or "info").strip().lower();
     prefixes = {"info": "", "warning": "Warning: ", "error": "Error: ", "question": ""};
     message = prefixes.get(kind, "") + str(text or "");
@@ -126,13 +127,13 @@ def show_message(text, title="Message", kind="info", theme="DOS", width=None, he
             return True;
         if question:
             buttons = HBox(
-                Button(ok_label or "Yes", on_press=lambda: finish(ACCEPTED), default=True),
-                Button(cancel_label or "No", on_press=lambda: finish(CANCELLED)),
+                Button(ok_label or "Yes", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height),
+                Button(cancel_label or "No", on_press=lambda: finish(CANCELLED), width=button_width, height=button_height),
                 ratios=[1, 1],
             );
         else:
-            buttons = HBox(Button(ok_label or "OK", on_press=lambda: finish(ACCEPTED), default=True), ratios=[1]);
-        body = VBox(Label(message), buttons, sizes=[None, 1]);
+            buttons = HBox(Button(ok_label or "OK", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height), ratios=[1]);
+        body = VBox(Label(message), buttons, sizes=[None, None]);
         root = Dialog(body, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True);
         app.set_root(root);
         app.focus.set(buttons.children()[0]);
@@ -142,7 +143,7 @@ def show_message(text, title="Message", kind="info", theme="DOS", width=None, he
 
 
 def ask_question(text, title="Question", theme="DOS", width=None, height=None, timeout=None,
-                 yes_label="Yes", no_label="No"):
+                 yes_label="Yes", no_label="No", button_width=None, button_height=1):
     return show_message(
         text=text,
         title=title,
@@ -154,11 +155,14 @@ def ask_question(text, title="Question", theme="DOS", width=None, height=None, t
         ok_label=yes_label,
         cancel_label=no_label,
         question=True,
+        button_width=button_width,
+        button_height=button_height,
     );
 
 
 def read_entry(text="", title="Input", theme="DOS", width=None, height=1, picture="", overflow=False,
-               hidden=False, mask=None, keys="", case_sensitive=False, default="", timeout=None):
+               hidden=False, mask=None, keys="", case_sensitive=False, default="", timeout=None,
+               button_width=None, button_height=1):
     spec = InputSpec(
         prompt=text,
         width=width,
@@ -174,12 +178,14 @@ def read_entry(text="", title="Input", theme="DOS", width=None, height=1, pictur
         dialog=True,
         title=title,
         theme=theme,
+        button_width=button_width,
+        button_height=button_height,
     ).normalize();
     result = read_input(spec);
     return DialogResult(result.value, result.status);
 
 
-def choose_file(path=".", title="Open file", theme="DOS", width=76, height=24, directory=False):
+def choose_file(path=".", title="Open file", theme="DOS", width=76, height=24, directory=False, button_width=None, button_height=1):
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
@@ -198,14 +204,14 @@ def choose_file(path=".", title="Open file", theme="DOS", width=76, height=24, d
         def cancelled():
             return finish(CANCELLED, "");
         dialog_type = DirectoryDialog if directory else FileDialog;
-        root = dialog_type(path=path, title=title, on_accept=accepted, on_cancel=cancelled, width=width, height=height, theme=theme);
+        root = dialog_type(path=path, title=title, on_accept=accepted, on_cancel=cancelled, width=width, height=height, button_width=button_width, button_height=button_height, theme=theme);
         app.set_root(root);
         app.focus.set(root.table);
         _run_application(app, reader);
         return DialogResult(state["value"], state["status"]);
 
 
-def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18, default=None, timeout=None):
+def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18, default=None, timeout=None, button_width=None, button_height=1):
     values = [str(item) for item in list(items or [])];
     with controlling_terminal() as terminal:
         reader, writer = terminal;
@@ -227,11 +233,11 @@ def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18
         listing = ListView(values, title="Value", on_activate=lambda *_args: accept_current());
         if default in values:
             listing.select(values.index(default));
-        buttons = HBox(Button("OK", on_press=accept_current, default=True), Button("Cancel", on_press=lambda: finish(CANCELLED, "")), ratios=[1, 1]);
+        buttons = HBox(Button("OK", on_press=accept_current, default=True, width=button_width, height=button_height), Button("Cancel", on_press=lambda: finish(CANCELLED, ""), width=button_width, height=button_height), ratios=[1, 1]);
         if text:
-            content = VBox(Label(text), listing, buttons, sizes=[1, None, 1]);
+            content = VBox(Label(text), listing, buttons, sizes=[1, None, None]);
         else:
-            content = VBox(listing, buttons, sizes=[None, 1]);
+            content = VBox(listing, buttons, sizes=[None, None]);
         root = Dialog(content, title=title, width=width, height=height, on_cancel=lambda: finish(CANCELLED, ""), shadow=True);
         app.set_root(root);
         app.focus.set(listing);
@@ -240,7 +246,7 @@ def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18
         return DialogResult(state["value"], state["status"]);
 
 
-def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=None, default=None, timeout=None):
+def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=None, default=None, timeout=None, button_width=None, button_height=1):
     values = [str(item) for item in list(items or [])];
     selected = default if default in values else (values[0] if values else "");
     with controlling_terminal() as terminal:
@@ -257,12 +263,12 @@ def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=N
             state["done"] = True;
             app.stop();
             return True;
-        buttons = HBox(Button("OK", on_press=lambda: finish(ACCEPTED), default=True), Button("Cancel", on_press=lambda: finish(CANCELLED)), ratios=[1, 1]);
+        buttons = HBox(Button("OK", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height), Button("Cancel", on_press=lambda: finish(CANCELLED), width=button_width, height=button_height), ratios=[1, 1]);
         resolved_width, resolved_height = _dialog_size(text, width=width, height=height or max(10, len(values) + 8));
         if text:
-            content = VBox(Label(text), group, buttons, sizes=[1, None, 1]);
+            content = VBox(Label(text), group, buttons, sizes=[1, None, None]);
         else:
-            content = VBox(group, buttons, sizes=[None, 1]);
+            content = VBox(group, buttons, sizes=[None, None]);
         root = Dialog(content, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True);
         app.set_root(root);
         if group.buttons:
@@ -273,7 +279,7 @@ def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=N
 
 
 def choose_checklist(items, title="Select", text="", theme="DOS", width=60, height=None, selected=None,
-                     separator="\n", timeout=None):
+                     separator="\n", timeout=None, button_width=None, button_height=1):
     values = [str(item) for item in list(items or [])];
     selected_values = set(str(item) for item in list(selected or []));
     with controlling_terminal() as terminal:
@@ -293,11 +299,11 @@ def choose_checklist(items, title="Select", text="", theme="DOS", width=60, heig
             state["done"] = True;
             app.stop();
             return True;
-        buttons = HBox(Button("OK", on_press=lambda: finish(ACCEPTED), default=True), Button("Cancel", on_press=lambda: finish(CANCELLED)), ratios=[1, 1]);
+        buttons = HBox(Button("OK", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height), Button("Cancel", on_press=lambda: finish(CANCELLED), width=button_width, height=button_height), ratios=[1, 1]);
         if text:
-            content = VBox(Label(text), *boxes, buttons, sizes=[1] + [1] * len(boxes) + [1]);
+            content = VBox(Label(text), *boxes, buttons, sizes=[1] + [1] * len(boxes) + [None]);
         else:
-            content = VBox(*boxes, buttons, sizes=[1] * len(boxes) + [1]);
+            content = VBox(*boxes, buttons, sizes=[1] * len(boxes) + [None]);
         resolved_width, resolved_height = _dialog_size(text, width=width, height=height or max(10, len(values) + 8));
         root = Dialog(content, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True);
         app.set_root(root);
@@ -334,7 +340,7 @@ class MenuItemSpec:
         return self;
 
 
-def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None, timeout=None):
+def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None, timeout=None, button_width=None, button_height=1):
     specs = [];
     for item in list(items or []):
         if item is None:
@@ -359,7 +365,8 @@ def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None
         controls = [];
         rows = [];
         row_sizes = [];
-        button_width = max(16, min(max(16, int(width or 48) - 12), max([len(item.label) + 8 for item in specs if not item.separator] or [16])));
+        resolved_button_width = max(4, int(button_width)) if button_width is not None else max(16, min(max(16, int(width or 48) - 12), max([len(item.label) + 8 for item in specs if not item.separator] or [16])));
+        resolved_button_height = max(1, int(button_height or 1));
 
         def finish(status_code, value=""):
             if state["done"]:
@@ -376,13 +383,13 @@ def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None
                     rows.append(Label("", align="center"));
                     row_sizes.append(item.separator_height);
                 else:
-                    rows.append(Label(item.separator_char * max(8, button_width), align="center"));
+                    rows.append(Label(item.separator_char * max(8, resolved_button_width), align="center"));
                     row_sizes.append(item.separator_height);
                 continue;
-            button = Button(item.label, width=button_width, on_press=lambda value=item.value: finish(ACCEPTED, value));
+            button = Button(item.label, width=resolved_button_width, height=resolved_button_height, on_press=lambda value=item.value: finish(ACCEPTED, value));
             controls.append(button);
             rows.append(button);
-            row_sizes.append(1);
+            row_sizes.append(resolved_button_height);
 
         body_items = [];
         body_sizes = [];
@@ -393,7 +400,7 @@ def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None
         body_sizes.extend(row_sizes);
         body = VBox(*body_items, sizes=body_sizes);
         resolved_width = max(30, int(width or 48));
-        minimum_height = sum(body_sizes) + 6;
+        minimum_height = sum(size if size is not None else max(1, int(button_height or 1)) for size in body_sizes) + 6;
         resolved_height = max(9, int(height or minimum_height));
         root = Dialog(body, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True);
         app.set_root(root);
@@ -442,7 +449,7 @@ def _form_bool(value):
 
 
 def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
-              ok_label="OK", cancel_label="Cancel", timeout=None):
+              ok_label="OK", cancel_label="Cancel", timeout=None, button_width=None, button_height=1):
     specs = [];
     for item in list(fields or []):
         if isinstance(item, FormFieldSpec):
@@ -556,7 +563,7 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
             elif spec.kind == "textarea":
                 control = TextArea(str(spec.default or ""), line_numbers=False, tab_moves_focus=True, line_wrapping=-1);
                 area_scroll = _TextAreaVScroll(control);
-                area_box = HBox(control, area_scroll, sizes=[None, 1]);
+                area_box = HBox(control, area_scroll, sizes=[None, None]);
                 row = HBox(Label(spec.label + ":"), area_box, sizes=[label_width, None]);
                 size = spec.height or 5;
                 target = control;
@@ -600,8 +607,8 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
             row_sizes.append(size);
 
         buttons = HBox(
-            Button(ok_label or "OK", on_press=lambda: finish(ACCEPTED), default=True),
-            Button(cancel_label or "Cancel", on_press=lambda: finish(CANCELLED)),
+            Button(ok_label or "OK", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height),
+            Button(cancel_label or "Cancel", on_press=lambda: finish(CANCELLED), width=button_width, height=button_height),
             ratios=[1, 1],
         );
         body_items = [];
@@ -612,10 +619,10 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
         body_items.extend(rows);
         body_sizes.extend(row_sizes);
         body_items.extend([status, buttons]);
-        body_sizes.extend([1, 1]);
+        body_sizes.extend([1, None]);
         body = VBox(*body_items, sizes=body_sizes);
         resolved_width = max(44, int(width or 72));
-        minimum_height = sum(body_sizes) + 6;
+        minimum_height = sum(size if size is not None else max(1, int(button_height or 1)) for size in body_sizes) + 6;
         resolved_height = max(9, int(height or minimum_height));
         root = Dialog(
             body,
@@ -654,7 +661,7 @@ def show_progress_demo(title="Progress", text="Working...", theme="DOS", width=6
         _run_application(app, reader);
         return DialogResult("", ACCEPTED);
 
-def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=False):
+def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=False, button_width=None, button_height=1):
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
@@ -668,8 +675,8 @@ def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=Fal
             app.stop();
             return True;
         viewer = MarkdownView(text) if markdown else TextView(text);
-        buttons = HBox(Button("Close", on_press=lambda: finish(ACCEPTED), default=True), ratios=[1]);
-        body = VBox(viewer, buttons, sizes=[None, 1]);
+        buttons = HBox(Button("Close", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height), ratios=[1]);
+        body = VBox(viewer, buttons, sizes=[None, None]);
         root = Dialog(body, title=title, width=width, height=height, on_cancel=lambda: finish(CANCELLED), shadow=True);
         app.set_root(root);
         app.focus.set(viewer);
