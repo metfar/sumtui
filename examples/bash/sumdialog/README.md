@@ -21,7 +21,7 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 
 | Demo | What it covers |
 | --- | --- |
-| `01_info.sh` | `--info`, `--title`, `--text`, `--theme`, `--width`, `--height` |
+| `01_info.sh` | `--info`, `--title`, `--text`, `--theme`, dialog `--width`/`--height`, and multi-row `--button-width`/`--button-height` |
 | `02_warning.sh` | `--warning` |
 | `03_error.sh` | `--error` |
 | `04_question.sh` | `--question`, `--ok-label`, `--cancel-label`, exit status |
@@ -85,4 +85,4 @@ The retro menu returns only the selected action value on stdout, so Bash can use
 
 `--version` is demonstrated by the dispatcher `version` action.
 
-<p align=center><b>- oOo -</b></p>
+<p align=center><b>- oOo -<b></p>

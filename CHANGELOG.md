@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.19
+
+- Documentation/example consistency pass after the multi-row Button and IDE-key changes: README now identifies 0.5.19, the sumdialog example index explicitly documents `--button-width` / `--button-height`, and every bundled README again ends with the required literal project footer.
+- No widget/runtime behavior changed from 0.5.18; the 0.5.18 multi-row layout propagation, sumdialog geometry, sumedit dialog sizing, and F6 `Next Window` behavior remain the implementation being documented.
+- Regression suite remains 135 tests.
+
 ## 0.5.18
 
 - Completed the multi-row `Button` integration across the toolkit instead of limiting it to the primitive/demo: nested `HBox`/`VBox` containers now report useful preferred cross-axis geometry, so a row containing `Button(height=3)` asks its parent for three terminal rows automatically.
