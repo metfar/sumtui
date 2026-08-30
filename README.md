@@ -1,4 +1,4 @@
-# sumTUI 0.5.20
+# sumTUI 0.5.21
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -45,6 +45,24 @@ editor = TextEditor('PRINT "Hello"\n', line_numbers=True);
 
 `Application.size`, `.width`, and `.height` expose the latest terminal dimensions. Resize polling updates them while the application is running. Widgets may also expose their actual rendered viewport; `CommandWindow.viewport_width` / `viewport_height` represent the visible command workspace in terminal cells.
 
+### Temporarily yielding the terminal
+
+`Application.run_external(callback)` lets a sumTUI program temporarily give the real controlling terminal to an external interactive process and then restore the TUI. The alternate screen and input backend are suspended before the callback runs and reinstated afterward. Calls from worker threads are marshalled to the application thread, which makes the API suitable for IDE workers that need to launch a shell, debugger, REPL, or another full-terminal program.
+
+```python
+import os;
+import subprocess;
+from sumtui import Application;
+
+app = Application("External shell");
+
+def open_shell():
+    shell = os.environ.get("SHELL", "/bin/sh");
+    return app.run_external(lambda: subprocess.call([shell]));
+```
+
+The callback is intentionally responsible for launching the external program; sumTUI only manages ownership of the terminal.
+
 ## Built-in themes
 
 - ZX
@@ -67,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.20
+## Widgets in 0.5.21
 
 ### Structure and layout
 

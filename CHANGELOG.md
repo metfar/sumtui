@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.21
+
+- Added `Application.run_external(callback)` for temporarily yielding the real terminal to an external interactive process and restoring the sumTUI alternate screen/input mode afterward.
+- External-terminal requests made by IDE/background worker threads are marshalled to the application thread, avoiding concurrent reads from the controlling TTY.
+- Added an external-shell example and regression coverage for direct and worker-thread terminal handoff. Regression suite: 145 tests.
+
 ## 0.5.20
 
 - Added reusable overlapping IDE windows through public `Workspace` and `WorkspaceWindow`: movable terminal-cell geometry, mouse title dragging, z-order activation, persistent hide/reopen, F6 cycling, F11 maximize/restore, Ctrl+F4 close, and Alt+Arrow keyboard movement.

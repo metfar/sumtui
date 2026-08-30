@@ -28,6 +28,7 @@ import shutil;
 import subprocess;
 import sys;
 import tempfile;
+import threading;
 import time;
 import unittest;
 from pathlib import Path;
@@ -1690,3 +1691,50 @@ class ScriptIDETests(unittest.TestCase):
                 ide.run_program();
                 self.assertIn("Rscript was not found", ide.output_view.text);
             ide._r_session.close();
+
+class ExternalTerminalBridgeTests(unittest.TestCase):
+    def test_run_external_suspends_and_restores_active_terminal(self):
+        class DummyBackend:
+            def __init__(self):
+                self.entered = 0;
+                self.exited = 0;
+            def __enter__(self):
+                self.entered += 1;
+                return self;
+            def __exit__(self, exc_type, exc_value, traceback):
+                self.exited += 1;
+                return False;
+        class DummyLive:
+            def __init__(self):
+                self.started = 0;
+                self.stopped = 0;
+            def start(self, refresh=False):
+                self.started += 1;
+            def stop(self):
+                self.stopped += 1;
+        app = Application(root=TextView("x"));
+        backend = DummyBackend();
+        live = DummyLive();
+        app.running = True;
+        app._run_thread_ident = threading.get_ident();
+        app._active_backend = backend;
+        app._active_live = live;
+        value = app.run_external(lambda: 42);
+        self.assertEqual(value, 42);
+        self.assertEqual((backend.exited, backend.entered), (1, 1));
+        self.assertEqual((live.stopped, live.started), (1, 1));
+
+    def test_run_external_worker_is_marshaled_to_application_thread(self):
+        app = Application(root=TextView("x"));
+        app.running = True;
+        app._run_thread_ident = threading.get_ident();
+        result = [];
+        worker = threading.Thread(target=lambda: result.append(app.run_external(lambda: "shell-done")));
+        worker.start();
+        deadline = time.monotonic() + 2.0;
+        while worker.is_alive() and time.monotonic() < deadline:
+            app._process_external_requests();
+            time.sleep(.005);
+        worker.join(timeout=1.0);
+        self.assertFalse(worker.is_alive());
+        self.assertEqual(result, ["shell-done"]);

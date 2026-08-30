@@ -22,6 +22,8 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
+import threading;
+
 from rich.console import Console;
 from rich.live import Live;
 
@@ -121,6 +123,11 @@ class Application:
         self._idle_callbacks = [];
         self.capture_control_keys = bool(capture_control_keys);
         self.mouse = bool(mouse);
+        self._run_thread_ident = None;
+        self._active_backend = None;
+        self._active_live = None;
+        self._external_lock = threading.Lock();
+        self._external_requests = [];
         if root is not None:
             self.set_root(root);
         if not self.capture_control_keys:
@@ -209,6 +216,63 @@ class Application:
             renderable = ModalOverlay(renderable, saved_root);
         return ModalOverlay(renderable, self.root);
 
+
+    def _run_external_now(self, callback):
+        """Temporarily return the terminal to the host and run ``callback``.
+
+        When the application is active this suspends sumTUI's alternate screen
+        and input mode, lets an external interactive program own the terminal,
+        then restores the TUI.  It is safe to request this from a worker thread;
+        the actual terminal transition always happens in the application thread.
+        """;
+        backend = self._active_backend;
+        live = self._active_live;
+        if not self.running or backend is None or live is None:
+            return callback();
+        live.stop();
+        backend.__exit__(None, None, None);
+        try:
+            return callback();
+        finally:
+            backend.__enter__();
+            live.start(refresh=True);
+            self.live = live;
+
+    def run_external(self, callback):
+        """Run an interactive terminal callback outside the sumTUI screen.
+
+        Calls made by background workers are marshalled to the UI thread and
+        block until the external program exits.  This is intended for shells,
+        debuggers and other programs that need a real controlling terminal.
+        """;
+        if not callable(callback):
+            raise TypeError("callback must be callable");
+        if not self.running or threading.get_ident() == self._run_thread_ident:
+            return self._run_external_now(callback);
+        done = threading.Event();
+        request = {"callback": callback, "done": done, "result": None, "error": None};
+        with self._external_lock:
+            self._external_requests.append(request);
+        done.wait();
+        if request["error"] is not None:
+            raise request["error"];
+        return request["result"];
+
+    def _process_external_requests(self):
+        with self._external_lock:
+            requests = list(self._external_requests);
+            self._external_requests.clear();
+        if not requests:
+            return False;
+        for request in requests:
+            try:
+                request["result"] = self._run_external_now(request["callback"]);
+            except BaseException as exc:
+                request["error"] = exc;
+            finally:
+                request["done"].set();
+        return True;
+
     def invalidate(self):
         if self.live is not None and self.root is not None:
             self.live.update(self._renderable(), refresh=True);
@@ -259,17 +323,20 @@ class Application:
         if not self.console.is_terminal:
             raise RuntimeError("sumTUI interactive mode requires a terminal");
         self.running = True;
+        self._run_thread_ident = threading.get_ident();
         backend = create_input_backend(capture_control_keys=self.capture_control_keys, mouse=self.mouse);
         with backend:
             with Live(self._renderable(), console=self.console, screen=True, auto_refresh=False, transient=False) as live:
                 self.live = live;
+                self._active_backend = backend;
+                self._active_live = live;
                 live.refresh();
                 while self.running:
                     events = backend.read_events(0.05);
                     resize = self._poll_resize();
                     if resize is not None:
                         events.append(resize);
-                    dirty = False;
+                    dirty = self._process_external_requests();
                     for event in events:
                         dirty = self.dispatch(event) or dirty;
                     for callback in list(self._idle_callbacks):
@@ -281,4 +348,7 @@ class Application:
                     if dirty:
                         live.update(self._renderable(), refresh=True);
                 self.live = None;
+                self._active_live = None;
+                self._active_backend = None;
+        self._run_thread_ident = None;
         return 0;
