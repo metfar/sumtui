@@ -444,7 +444,7 @@ class MenuDesktop(Widget):
             if event.y > 0:
                 return bool(self.body.handle_event(event.translated(0, 1)));
             return False;
-        return False;
+        return bool(self.body.handle_event(event));
 
     def __rich_console__(self, console, options):
         base = VBox(self.menu, self.body, sizes=[1, None]);

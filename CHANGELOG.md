@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.20
+
+- Added reusable overlapping IDE windows through public `Workspace` and `WorkspaceWindow`: movable terminal-cell geometry, mouse title dragging, z-order activation, persistent hide/reopen, F6 cycling, F11 maximize/restore, Ctrl+F4 close, and Alt+Arrow keyboard movement.
+- Focus management can now refresh after workspace activation/visibility changes, and `MenuDesktop` forwards unhandled keyboard events to its body so active workspace-window controls retain their own shortcuts.
+- `sumedit` gains a dynamic **Window** menu and the common IDE window-management actions while remaining a single-document editor when no workspace is installed.
+- Added the shared `sumide` script IDE with separate Code, Output, and Command windows. `sumide` auto-detects Python/R, while `sumpyide` and `sumride` force the corresponding profile; Python direct mode keeps a persistent namespace and R direct mode uses a persistent R process when available.
+- F5 runs/stops the current unsaved Python/R buffer in a subprocess; F6 cycles windows, F11 maximizes/restores, Ctrl+F4 closes, and the Window menu can reopen default windows.
+- Added workspace and script-IDE examples and regression coverage. Regression suite: 143 tests.
+
 ## 0.5.19
 
 - Documentation/example consistency pass after the multi-row Button and IDE-key changes: README now identifies 0.5.19, the sumdialog example index explicitly documents `--button-width` / `--button-height`, and every bundled README again ends with the required literal project footer.

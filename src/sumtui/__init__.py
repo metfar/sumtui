@@ -22,7 +22,7 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.5.19";
+__version__ = "0.5.20";
 
 from .app import Application, FocusManager;
 from .events import Key, KeyEvent, MouseEvent, ResizeEvent, normalize_key_spec;
@@ -54,4 +54,7 @@ __all__ = [
     "FunctionAction", "FunctionBar", "MenuItem", "Separator", "Menu", "MenuBar", "MenuDesktop", "ContextMenu",
     "HBox", "VBox", "LayoutItem", "Splitter", "Column", "TableRow", "TableView", "ListView",
     "TreeNode", "TreeView", "FileDialog", "DirectoryDialog",
+    "Workspace", "WorkspaceWindow",
 ];
+
+from .widgets.window import Workspace, WorkspaceWindow;

@@ -56,3 +56,5 @@ __all__ = [
     "Column", "TableRow", "TableView", "ListView", "TreeNode", "TreeView",
     "FileDialog", "DirectoryDialog",
 ];
+
+from .window import Workspace, WorkspaceWindow;

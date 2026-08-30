@@ -24,16 +24,18 @@
 #warnings.filterwarnings("ignore", category=UserWarning);
 import io;
 import os;
+import shutil;
 import subprocess;
 import sys;
 import tempfile;
+import time;
 import unittest;
 from pathlib import Path;
 
 from rich.console import Console;
 from rich.style import Style;
 
-from sumtui import Application, BrowseForm, Button, CheckBox, Choice, Column, CommandWindow, ContextMenu, Dialog, FileDialog, FormField, GroupBox, HBox, HexView, KeyBindingManager, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RecordForm, ScrollBar, Separator, Slider, Splitter, RadioGroup, TableView, TextEditor, TextInput, TextView, TreeNode, TreeView, VBox, format_key_spec;
+from sumtui import Application, BrowseForm, Button, CheckBox, Choice, Column, CommandWindow, ContextMenu, Dialog, FileDialog, FormField, GroupBox, HBox, HexView, KeyBindingManager, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RecordForm, ScrollBar, Separator, Slider, Splitter, RadioGroup, TableView, TextEditor, TextInput, TextView, TreeNode, TreeView, VBox, Workspace, WorkspaceWindow, format_key_spec;
 from sumtui.backends import AnsiDecoder, PosixInput;
 from sumtui.events import Key, KeyEvent, MouseEvent, normalize_key_spec;
 from sumtui.theme import make_theme;
@@ -619,7 +621,7 @@ class EditorToolTests(unittest.TestCase):
         editor = EditApp();
         self.assertIn("f9", editor.app.bindings);
         self.assertIn("f10", editor.app.bindings);
-        self.assertEqual([menu.title for menu in editor.menu.menus], ["File", "Edit", "Search", "View", "Options", "Help"]);
+        self.assertEqual([menu.title for menu in editor.menu.menus], ["File", "Edit", "Search", "View", "Options", "Window", "Help"]);
         self.assertTrue(editor.app.capture_control_keys);
         self.assertTrue(editor.open_menu(0));
         self.assertTrue(editor.menu.active);
@@ -643,7 +645,7 @@ class EditorToolTests(unittest.TestCase):
 
     def test_sumedit_about_from_help_menu_opens_and_renders_modal(self):
         editor = EditApp();
-        self.assertTrue(editor.open_menu(5));
+        self.assertTrue(editor.open_menu(6));
         self.assertTrue(editor.menu._move_item(1));
         self.assertEqual(editor.menu.current_menu.items[editor.menu.current_index].label, "About...");
         self.assertTrue(editor.menu.activate());
@@ -1574,3 +1576,117 @@ class GeometryAndIDEIntegrationTests(unittest.TestCase):
         args = dialog_tool._parser().parse_args(["--info", "--text", "Hello", "--button-width", "20", "--button-height", "3"]);
         self.assertEqual(args.button_width, 20);
         self.assertEqual(args.button_height, 3);
+
+
+class WorkspaceTests(unittest.TestCase):
+    def test_workspace_switch_hide_reopen_and_focus(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        editor = TextEditor("print('x')");
+        output = TextView("out");
+        code_window = WorkspaceWindow(editor, title="Code", name="code", left=1, top=1, width=30, height=10);
+        output_window = WorkspaceWindow(output, title="Output", name="output", left=8, top=5, width=28, height=8);
+        workspace = Workspace(code_window, output_window);
+        app = Application(root=workspace);
+        self.assertIs(workspace.active_window, code_window);
+        self.assertIs(app.focus.current, editor);
+        self.assertTrue(workspace.next_window());
+        self.assertIs(workspace.active_window, output_window);
+        self.assertIs(app.focus.current, output);
+        self.assertTrue(workspace.close(output_window));
+        self.assertFalse(output_window.visible);
+        self.assertIs(workspace.active_window, code_window);
+        self.assertTrue(workspace.show("output"));
+        self.assertTrue(output_window.visible);
+        self.assertIs(workspace.active_window, output_window);
+
+    def test_workspace_maximize_restore_preserves_geometry(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        window = WorkspaceWindow(TextView("x"), title="Output", left=7, top=3, width=30, height=9);
+        workspace = Workspace(window);
+        console = Console(width=80, height=24, record=True, force_terminal=False, file=io.StringIO());
+        console.print(workspace);
+        original = (window.left, window.top, window.width, window.height);
+        self.assertTrue(workspace.maximize_active());
+        console = Console(width=80, height=24, record=True, force_terminal=False, file=io.StringIO());
+        console.print(workspace);
+        self.assertEqual((window._mouse_left, window._mouse_top, window._mouse_width, window._mouse_height), (0, 0, 80, 24));
+        self.assertTrue(workspace.restore_active());
+        self.assertEqual((window.left, window.top, window.width, window.height), original);
+
+    def test_workspace_title_drag_moves_window(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        window = WorkspaceWindow(TextView("x"), title="Output", left=2, top=2, width=30, height=8);
+        workspace = Workspace(window);
+        console = Console(width=80, height=24, record=True, force_terminal=False, file=io.StringIO());
+        console.print(workspace);
+        self.assertTrue(workspace.handle_event(MouseEvent(5, 2, button="left", action="press")));
+        self.assertTrue(workspace.handle_event(MouseEvent(15, 7, button="left", action="move")));
+        self.assertTrue(workspace.handle_event(MouseEvent(15, 7, button="left", action="release")));
+        self.assertEqual((window.left, window.top), (12, 7));
+
+    def test_workspace_window_alt_arrows_move_and_f11_toggle(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        window = WorkspaceWindow(TextView("x"), title="Output", left=2, top=2, width=30, height=8);
+        workspace = Workspace(window);
+        self.assertTrue(window.handle_event(KeyEvent(Key.RIGHT, alt=True)));
+        self.assertEqual(window.left, 3);
+        self.assertTrue(window.handle_event(KeyEvent(Key.F11)));
+        self.assertTrue(window.maximized);
+        self.assertTrue(window.handle_event(KeyEvent(Key.F11)));
+        self.assertFalse(window.maximized);
+
+
+class ScriptIDETests(unittest.TestCase):
+    def test_sumide_auto_detects_python_and_has_three_windows(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo.py";
+            path.write_text('print("hello")\n', encoding="utf-8");
+            ide = ScriptIDE(path);
+            self.assertEqual(ide.language, "python");
+            self.assertEqual([window.name for window in ide.workspace.windows], ["output", "command", "code"]);
+            self.assertIs(ide.workspace.active_window, ide.code_window);
+            self.assertEqual(ide.keys.primary("script.run"), "f5");
+            self.assertEqual(ide.keys.primary("window.next"), "f6");
+            ide._r_session.close();
+
+    def test_sumide_python_direct_console_preserves_state(self):
+        from sumtui.tools.ide import ScriptIDE;
+        ide = ScriptIDE(language="python");
+        ide.app.running = False;
+        ide._submit_direct("x = 41", ide.command_view);
+        ide._submit_direct("x + 1", ide.command_view);
+        self.assertTrue(any(line == "42" for line, _role in ide.command_view.output));
+        ide._r_session.close();
+
+    def test_sumide_runs_unsaved_python_buffer_in_subprocess(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo.py";
+            path.write_text('print("saved")\n', encoding="utf-8");
+            ide = ScriptIDE(path, language="python");
+            ide.editor.set_text('print("buffer")\n', modified=True);
+            ide.app.running = True;
+            ide.run_program();
+            deadline = time.monotonic() + 5.0;
+            while time.monotonic() < deadline and (ide._process is not None or not ide._process_queue.empty()):
+                ide._poll_execution();
+                time.sleep(.01);
+            ide._poll_execution();
+            self.assertIn("buffer", ide.output_view.text);
+            self.assertNotIn("saved", ide.output_view.text);
+            ide.app.running = False;
+            ide._r_session.close();
+
+    def test_sumide_detects_r_extension_and_reports_missing_rscript_cleanly(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo.R";
+            path.write_text('print("hello")\n', encoding="utf-8");
+            ide = ScriptIDE(path);
+            self.assertEqual(ide.language, "r");
+            if shutil.which("Rscript") is None:
+                ide.app.running = False;
+                ide.run_program();
+                self.assertIn("Rscript was not found", ide.output_view.text);
+            ide._r_session.close();

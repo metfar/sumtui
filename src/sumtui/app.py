@@ -35,6 +35,7 @@ class FocusManager:
     def __init__(self, root=None):
         self.widgets = [];
         self.index = -1;
+        self.root = None;
         if root is not None:
             self.refresh(root);
 
@@ -44,13 +45,22 @@ class FocusManager:
             return None;
         return self.widgets[self.index];
 
-    def refresh(self, root):
+    def refresh(self, root=None):
+        if root is not None:
+            self.root = root;
+        root = self.root;
         current = self.current;
         for widget in self.widgets:
             widget.focused = False;
-        self.widgets = root.focusables() if root is not None else [];
-        for widget in self.widgets:
+        def attach(widget):
+            if widget is None:
+                return None;
             widget._focus_manager = self;
+            for child in widget.children():
+                attach(child);
+            return widget;
+        attach(root);
+        self.widgets = root.focusables() if root is not None else [];
         if not self.widgets:
             self.index = -1;
             return None;

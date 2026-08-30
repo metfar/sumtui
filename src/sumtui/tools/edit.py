@@ -48,6 +48,10 @@ Keyboard
   F1                  Help
   F2                  Save
   F3                  Find next
+  F6                  Next window/work area
+  F11                 Maximize/restore workspace window
+  Ctrl+F4             Close workspace window
+  Alt+Arrow           Move workspace window
   F9                  Menu
   F10                 Exit
   Shift + movement    Extend selection
@@ -259,13 +263,16 @@ class EditApp:
             ("search.replace", "Search & Replace", ["ctrl+h"], self.replace_dialog),
             ("search.goto_line", "Go to Line", ["ctrl+g"], self.goto_line_dialog),
             ("window.next", "Next Window", ["f6"], self.switch_window),
+            ("window.close", "Close Window", ["ctrl+f4"], self.close_workspace_window),
+            ("window.maximize", "Maximize / Restore Window", ["f11"], self.toggle_workspace_maximize),
             ("menu.activate", "Menu", ["f9"], self.open_menu),
             ("menu.file", "File menu", ["alt+f"], lambda: self.open_menu(0)),
             ("menu.edit", "Edit menu", ["alt+e"], lambda: self.open_menu(1)),
             ("menu.search", "Search menu", ["alt+s"], lambda: self.open_menu(2)),
             ("menu.view", "View menu", ["alt+v"], lambda: self.open_menu(3)),
             ("menu.options", "Options menu", ["alt+o"], lambda: self.open_menu(4)),
-            ("menu.help", "Help menu", ["alt+h"], lambda: self.open_menu(5)),
+            ("menu.window", "Window menu", ["alt+w"], lambda: self.open_menu(5)),
+            ("menu.help", "Help menu", ["alt+h"], lambda: self.open_menu(6)),
         ];
         for name, label, defaults, callback in actions:
             self.keys.register(name, label, defaults, context="editor", callback=callback);
@@ -298,7 +305,18 @@ class EditApp:
         """Focusable top-level work areas cycled by F6 in IDE-style applications."""
         return [self.editor] if getattr(self, "editor", None) is not None else [];
 
+    def _workspace(self):
+        return getattr(self, "workspace", None);
+
     def switch_window(self):
+        workspace = self._workspace();
+        if workspace is not None:
+            changed = workspace.next_window();
+            if changed:
+                active = workspace.active_window;
+                self._update_status("Window: {}".format(active.title if active is not None else "none"));
+                self.app.invalidate();
+            return bool(changed);
         targets = [item for item in self.window_targets() if item is not None];
         if not targets:
             return False;
@@ -311,6 +329,70 @@ class EditApp:
         self.app.focus.set(target);
         self.app.invalidate();
         return True;
+
+    def activate_workspace_window(self, window):
+        workspace = self._workspace();
+        if workspace is None:
+            return False;
+        changed = workspace.show(window);
+        if changed:
+            self._update_status("Window: {}".format(window.title));
+            self.app.invalidate();
+        return bool(changed);
+
+    def close_workspace_window(self, window=None):
+        workspace = self._workspace();
+        if workspace is None:
+            return False;
+        target = window or workspace.active_window;
+        if target is None:
+            return False;
+        changed = workspace.close(target);
+        if changed:
+            self._update_status("Closed window: {}".format(target.title));
+            self.app.invalidate();
+        return bool(changed);
+
+    def toggle_workspace_maximize(self, window=None):
+        workspace = self._workspace();
+        if workspace is None:
+            return False;
+        target = window or workspace.active_window;
+        if target is None:
+            return False;
+        if workspace.active_window is not target:
+            workspace.activate(target);
+        changed = target.toggle_maximize();
+        if changed:
+            self._update_status(("Maximized: " if target.maximized else "Restored: ") + target.title);
+            self.app.invalidate();
+        return bool(changed);
+
+    def _window_menu(self):
+        workspace = self._workspace();
+        if workspace is None:
+            return Menu("Window", [
+                MenuItem("Next Window", self.switch_window, self._ks("window.next")),
+            ]);
+        items = [
+            MenuItem("Next Window", self.switch_window, self._ks("window.next")),
+            MenuItem("Maximize / Restore", self.toggle_workspace_maximize, "F11", enabled=workspace.active_window is not None),
+            MenuItem("Close current", self.close_workspace_window, "Ctrl+F4", enabled=workspace.active_window is not None),
+            Separator(),
+        ];
+        for window in workspace.windows:
+            label = window.title + ("" if window.visible else " (closed)");
+            entries = [];
+            if window.visible:
+                entries.append(MenuItem("Activate", lambda selected=window: self.activate_workspace_window(selected), radio=lambda selected=window: workspace.active_window is selected));
+                if window.maximizable:
+                    entries.append(MenuItem("Restore" if window.maximized else "Maximize", lambda selected=window: self.toggle_workspace_maximize(selected), "F11"));
+                if window.closable:
+                    entries.append(MenuItem("Close", lambda selected=window: self.close_workspace_window(selected), "Ctrl+F4" if workspace.active_window is window else ""));
+            else:
+                entries.append(MenuItem("Open", lambda selected=window: self.activate_workspace_window(selected)));
+            items.append(MenuItem(label, submenu=Menu(label, entries), radio=lambda selected=window: workspace.active_window is selected));
+        return Menu("Window", items);
 
     def _load_document(self, path):
         if path is None:
@@ -418,6 +500,7 @@ class EditApp:
                 MenuItem("Keyboard shortcuts...", self.shortcuts_dialog),
                 MenuItem("Save configuration", self.save_config),
             ]),
+            self._window_menu(),
             Menu("Help", [
                 MenuItem("Editor Help", self.help, self._ks("help.editor")),
                 Separator(),
@@ -426,6 +509,7 @@ class EditApp:
         ];
 
     def open_menu(self, index=None):
+        self.menu.menus = self._menus();
         if index is None:
             index = self.menu.menu_index;
         self.menu.open(index);
