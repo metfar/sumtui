@@ -1,4 +1,4 @@
-# sumTUI 0.5.26
+# sumTUI 0.5.27
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -85,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.26
+## Widgets in 0.5.27
 
 ### Structure and layout
 
@@ -136,6 +136,7 @@ buttons = VBox(
 - `TextView`
 - `TextArea` / `TextEditor`
 - `MarkdownView`
+- `MarkdownViewPane`
 - `SyntaxView`
 - `HexView`
 
@@ -143,7 +144,7 @@ buttons = VBox(
 
 `SyntaxView` detects a lexer from the filename/extension via Pygments and defaults to the `vim` syntax colour theme. This includes Markdown and HTML source highlighting as well as common programming/configuration formats.
 
-`MarkdownView` preserves Rich styling and uses the Vim Pygments theme for fenced and inline code by default. `TextView`, `SyntaxView`, and `HexView` expose a horizontal viewport so long text/source/binary rows are not truncated. `MarkdownView(wrap=False)` enables the same horizontal viewport for unwrapped Markdown rendering.
+`MarkdownView` preserves Rich styling and uses the Vim Pygments theme for fenced and inline code by default. GitHub-style Markdown tables are rendered as real box-drawing tables with header separators and left/center/right column alignment. `MarkdownViewPane` adds visible vertical and horizontal scrollbars around an unwrapped Markdown viewport. `TextView`, `SyntaxView`, and `HexView` expose a horizontal viewport so long text/source/binary rows are not truncated. `MarkdownView(wrap=False)` enables the same horizontal viewport for unwrapped Markdown rendering.
 
 ### Menus and command surfaces
 
@@ -491,12 +492,12 @@ Python execution uses the current Python interpreter in a stoppable subprocess. 
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
-Markdown is treated as editable source rather than rendered documentation. Headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. See `examples/markdown_outline.md` for a small navigable document. The outline dialog sizes its list so every entry fits when the document is small, while larger outlines remain keyboard-scrollable. In particular, the project closing line remains visible/editable as HTML source:
+Markdown remains directly editable as source: headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. When F2 opens, the list is preselected on the section that owns the editor's current cursor line; the same current-routine behavior applies to Python, R, Bash, BASIC, xBase, C and C++ maps. See `examples/markdown_outline.md` for a small navigable document. The outline dialog sizes its list so every entry fits when the document is small, while larger outlines remain keyboard-scrollable. In particular, the project closing line remains visible/editable as HTML source:
 
 ```html
 ```
 
-A rendered Markdown/document preview and possible sumDOC integration are intentionally **not** part of this lightweight editor stage; those remain suitable for a future optional `sumedit advanced`.
+`View -> Markdown Preview...` renders the current in-memory Markdown buffer without requiring a save first. The preview uses a scrollable `MarkdownViewPane`, renders pipe tables with Unicode borders and Markdown alignment rules, and provides `Export HTML`, `Export PDF`, and `Close` actions. The same HTML/PDF exporters are available directly from the File menu. HTML export is self-contained and uses a dark monospace stylesheet adapted from the project `md2html` workflow, with a print-friendly media override; PDF export uses WeasyPrint when available and otherwise tries the `weasyprint`, `wkhtmltopdf`, or `pandoc` executables. Relative image paths are resolved from the source document directory for PDF generation. If no PDF backend is installed, sumedit reports that cleanly instead of leaving the editor.
 
 `View` entries are checked menu items and may be toggled with **Space** while the menu remains open. Hidden text can be distinguished visually: spaces use `·`, tabs use `⇥`, LF line endings use `↵`, CRLF uses `⏎`, classic Mac CR uses `↩`, and control codes use Unicode control pictures such as `␀` / `␡` with a separate control-code style. Binary-looking files still require the explicit `--force` switch before opening as text.
 

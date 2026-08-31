@@ -249,3 +249,25 @@ def build_symbol_map(text, language=None, filename=None):
     elif resolved in ("c", "cpp"):
         _c_symbols(lines, output, seen, cpp=resolved == "cpp");
     return output;
+
+def symbol_index_for_line(symbols, line):
+    """Return the symbol that owns the current source line.
+
+    Symbols are ordered by source position.  A section/function remains current
+    until the next symbol begins, which mirrors QBasic-style routine maps.
+    """;
+    items = list(symbols or []);
+    if not items:
+        return 0;
+    try:
+        current = max(1, int(line));
+    except (TypeError, ValueError):
+        current = 1;
+    selected = 0;
+    for index, item in enumerate(items):
+        if int(getattr(item, "line", 1)) <= current:
+            selected = index;
+        else:
+            break;
+    return selected;
+

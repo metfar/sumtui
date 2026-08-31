@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.27
+
+- F2 Program Map / Document Outline now opens preselected on the symbol/section containing the editor cursor. The common behavior applies to sumedit and sumIDE language profiles; downstream IDEs can reuse `symbol_index_for_line()`.
+- Added a real Markdown preview to sumedit (`View -> Markdown Preview...`) using the current unsaved buffer.
+- Markdown preview now renders pipe tables with Unicode box borders and left/center/right alignment instead of flattening them to loose columns.
+- Added `MarkdownViewPane` with visible vertical/horizontal scrollbars for wide and long previews.
+- Added integrated Markdown `Export HTML` and `Export PDF` actions from both File and Preview. HTML uses markdown-it-py table rendering plus a standalone styled document; PDF uses WeasyPrint when available and falls back to common external PDF backends.
+- Added regression coverage for current-section F2 selection, bordered table rendering, preview creation, HTML export, and PDF export when a backend is available. Regression suite: 164 tests.
+
 ## 0.5.26
 
 - Fixed the F2 Markdown document-outline dialog height calculation: the table header and dialog chrome consumed one more row than the previous formula allowed, so the final heading could be present in the symbol map but clipped from the visible list.

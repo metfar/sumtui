@@ -37,9 +37,10 @@ from ..document import TextDocument;
 from ..events import Key;
 from ..keybindings import KeyBindingManager, format_key_spec;
 from ..syntax import SYNTAX_MODES, normalize_mode;
-from ..symbols import build_symbol_map, detect_language;
+from ..symbols import build_symbol_map, detect_language, symbol_index_for_line;
 from ..theme import THEMES, available_theme_names, refresh_user_themes;
-from ..widgets import Button, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, VBox, Widget;
+from ..markdown_export import export_html, export_pdf;
+from ..widgets import Button, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, MarkdownView, MarkdownViewPane, VBox, Widget;
 
 
 _EOL_MARKERS = {"\n": "↵", "\r\n": "⏎", "\r": "↩"};
@@ -96,6 +97,7 @@ View markers
 View menu checkboxes can be toggled with Space.
 Syntax highlighting is available in the editor and is auto-detected from the file name when possible.
 Markdown highlighting includes headings, emphasis, links, inline HTML and fenced code blocks; fenced Python, Bash, SQL, BASIC, sumX and other known languages reuse their normal syntax roles.
+Markdown files also provide a rendered preview with bordered tables and integrated HTML/PDF export.
 Options contains Tab width, Theme, Line wrapping, Line breaking, Keyboard shortcuts and Save configuration.
 Ralesk's MC is included as a Geany-derived Midnight Commander-like theme and is the fresh-install sumedit default.
 Line wrapping is visual only: -1 means automatic to the current editor width, 0 disables wrapping, and positive values set a maximum visual width. 78 is the legacy 80-column-window preset (80 minus two border cells).
@@ -426,6 +428,7 @@ class EditApp:
         self.editor.line_end_markers = [_EOL_MARKERS.get(value, "↵") for value in (self.document.line_endings or [])];
 
     def _menus(self):
+        markdown = self.symbol_language() == "markdown";
         eol = Menu("Line endings", [
             MenuItem("Preserve", action=lambda: self.set_eol("PRESERVE"), radio=lambda: self.document.eol == "MIXED"),
             MenuItem("Unix (LF)", action=lambda: self.set_eol("LF"), radio=lambda: self.document.eol == "LF"),
@@ -471,6 +474,10 @@ class EditApp:
                 MenuItem("Open...", self.open_dialog, self._ks("file.open")),
                 MenuItem("Save", self.save, self._ks("file.save")),
                 MenuItem("Save As...", self.save_as_dialog),
+                *(
+                    [Separator(), MenuItem("Export Markdown as HTML...", self.export_markdown_html), MenuItem("Export Markdown as PDF...", self.export_markdown_pdf)]
+                    if markdown else []
+                ),
                 MenuItem("Reload", self.reload),
                 Separator(),
                 MenuItem("Line endings", submenu=eol),
@@ -498,6 +505,7 @@ class EditApp:
                 MenuItem("Program Map / Outline...", self.symbol_map_dialog, self._ks("code.symbols")),
             ]),
             Menu("View", [
+                *( [MenuItem("Markdown Preview...", self.markdown_preview), Separator()] if markdown else [] ),
                 MenuItem("Syntax highlighting", self.toggle_syntax, checked=lambda: self.editor.syntax_highlighting),
                 MenuItem("Syntax", submenu=syntax_menu),
                 Separator(),
@@ -598,6 +606,7 @@ class EditApp:
         listing_title = "Titles / Sections / Subsections" if markdown else "Functions / Classes / Main";
         dialog_title = "Document outline" if markdown else "Program map";
         listing = ListView([(item.label, item) for item in symbols], title=listing_title);
+        listing.select(symbol_index_for_line(symbols, self.editor.cursor_line));
         def close(*_args):
             self.app.pop_modal();
             self.app.focus.set(self.editor);
@@ -619,6 +628,77 @@ class EditApp:
         body = VBox(listing, HBox(Button("Go", on_press=activate, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[None, None]);
         self.app.push_modal(Dialog(body, title=dialog_title, width=68, height=min(24, max(10, len(symbols) + 7)), on_cancel=close, shadow=True));
         self.app.focus.set(listing);
+        self.app.invalidate();
+        return True;
+
+    def _markdown_default_export_path(self, suffix):
+        if self.document.path is not None:
+            return self.document.path.with_suffix(str(suffix));
+        return Path.cwd() / ("untitled" + str(suffix));
+
+    def _markdown_export_dialog(self, kind, return_focus=None):
+        if self.symbol_language() != "markdown":
+            return self._update_status("Markdown export is available for Markdown documents");
+        extension = ".pdf" if str(kind).lower() == "pdf" else ".html";
+        entry = TextInput(str(self._markdown_default_export_path(extension)));
+        title = "Export Markdown as {}".format(extension[1:].upper());
+        focus_target = return_focus or self.editor;
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(focus_target);
+            self.app.invalidate();
+            return True;
+        def accepted(*_args):
+            target = Path(entry.value).expanduser();
+            try:
+                source_title = self.document.path.stem if self.document.path is not None else "Untitled";
+                if extension == ".pdf":
+                    base = self.document.path.parent if self.document.path is not None else Path.cwd();
+                    export_pdf(self.editor.text, target, title=source_title, base_url=base);
+                else:
+                    export_html(self.editor.text, target, title=source_title);
+                close();
+                self._update_status("Exported {}".format(target));
+                return True;
+            except Exception as exc:
+                close();
+                self._update_status("Export error: {}".format(exc));
+                return False;
+        body = VBox(entry, HBox(Button("Export", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, None]);
+        self.app.push_modal(Dialog(body, title=title, width=76, height=7, on_cancel=close, shadow=True));
+        self.app.focus.set(entry);
+        self.app.invalidate();
+        return True;
+
+    def export_markdown_html(self):
+        return self._markdown_export_dialog("html");
+
+    def export_markdown_pdf(self):
+        return self._markdown_export_dialog("pdf");
+
+    def markdown_preview(self):
+        if self.symbol_language() != "markdown":
+            return self._update_status("Markdown preview is available for Markdown documents");
+        view = MarkdownView(self.editor.text, wrap=False, theme=self.app.theme);
+        pane = MarkdownViewPane(view=view, theme=self.app.theme);
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+        def html(*_args):
+            return self._markdown_export_dialog("html", return_focus=view);
+        def pdf(*_args):
+            return self._markdown_export_dialog("pdf", return_focus=view);
+        buttons = HBox(
+            Button("Export HTML", on_press=html),
+            Button("Export PDF", on_press=pdf),
+            Button("Close", on_press=close, default=True),
+            ratios=[1, 1, 1],
+        );
+        body = VBox(pane, buttons, sizes=[None, None]);
+        self.app.push_modal(Dialog(body, title="Markdown Preview", width=100, height=30, on_cancel=close, shadow=True));
+        self.app.focus.set(view);
         self.app.invalidate();
         return True;
 

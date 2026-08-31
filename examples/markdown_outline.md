@@ -27,3 +27,16 @@ Appendix
 Setext headings are included in the same outline.
 
 <p align=center><b>- oOo -<b></p>
+
+
+## Preview table
+
+| Feature | sumedit | Notes |
+| :--- | :---: | ---: |
+| Outline | yes | F2 |
+| Preview | yes | bordered tables |
+| Export | HTML / PDF | integrated |
+
+### Final notes
+
+Move the cursor into this section and press F2: the outline opens on **Final notes**.

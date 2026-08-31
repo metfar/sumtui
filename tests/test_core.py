@@ -1924,3 +1924,88 @@ class MultiSourceIDEAndCompileTests(unittest.TestCase):
             self.assertEqual(ide_module.ScriptIDE._executable_suffix(), ".exe");
         with patch.object(ide_module.os, "name", "posix"):
             self.assertEqual(ide_module.ScriptIDE._executable_suffix(), ".run");
+
+class MarkdownPreviewAndSymbolSelectionTests(unittest.TestCase):
+    def test_symbol_map_selects_current_markdown_section(self):
+        from sumtui.tools.edit import EditApp;
+        source = '# Title\n\n## First\ntext\n\n## Second\nmore\n';
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'doc.md';
+            path.write_text(source, encoding='utf-8');
+            app = EditApp(path);
+            app.editor.goto_line(7, 1);
+            self.assertTrue(app.symbol_map_dialog());
+            listing = app.app.focus.current;
+            self.assertIsInstance(listing, ListView);
+            self.assertEqual(listing.current_value.name.strip(), 'Second');
+            app.app.pop_modal();
+
+    def test_symbol_map_selects_current_python_function(self):
+        from sumtui.tools.edit import EditApp;
+        source = 'def one():\n    return 1\n\ndef two():\n    x = 2\n    return x\n';
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'demo.py';
+            path.write_text(source, encoding='utf-8');
+            app = EditApp(path);
+            app.editor.goto_line(5, 1);
+            app.symbol_map_dialog();
+            listing = app.app.focus.current;
+            self.assertEqual(listing.current_value.name.strip(), 'two');
+            app.app.pop_modal();
+
+    def test_markdown_view_renders_bordered_table(self):
+        from io import StringIO;
+        from rich.console import Console;
+        view = MarkdownView('| Left | Right |\n| :--- | ---: |\n| one | 2 |', wrap=False);
+        stream = StringIO();
+        console = Console(file=stream, width=60, height=12, force_terminal=False, color_system=None);
+        console.print(view);
+        rendered = stream.getvalue();
+        self.assertIn('┌', rendered);
+        self.assertIn('┬', rendered);
+        self.assertIn('one', rendered);
+
+    def test_markdown_preview_opens_scrollable_pane(self):
+        from sumtui.tools.edit import EditApp;
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'doc.md';
+            path.write_text('| A | B |\n| --- | --- |\n| 1 | 2 |\n', encoding='utf-8');
+            app = EditApp(path);
+            self.assertTrue(app.markdown_preview());
+            self.assertIsInstance(app.app.focus.current, MarkdownView);
+            app.app.pop_modal();
+
+    def test_markdown_html_export_has_tables_and_style(self):
+        from sumtui.markdown_export import export_html;
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'doc.html';
+            export_html('| A | B |\n| --- | --- |\n| 1 | 2 |\n', target, title='Study');
+            html = target.read_text(encoding='utf-8');
+            self.assertIn('<table>', html);
+            self.assertIn('border: 1px solid', html);
+            self.assertIn('<title>Study</title>', html);
+
+    def test_markdown_pdf_export_when_backend_available(self):
+        from sumtui.markdown_export import export_pdf;
+        try:
+            import weasyprint;  # noqa: F401
+        except Exception:
+            self.skipTest('WeasyPrint is not installed');
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'doc.pdf';
+            export_pdf('# PDF\n\nHello\n', target, title='PDF');
+            self.assertTrue(target.read_bytes().startswith(b'%PDF'));
+
+class IDECurrentSymbolTests(unittest.TestCase):
+    def test_sumide_f2_preselects_symbol_in_active_code_window(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'study.py';
+            path.write_text('def alpha():\n    return 1\n\ndef beta():\n    value = 2\n    return value\n', encoding='utf-8');
+            ide = ScriptIDE(path);
+            ide.editor.goto_line(5, 1);
+            ide.symbol_map_dialog();
+            listing = ide.app.focus.current;
+            self.assertEqual(listing.current_value.name.strip(), 'beta');
+            ide.app.pop_modal();
+            ide._r_session.close();

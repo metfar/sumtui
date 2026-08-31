@@ -22,6 +22,7 @@
 from .commandwindow import CommandWindow;
 from .layout import HBox, VBox;
 from .scrollbar import ScrollBar;
+from .markdownview import MarkdownView;
 from .textview import TextView;
 
 
@@ -43,6 +44,42 @@ class _TextVScroll(ScrollBar):
 
 
 class _TextHScroll(ScrollBar):
+    def __init__(self, view, **kwargs):
+        self.view = view;
+        kwargs.setdefault("on_change", self._changed);
+        super().__init__(orientation="horizontal", **kwargs);
+
+    def _changed(self, _bar, value):
+        self.view.x_offset = max(0, int(value));
+        return True;
+
+    def __rich_console__(self, console, options):
+        self.page = max(1, int(self.view.page_width));
+        self.maximum = max(0, int(self.view.content_width) - self.page);
+        self.value = max(0, min(self.maximum, int(self.view.x_offset)));
+        yield from super().__rich_console__(console, options);
+
+
+
+
+class _MarkdownVScroll(ScrollBar):
+    def __init__(self, view, **kwargs):
+        self.view = view;
+        kwargs.setdefault("on_change", self._changed);
+        super().__init__(orientation="vertical", **kwargs);
+
+    def _changed(self, _bar, value):
+        self.view.offset = max(0, int(value));
+        return True;
+
+    def __rich_console__(self, console, options):
+        self.page = max(1, int(self.view.page_size));
+        self.maximum = max(0, int(self.view.content_height) - self.page);
+        self.value = max(0, min(self.maximum, int(self.view.offset)));
+        yield from super().__rich_console__(console, options);
+
+
+class _MarkdownHScroll(ScrollBar):
     def __init__(self, view, **kwargs):
         self.view = view;
         kwargs.setdefault("on_change", self._changed);
@@ -101,6 +138,16 @@ class TextViewPane(VBox):
         self.view = view if view is not None else TextView(text, theme=theme);
         self.vscroll = _TextVScroll(self.view, theme=theme);
         self.hscroll = _TextHScroll(self.view, theme=theme);
+        self.row = HBox(self.view, self.vscroll, sizes=[None, 1], theme=theme);
+        super().__init__(self.row, self.hscroll, sizes=[None, 1], theme=theme);
+
+
+class MarkdownViewPane(VBox):
+    """MarkdownView plus visible vertical and horizontal scrollbars.""";
+    def __init__(self, view=None, markdown="", wrap=False, theme=None):
+        self.view = view if view is not None else MarkdownView(markdown, wrap=wrap, theme=theme);
+        self.vscroll = _MarkdownVScroll(self.view, theme=theme);
+        self.hscroll = _MarkdownHScroll(self.view, theme=theme);
         self.row = HBox(self.view, self.vscroll, sizes=[None, 1], theme=theme);
         super().__init__(self.row, self.hscroll, sizes=[None, 1], theme=theme);
 

@@ -22,13 +22,117 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
+import re;
+
+from rich import box;
 from rich.markdown import Markdown;
 from rich.segment import Segment;
 from rich.style import Style;
+from rich.table import Table;
+from rich.text import Text;
 
 from ..events import Key;
 from ._viewport import horizontal_delta, line_cell_length, slice_segments, text_cell_length;
 from .base import Widget;
+
+
+def _split_table_row(source):
+    text = str(source or "").strip();
+    if text.startswith("|"):
+        text = text[1:];
+    if text.endswith("|") and not text.endswith(r"\|"):
+        text = text[:-1];
+    cells = [];
+    current = [];
+    escaped = False;
+    code = False;
+    for char in text:
+        if escaped:
+            current.append(char);
+            escaped = False;
+            continue;
+        if char == "\\":
+            escaped = True;
+            continue;
+        if char == "`":
+            code = not code;
+            current.append(char);
+            continue;
+        if char == "|" and not code:
+            cells.append("".join(current).strip());
+            current = [];
+            continue;
+        current.append(char);
+    if escaped:
+        current.append("\\");
+    cells.append("".join(current).strip());
+    return cells;
+
+
+def _table_alignments(separator_cells):
+    alignments = [];
+    for cell in separator_cells:
+        source = str(cell).strip();
+        if not re.match(r"^:?-{3,}:?$", source):
+            return None;
+        left = source.startswith(":");
+        right = source.endswith(":");
+        if left and right:
+            alignments.append("center");
+        elif right:
+            alignments.append("right");
+        else:
+            alignments.append("left");
+    return alignments;
+
+
+def _markdown_chunks(source):
+    """Yield ('markdown', text) and ('table', (headers, rows, alignments)).""";
+    lines = str(source or "").splitlines();
+    index = 0;
+    pending = [];
+    fence_char = "";
+    fence_size = 0;
+    while index < len(lines):
+        raw = lines[index];
+        fence = re.match(r"^\s{0,3}(`{3,}|~{3,})", raw);
+        if fence:
+            marker = fence.group(1);
+            char = marker[0];
+            if not fence_char:
+                fence_char = char;
+                fence_size = len(marker);
+            elif char == fence_char and len(marker) >= fence_size:
+                fence_char = "";
+                fence_size = 0;
+            pending.append(raw);
+            index += 1;
+            continue;
+        if not fence_char and index + 1 < len(lines) and "|" in raw:
+            headers = _split_table_row(raw);
+            separators = _split_table_row(lines[index + 1]);
+            alignments = _table_alignments(separators) if len(headers) == len(separators) and len(headers) >= 2 else None;
+            if alignments is not None:
+                if pending:
+                    yield ("markdown", "\n".join(pending));
+                    pending = [];
+                rows = [];
+                index += 2;
+                while index < len(lines):
+                    candidate = lines[index];
+                    if not candidate.strip() or "|" not in candidate:
+                        break;
+                    cells = _split_table_row(candidate);
+                    if len(cells) < len(headers):
+                        cells += [""] * (len(headers) - len(cells));
+                    rows.append(cells[:len(headers)]);
+                    index += 1;
+                yield ("table", (headers, rows, alignments));
+                continue;
+        pending.append(raw);
+        index += 1;
+    if pending:
+        yield ("markdown", "\n".join(pending));
 
 
 class MarkdownView(Widget):
@@ -44,6 +148,7 @@ class MarkdownView(Widget):
         self.page_size = 1;
         self.page_width = 1;
         self.content_width = 1;
+        self.content_height = 1;
 
     @property
     def max_x_offset(self):
@@ -55,12 +160,27 @@ class MarkdownView(Widget):
         self.x_offset = 0;
         return self;
 
-    def _renderable(self):
+    def _renderable(self, chunk):
         return Markdown(
-            self.markdown,
+            str(chunk),
             code_theme=self.code_theme,
             inline_code_theme=self.code_theme,
         );
+
+    def _table_renderable(self, headers, rows, alignments):
+        table = Table(
+            box=box.SQUARE,
+            show_header=True,
+            show_edge=True,
+            expand=False,
+            padding=(0, 1),
+            header_style="bold",
+        );
+        for header, alignment in zip(headers, alignments):
+            table.add_column(str(header), justify=alignment, overflow="fold", no_wrap=False);
+        for row in rows:
+            table.add_row(*[self._renderable(str(cell)) for cell in row]);
+        return table;
 
     def _preferred_width(self, viewport_width):
         if self.wrap:
@@ -69,12 +189,25 @@ class MarkdownView(Widget):
         return max(20, int(viewport_width), source_width + 4);
 
     def _lines(self, console, width):
-        segments = console.render(self._renderable(), console.options.update(width=max(20, int(width))));
-        return list(Segment.split_lines(segments)) or [[]];
+        output = [];
+        for kind, payload in _markdown_chunks(self.markdown):
+            if kind == "table":
+                renderable = self._table_renderable(*payload);
+            else:
+                if not str(payload).strip():
+                    continue;
+                renderable = self._renderable(payload);
+            segments = console.render(renderable, console.options.update(width=max(20, int(width))));
+            lines = list(Segment.split_lines(segments));
+            if output and lines:
+                output.append([]);
+            output.extend(lines);
+        return output or [[]];
 
-    def scroll(self, delta, line_count):
+    def scroll(self, delta, line_count=None):
         old = self.offset;
-        self.offset = max(0, min(max(0, int(line_count) - self.page_size), self.offset + int(delta)));
+        count = self.content_height if line_count is None else int(line_count);
+        self.offset = max(0, min(max(0, count - self.page_size), self.offset + int(delta)));
         return self.offset != old;
 
     def scroll_horizontal(self, delta):
@@ -100,6 +233,7 @@ class MarkdownView(Widget):
         self.page_width = viewport_width;
         self.page_size = max(1, int(height));
         lines = self._lines(console, self._preferred_width(viewport_width));
+        self.content_height = max(1, len(lines));
         self.content_width = max([line_cell_length(line) for line in lines] or [viewport_width]);
         key = getattr(self, "_pending_key", "");
         if key == Key.UP:
