@@ -24,7 +24,7 @@ from rich.panel import Panel as RichPanel;
 from rich.segment import Segment;
 from rich.text import Text;
 
-from ..events import Key, MouseEvent;
+from ..events import Key, KeyEvent, MouseEvent;
 from ..overlay import ModalOverlay;
 from .base import Widget;
 
@@ -75,8 +75,10 @@ class WorkspaceWindow(Widget):
         self._workspace_width = self.width;
         self._workspace_height = self.height;
         self._dragging = False;
+        self._resizing = False;
         self._drag_offset_x = 0;
         self._drag_offset_y = 0;
+        self.keyboard_geometry_mode = None;
         self._workspace = None;
         if self.child is not None:
             self.child.set_theme(self.theme);
@@ -114,6 +116,15 @@ class WorkspaceWindow(Widget):
             self.height = max(5, int(height));
         self._clamp_geometry();
         return self;
+
+    def resize_by(self, dw=0, dh=0):
+        if self.maximized:
+            return False;
+        old = (self.width, self.height);
+        self.width += int(dw);
+        self.height += int(dh);
+        self._clamp_geometry();
+        return old != (self.width, self.height);
 
     def _clamp_geometry(self):
         max_width = max(1, int(self._workspace_width));
@@ -171,7 +182,14 @@ class WorkspaceWindow(Widget):
 
     def _title_text(self):
         marker = "*" if self.active else " ";
-        state = " [MAX]" if self.maximized else "";
+        if self.maximized:
+            state = " [MAX]";
+        elif self.keyboard_geometry_mode == "move":
+            state = " [MOVE]";
+        elif self.keyboard_geometry_mode == "resize":
+            state = " [SIZE]";
+        else:
+            state = "";
         return "{} {}{}".format(marker, self.title, state);
 
     def as_panel(self, width=None, height=None):
@@ -214,19 +232,30 @@ class WorkspaceWindow(Widget):
         if isinstance(event, MouseEvent):
             local_x = int(event.x) - int(self._mouse_left);
             local_y = int(event.y) - int(self._mouse_top);
+            resize_corner = local_y == int(self._mouse_height) - 1 and local_x >= max(0, int(self._mouse_width) - 2);
+            if event.action == "press" and event.button == "left" and resize_corner:
+                if not self.maximized:
+                    self._resizing = True;
+                return True;
             if event.action == "press" and event.button == "left" and local_y == 0:
                 if not self.maximized:
                     self._dragging = True;
                     self._drag_offset_x = local_x;
                     self._drag_offset_y = local_y;
                 return True;
+            if event.action == "move" and event.button == "left" and self._resizing:
+                self.width = int(event.x) - int(self._mouse_left) + 1;
+                self.height = int(event.y) - int(self._mouse_top) + 1;
+                self._clamp_geometry();
+                return True;
             if event.action == "move" and event.button == "left" and self._dragging:
                 self.left = int(event.x) - int(self._drag_offset_x);
                 self.top = int(event.y) - int(self._drag_offset_y);
                 self._clamp_geometry();
                 return True;
-            if event.action == "release" and self._dragging:
+            if event.action == "release" and (self._dragging or self._resizing):
                 self._dragging = False;
+                self._resizing = False;
                 self._clamp_geometry();
                 return True;
             translated = self._interior_event(event);
@@ -252,6 +281,9 @@ class Workspace(Widget):
         self.windows = [];
         self.active_window = None;
         self._drag_window = None;
+        self._keyboard_geometry_mode = None;
+        self._keyboard_geometry_window = None;
+        self._keyboard_geometry_original = None;
         self._last_width = 80;
         self._last_height = 24;
         self.on_activate = None;
@@ -380,6 +412,80 @@ class Workspace(Widget):
         index = visible.index(self.active_window);
         return self.activate(visible[(index + int(delta)) % len(visible)]);
 
+    @property
+    def keyboard_geometry_mode(self):
+        return self._keyboard_geometry_mode;
+
+    def _begin_keyboard_geometry(self, mode):
+        window = self.active_window;
+        if window is None or window.maximized:
+            return False;
+        mode = str(mode).lower();
+        if mode not in ("move", "resize"):
+            raise ValueError("geometry mode must be move or resize");
+        if self._keyboard_geometry_mode is not None:
+            self.commit_keyboard_geometry();
+        self._keyboard_geometry_mode = mode;
+        self._keyboard_geometry_window = window;
+        self._keyboard_geometry_original = (window.left, window.top, window.width, window.height);
+        window.keyboard_geometry_mode = mode;
+        return True;
+
+    def begin_move_active(self):
+        return self._begin_keyboard_geometry("move");
+
+    def begin_resize_active(self):
+        return self._begin_keyboard_geometry("resize");
+
+    def commit_keyboard_geometry(self):
+        window = self._keyboard_geometry_window;
+        if window is None:
+            return False;
+        window.keyboard_geometry_mode = None;
+        self._keyboard_geometry_mode = None;
+        self._keyboard_geometry_window = None;
+        self._keyboard_geometry_original = None;
+        return True;
+
+    def cancel_keyboard_geometry(self):
+        window = self._keyboard_geometry_window;
+        original = self._keyboard_geometry_original;
+        if window is None:
+            return False;
+        if original is not None:
+            window.left, window.top, window.width, window.height = original;
+            window._clamp_geometry();
+        window.keyboard_geometry_mode = None;
+        self._keyboard_geometry_mode = None;
+        self._keyboard_geometry_window = None;
+        self._keyboard_geometry_original = None;
+        return True;
+
+    def capture_event(self, event):
+        if self._keyboard_geometry_mode is None or not isinstance(event, KeyEvent):
+            return False;
+        window = self._keyboard_geometry_window;
+        if window is None:
+            return self.commit_keyboard_geometry();
+        if event.key == Key.ENTER:
+            return self.commit_keyboard_geometry();
+        if event.key == Key.ESCAPE:
+            return self.cancel_keyboard_geometry();
+        if event.key not in (Key.LEFT, Key.RIGHT, Key.UP, Key.DOWN):
+            return True;
+        amount = 5 if getattr(event, "shift", False) else 1;
+        if self._keyboard_geometry_mode == "move":
+            if event.key == Key.LEFT: window.move_by(-amount, 0);
+            elif event.key == Key.RIGHT: window.move_by(amount, 0);
+            elif event.key == Key.UP: window.move_by(0, -amount);
+            elif event.key == Key.DOWN: window.move_by(0, amount);
+        else:
+            if event.key == Key.LEFT: window.resize_by(-amount, 0);
+            elif event.key == Key.RIGHT: window.resize_by(amount, 0);
+            elif event.key == Key.UP: window.resize_by(0, -amount);
+            elif event.key == Key.DOWN: window.resize_by(0, amount);
+        return True;
+
     def maximize_active(self):
         if self.active_window is None:
             return False;
@@ -416,7 +522,7 @@ class Workspace(Widget):
             return False;
         if self._drag_window is not None:
             handled = self._drag_window.handle_event(event);
-            if event.action == "release" or not self._drag_window._dragging:
+            if event.action == "release" or not (self._drag_window._dragging or self._drag_window._resizing):
                 self._drag_window = None;
             return bool(handled);
         for window in reversed(self.visible_windows):
@@ -428,7 +534,7 @@ class Workspace(Widget):
                 if self.active_window is not window:
                     self.activate(window);
                 handled = window.handle_event(event);
-                if window._dragging:
+                if window._dragging or window._resizing:
                     self._drag_window = window;
                 return bool(handled or True);
         return False;

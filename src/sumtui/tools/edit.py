@@ -52,6 +52,8 @@ Keyboard
   F3                  Find next
   F6 / Ctrl+Tab       Next window/work area
   F11 / Alt+Enter     Maximize/restore workspace window
+  Alt+M               Move active window; arrows move, Enter accepts, Esc cancels
+  Alt+Z               Resize active window; arrows size, Enter accepts, Esc cancels
   Ctrl+F4             Close workspace window
   Alt+Arrow           Move workspace window
   F9                  Menu
@@ -273,6 +275,8 @@ class EditApp:
             ("window.next", "Next Window", ["f6", "ctrl+tab"], self.switch_window),
             ("window.close", "Close Window", ["ctrl+f4"], self.close_workspace_window),
             ("window.maximize", "Maximize / Restore Window", ["f11", "alt+enter"], self.toggle_workspace_maximize),
+            ("window.move", "Move Window", ["alt+m"], self.begin_workspace_move),
+            ("window.resize", "Resize Window", ["alt+z"], self.begin_workspace_resize),
             ("menu.activate", "Menu", ["f9"], self.open_menu),
             ("menu.file", "File menu", ["alt+f"], lambda: self.open_menu(0)),
             ("menu.edit", "Edit menu", ["alt+e"], lambda: self.open_menu(1)),
@@ -384,6 +388,24 @@ class EditApp:
             self.app.invalidate();
         return bool(changed);
 
+    def begin_workspace_move(self):
+        workspace = self._workspace();
+        if workspace is None or workspace.active_window is None:
+            return False;
+        changed = workspace.begin_move_active();
+        if changed:
+            self.app.invalidate();
+        return bool(changed);
+
+    def begin_workspace_resize(self):
+        workspace = self._workspace();
+        if workspace is None or workspace.active_window is None:
+            return False;
+        changed = workspace.begin_resize_active();
+        if changed:
+            self.app.invalidate();
+        return bool(changed);
+
     def _window_menu(self):
         workspace = self._workspace();
         if workspace is None:
@@ -393,6 +415,8 @@ class EditApp:
         items = [
             MenuItem("Next Window", self.switch_window, self._ks("window.next")),
             MenuItem("Maximize / Restore", self.toggle_workspace_maximize, self._ks("window.maximize"), enabled=workspace.active_window is not None),
+            MenuItem("Move...", self.begin_workspace_move, self._ks("window.move"), enabled=workspace.active_window is not None and not workspace.active_window.maximized),
+            MenuItem("Resize...", self.begin_workspace_resize, self._ks("window.resize"), enabled=workspace.active_window is not None and not workspace.active_window.maximized),
             MenuItem("Close current", self.close_workspace_window, self._ks("window.close"), enabled=workspace.active_window is not None),
             Separator(),
         ];

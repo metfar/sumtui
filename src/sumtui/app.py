@@ -290,6 +290,9 @@ class Application:
             return False;
         if not isinstance(event, KeyEvent):
             return False;
+        capture = getattr(self.root, "capture_event", None) if self.root is not None else None;
+        if capture is not None and capture(event):
+            return True;
         current = self.focus.current;
         if event.key == Key.TAB:
             # Focused widgets get first refusal on Tab.  This is required by

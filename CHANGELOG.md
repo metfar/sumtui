@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.28
+
+- Workspace windows can now be resized with the mouse by dragging the lower-right corner; resize tracking shares the existing z-order/drag machinery and respects workspace minimum/bounds constraints.
+- Added keyboard geometry modes for terminals and Termux: **Alt+M** enters Move and **Alt+Z** enters Resize; plain arrows adjust one cell, Shift+arrows adjust five cells, Enter accepts, and Escape restores the original geometry.
+- Active window titles show `[MOVE]` / `[SIZE]` while a keyboard geometry operation is in progress.
+- Added a first-refusal `capture_event()` path so arrow keys in Move/Resize mode are consumed before TextEditor/Command controls move their own cursors.
+- Window menus and sumedit/sumIDE shortcut documentation expose Move/Resize, and `demo_workspace.py` demonstrates mouse and keyboard sizing.
+- Added regression coverage for lower-right-corner mouse resizing, keyboard Move/Resize commit/cancel, and capture precedence over editor navigation.
+
 ## 0.5.27
 
 - F2 Program Map / Document Outline now opens preselected on the symbol/section containing the editor cursor. The common behavior applies to sumedit and sumIDE language profiles; downstream IDEs can reuse `symbol_index_for_line()`.

@@ -1,4 +1,4 @@
-# sumTUI 0.5.27
+# sumTUI 0.5.28
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -85,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.27
+## Widgets in 0.5.28
 
 ### Structure and layout
 
@@ -488,7 +488,7 @@ Python execution uses the current Python interpreter in a stoppable subprocess. 
 
 ## Generic editor and text-file tools
 
-`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, **Ctrl+F4** closes the active workspace window, **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
+`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, and **Ctrl+F4** closes the active workspace window. Mouse users can drag a window title to move it and drag its lower-right corner to resize it. **Alt+M** enters keyboard Move and **Alt+Z** enters keyboard Resize; arrows adjust one cell, Shift+arrows five cells, Enter accepts, and Escape cancels. **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 

@@ -32,7 +32,7 @@ from sumtui import Application, CommandWindow, KeyEvent, TextEditor, TextView, W
 
 def main():
     editor = TextEditor('print("Hello from a movable Code window")\n', line_numbers=True);
-    output = TextView("Output window\n\nF6 cycles windows.\nF11 maximizes/restores.");
+    output = TextView("Output window\n\nDrag a title to move.\nDrag the lower-right corner to resize.\nAlt+M = keyboard move; Alt+Z = keyboard resize.\nEnter accepts; Esc cancels.");
     command = CommandWindow(prompt="> ", on_submit=lambda line, view: view.write("command: " + line));
 
     code_window = WorkspaceWindow(editor, title="Code", name="code", left=1, top=1, width=58, height=16);
@@ -44,6 +44,8 @@ def main():
     app.set_root(workspace);
     app.bind("f6", workspace.next_window);
     app.bind("f11", workspace.toggle_maximize_active);
+    app.bind("alt+m", workspace.begin_move_active);
+    app.bind("alt+z", workspace.begin_resize_active);
     app.bind("ctrl+f4", workspace.close_active);
     app.bind("f10", app.stop);
     app.focus.set(editor);

@@ -1625,6 +1625,49 @@ class WorkspaceTests(unittest.TestCase):
         self.assertTrue(workspace.handle_event(MouseEvent(15, 7, button="left", action="release")));
         self.assertEqual((window.left, window.top), (12, 7));
 
+    def test_workspace_lower_right_corner_drag_resizes_window(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        window = WorkspaceWindow(TextView("x"), title="Output", left=2, top=2, width=30, height=8);
+        workspace = Workspace(window);
+        console = Console(width=80, height=24, record=True, force_terminal=False, file=io.StringIO());
+        console.print(workspace);
+        self.assertTrue(workspace.handle_event(MouseEvent(31, 9, button="left", action="press")));
+        self.assertTrue(workspace.handle_event(MouseEvent(41, 14, button="left", action="move")));
+        self.assertTrue(workspace.handle_event(MouseEvent(41, 14, button="left", action="release")));
+        self.assertEqual((window.width, window.height), (40, 13));
+
+    def test_workspace_keyboard_move_and_resize_modes_commit_and_cancel(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        window = WorkspaceWindow(TextView("x"), title="Output", left=2, top=2, width=30, height=8);
+        workspace = Workspace(window);
+        self.assertTrue(workspace.begin_move_active());
+        self.assertEqual(window.keyboard_geometry_mode, "move");
+        self.assertTrue(workspace.capture_event(KeyEvent(Key.RIGHT)));
+        self.assertTrue(workspace.capture_event(KeyEvent(Key.DOWN, shift=True)));
+        self.assertEqual((window.left, window.top), (3, 7));
+        self.assertTrue(workspace.capture_event(KeyEvent(Key.ENTER)));
+        self.assertIsNone(window.keyboard_geometry_mode);
+        moved = (window.left, window.top, window.width, window.height);
+        self.assertTrue(workspace.begin_resize_active());
+        self.assertTrue(workspace.capture_event(KeyEvent(Key.RIGHT, shift=True)));
+        self.assertTrue(workspace.capture_event(KeyEvent(Key.DOWN)));
+        self.assertEqual((window.width, window.height), (35, 9));
+        self.assertTrue(workspace.capture_event(KeyEvent(Key.ESCAPE)));
+        self.assertEqual((window.left, window.top, window.width, window.height), moved);
+
+    def test_application_workspace_geometry_capture_precedes_editor_arrows(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        editor = TextEditor("abc\ndef");
+        window = WorkspaceWindow(editor, title="Code", left=2, top=2, width=30, height=8);
+        workspace = Workspace(window);
+        app = Application(root=workspace);
+        editor.cursor_row = 1;
+        editor.cursor_col = 1;
+        self.assertTrue(workspace.begin_move_active());
+        self.assertTrue(app.dispatch(KeyEvent(Key.LEFT)));
+        self.assertEqual((window.left, window.top), (1, 2));
+        self.assertEqual((editor.cursor_row, editor.cursor_col), (1, 1));
+
     def test_workspace_window_alt_arrows_move_and_f11_toggle(self):
         from sumtui import Workspace, WorkspaceWindow;
         window = WorkspaceWindow(TextView("x"), title="Output", left=2, top=2, width=30, height=8);

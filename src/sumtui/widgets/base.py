@@ -73,5 +73,18 @@ class Widget:
             output.extend(child.focusables());
         return output;
 
+    def capture_event(self, event):
+        """Give descendants a first-refusal hook before focused widgets.
+
+        This is intentionally separate from ``handle_event``.  It is used by
+        modal keyboard interactions that must consume navigation keys before
+        an editor moves its own cursor, for example Workspace Move/Resize.
+        """;
+        for child in self.children():
+            capture = getattr(child, "capture_event", None);
+            if capture is not None and capture(event):
+                return True;
+        return False;
+
     def handle_event(self, event):
         return False;
