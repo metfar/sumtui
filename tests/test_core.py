@@ -1781,6 +1781,22 @@ class IDEShortcutAndProfileTests(unittest.TestCase):
         ]);
         self.assertFalse(any("not a heading" in item.name for item in symbols));
 
+    def test_markdown_outline_dialog_renders_every_small_document_heading(self):
+        source = "Intro\n\n---\n\n### Page 87 (Image 1)\n\nBody\n\n---\n\n### Page \"S'approprier les mots\" (Image 2)\n";
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "prop3.md";
+            path.write_text(source, encoding="utf-8");
+            editor = EditApp(path);
+            symbols = editor.symbol_map();
+            self.assertEqual([item.line for item in symbols], [1, 5, 11]);
+            self.assertTrue(editor.symbol_map_dialog());
+            self.assertEqual(editor.app.root.height, 10);
+            console = Console(width=100, height=30, record=True, force_terminal=False, file=io.StringIO());
+            console.print(editor.app._renderable(), height=30);
+            output = console.export_text();
+            self.assertIn("Page 87 (Image 1)", output);
+            self.assertIn("S'approprier les mots", output);
+
     def test_sumide_detects_bash_c_cpp_and_uses_scroll_panes(self):
         from sumtui.tools.ide import ScriptIDE;
         from sumtui import TextViewPane, CommandWindowPane;

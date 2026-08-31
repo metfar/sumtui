@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.26
+
+- Fixed the F2 Markdown document-outline dialog height calculation: the table header and dialog chrome consumed one more row than the previous formula allowed, so the final heading could be present in the symbol map but clipped from the visible list.
+- Added regression coverage using a two-section Markdown document matching the reported structure, verifying that both `###` headings are parsed and rendered in the F2 outline at the same time.
+
 ## 0.5.25
 
 - F2 / Program Map now becomes a Markdown document outline for `.md`, `.markdown`, `.mdown`, `.mkd`, and extensionless `README` files.

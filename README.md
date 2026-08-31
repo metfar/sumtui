@@ -1,4 +1,4 @@
-# sumTUI 0.5.25
+# sumTUI 0.5.26
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -85,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.25
+## Widgets in 0.5.26
 
 ### Structure and layout
 
@@ -491,7 +491,7 @@ Python execution uses the current Python interpreter in a stoppable subprocess. 
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
-Markdown is treated as editable source rather than rendered documentation. Headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. See `examples/markdown_outline.md` for a small navigable document. In particular, the project closing line remains visible/editable as HTML source:
+Markdown is treated as editable source rather than rendered documentation. Headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. See `examples/markdown_outline.md` for a small navigable document. The outline dialog sizes its list so every entry fits when the document is small, while larger outlines remain keyboard-scrollable. In particular, the project closing line remains visible/editable as HTML source:
 
 ```html
 ```

@@ -617,7 +617,7 @@ class EditApp:
             return True;
         listing.on_activate = activate;
         body = VBox(listing, HBox(Button("Go", on_press=activate, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[None, None]);
-        self.app.push_modal(Dialog(body, title=dialog_title, width=68, height=min(24, max(9, len(symbols) + 6)), on_cancel=close, shadow=True));
+        self.app.push_modal(Dialog(body, title=dialog_title, width=68, height=min(24, max(10, len(symbols) + 7)), on_cancel=close, shadow=True));
         self.app.focus.set(listing);
         self.app.invalidate();
         return True;
