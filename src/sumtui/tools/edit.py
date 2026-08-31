@@ -55,6 +55,7 @@ Keyboard
   Alt+M               Move active window; arrows move, Enter accepts, Esc cancels
   Alt+Z               Resize active window; arrows size, Enter accepts, Esc cancels
   Ctrl+F4             Close workspace window
+  Window menu         Reset Window Layout restores saved/default geometry
   Alt+Arrow           Move workspace window
   F9                  Menu
   F10                 Exit
@@ -320,6 +321,9 @@ class EditApp:
     def _workspace(self):
         return getattr(self, "workspace", None);
 
+    def _workspace_layout_path(self):
+        return self.config_path.with_name("workspaces.json");
+
     def switch_window(self):
         workspace = self._workspace();
         if workspace is not None:
@@ -406,6 +410,15 @@ class EditApp:
             self.app.invalidate();
         return bool(changed);
 
+    def reset_workspace_layout(self):
+        workspace = self._workspace();
+        if workspace is None:
+            return False;
+        workspace.reset_layout(clear_saved=True);
+        self._update_status("Window layout restored to defaults");
+        self.app.invalidate();
+        return True;
+
     def _window_menu(self):
         workspace = self._workspace();
         if workspace is None:
@@ -418,6 +431,7 @@ class EditApp:
             MenuItem("Move...", self.begin_workspace_move, self._ks("window.move"), enabled=workspace.active_window is not None and not workspace.active_window.maximized),
             MenuItem("Resize...", self.begin_workspace_resize, self._ks("window.resize"), enabled=workspace.active_window is not None and not workspace.active_window.maximized),
             MenuItem("Close current", self.close_workspace_window, self._ks("window.close"), enabled=workspace.active_window is not None),
+            MenuItem("Reset Window Layout", self.reset_workspace_layout),
             Separator(),
         ];
         for window in workspace.windows:
@@ -1364,7 +1378,14 @@ Copyright 2018- William Martinez Bas <metfar@gmail.com>
         return self._confirm_unsaved(self._quit_now);
 
     def run(self):
-        return self.app.run();
+        workspace = self._workspace();
+        if workspace is not None:
+            workspace.load_layout();
+        try:
+            return self.app.run();
+        finally:
+            if workspace is not None:
+                workspace.save_layout();
 
 
 def install_edit_alias(directory=None):

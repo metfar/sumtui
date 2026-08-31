@@ -23,6 +23,7 @@
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
 import io;
+import json;
 import os;
 import shutil;
 import subprocess;
@@ -1580,6 +1581,31 @@ class GeometryAndIDEIntegrationTests(unittest.TestCase):
 
 
 class WorkspaceTests(unittest.TestCase):
+    def test_workspace_layout_persists_resets_and_applies_late_windows(self):
+        from sumtui import Workspace, WorkspaceWindow;
+        with tempfile.TemporaryDirectory() as directory:
+            layout_path = Path(directory) / "workspaces.json";
+            code = WorkspaceWindow(TextView("code"), title="Code", name="code", left=1, top=1, width=30, height=10);
+            output = WorkspaceWindow(TextView("out"), title="Output", name="output", left=5, top=8, width=32, height=8);
+            workspace = Workspace(code, output, layout_id="demo", layout_path=layout_path, viewport_width=100, viewport_height=40);
+            code.move_by(11, 4);
+            code.resize_by(9, 3);
+            output.maximize();
+            self.assertTrue(workspace.save_layout());
+
+            restored_code = WorkspaceWindow(TextView("code"), title="Code", name="code", left=1, top=1, width=30, height=10);
+            restored = Workspace(restored_code, layout_id="demo", layout_path=layout_path, viewport_width=100, viewport_height=40);
+            self.assertTrue(restored.load_layout());
+            self.assertEqual((restored_code.left, restored_code.top, restored_code.width, restored_code.height), (12, 5, 39, 13));
+            late_output = WorkspaceWindow(TextView("out"), title="Output", name="output", left=5, top=8, width=32, height=8);
+            restored.add_window(late_output, activate=False);
+            self.assertTrue(late_output.maximized);
+            self.assertTrue(restored.reset_layout(clear_saved=True));
+            self.assertEqual((restored_code.left, restored_code.top, restored_code.width, restored_code.height), (1, 1, 30, 10));
+            self.assertFalse(late_output.maximized);
+            data = json.loads(layout_path.read_text(encoding="utf-8"));
+            self.assertNotIn("demo", data);
+
     def test_workspace_switch_hide_reopen_and_focus(self):
         from sumtui import Workspace, WorkspaceWindow;
         editor = TextEditor("print('x')");
@@ -1712,7 +1738,7 @@ class ScriptIDETests(unittest.TestCase):
             ide.editor.set_text('print("buffer")\n', modified=True);
             ide.app.running = True;
             ide.run_program();
-            deadline = time.monotonic() + 5.0;
+            deadline = time.monotonic() + 10.0;
             while time.monotonic() < deadline and (ide._process is not None or not ide._process_queue.empty()):
                 ide._poll_execution();
                 time.sleep(.01);

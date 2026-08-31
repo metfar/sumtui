@@ -1,4 +1,4 @@
-# sumTUI 0.5.28
+# sumTUI 0.5.29
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -85,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.28
+## Widgets in 0.5.29
 
 ### Structure and layout
 
@@ -448,7 +448,7 @@ BrowseForm(["id", "name", "amount"], rows)
 
 ## Movable IDE workspaces and Python/R/Bash/C/C++ frontends
 
-`Workspace` and `WorkspaceWindow` provide a small overlapping-window desktop for IDE-style applications. A workspace window owns an exact terminal-cell rectangle, can be activated and raised above its siblings, moved by dragging its title border or with `Alt+Arrow` (`Shift+Alt+Arrow` moves five cells), maximized/restored with **F11**, and closed with **Ctrl+F4**. Persistent/default windows are hidden rather than destroyed, so a `Window` menu can reopen them later. **F6** cycles through visible windows in z-order.
+`Workspace` and `WorkspaceWindow` provide a small overlapping-window desktop for IDE-style applications. A workspace window owns an exact terminal-cell rectangle, can be activated and raised above its siblings, moved by dragging its title border or with `Alt+Arrow` (`Shift+Alt+Arrow` moves five cells), maximized/restored with **F11**, and closed with **Ctrl+F4**. Persistent/default windows are hidden rather than destroyed, so a `Window` menu can reopen them later. **F6** cycles through visible windows in z-order. Workspace geometry (left/top/width/height and maximized state) is restored on the next run; **Window -> Reset Window Layout** clears the saved geometry and immediately returns every workspace window to its application defaults. Layout persistence is stored in the sibling `workspaces.json` file, separately from manually saved editor preferences, so moving a window does not implicitly persist unrelated option changes.
 
 Function-key-free terminals such as Termux can use the same IDE without escape-prefix codes: **Alt+F/E/S/V/O/W/R/H** opens File/Edit/Search/View/Options/Window/Run/Help, **Alt+P** opens Program Map, **Ctrl+R** is Run/Stop, **Ctrl+Tab** changes window, **Alt+Enter** maximizes/restores, and **Ctrl+Q** quits. The traditional function keys remain active on full keyboards.
 

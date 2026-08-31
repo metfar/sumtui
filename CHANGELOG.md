@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.29
+
+- Workspace windows can persist geometry across application runs: left/top, width/height and maximized state are stored by stable window name and clamped to the current terminal on restore.
+- Added `Workspace.layout_state()`, `load_layout()`, `save_layout()`, `reset_layout()` and `clear_saved_layout()` plus late-window restore support for multi-source sumIDE workspaces.
+- sumIDE uses a `sumide` layout namespace in the sibling `workspaces.json` configuration file and automatically loads on run / saves on shutdown.
+- Added **Window -> Reset Window Layout**, which restores each window to the geometry it had when the workspace was created and removes the persisted layout so the defaults remain in effect next launch.
+- Added regression coverage for save/restore, maximized state, late-added windows and reset/clear behavior.
+
 ## 0.5.28
 
 - Workspace windows can now be resized with the mouse by dragging the lower-right corner; resize tracking shares the existing z-order/drag machinery and respects workspace minimum/bounds constraints.

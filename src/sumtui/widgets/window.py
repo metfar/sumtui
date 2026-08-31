@@ -20,6 +20,10 @@
 #  MA 02110-1301, USA.
 #  
 #
+import json;
+import os;
+from pathlib import Path;
+
 from rich.panel import Panel as RichPanel;
 from rich.segment import Segment;
 from rich.text import Text;
@@ -80,8 +84,46 @@ class WorkspaceWindow(Widget):
         self._drag_offset_y = 0;
         self.keyboard_geometry_mode = None;
         self._workspace = None;
+        self._default_geometry = {
+            "left": self.left,
+            "top": self.top,
+            "width": self.width,
+            "height": self.height,
+            "maximized": False,
+        };
         if self.child is not None:
             self.child.set_theme(self.theme);
+
+    def geometry_state(self):
+        return {
+            "left": int(self.left),
+            "top": int(self.top),
+            "width": int(self.width),
+            "height": int(self.height),
+            "maximized": bool(self.maximized),
+        };
+
+    def apply_geometry_state(self, state):
+        if not isinstance(state, dict):
+            return False;
+        before = self.geometry_state();
+        try:
+            if "left" in state:
+                self.left = max(0, int(state["left"]));
+            if "top" in state:
+                self.top = max(0, int(state["top"]));
+            if "width" in state:
+                self.width = max(12, int(state["width"]));
+            if "height" in state:
+                self.height = max(5, int(state["height"]));
+            self.maximized = bool(state.get("maximized", False));
+        except (TypeError, ValueError):
+            return False;
+        self._clamp_geometry();
+        return before != self.geometry_state();
+
+    def reset_geometry(self):
+        return self.apply_geometry_state(dict(self._default_geometry));
 
     def children(self):
         return [self.child] if self.visible and self.child is not None else [];
@@ -274,9 +316,17 @@ class WorkspaceWindow(Widget):
         return False;
 
 
+def default_workspace_layout_path():
+    base = os.environ.get("XDG_CONFIG_HOME");
+    if base:
+        return Path(base).expanduser() / "sumtui" / "workspaces.json";
+    return Path("~/.config/sumtui/workspaces.json").expanduser();
+
+
 class Workspace(Widget):
     """Overlapping desktop workspace with movable, switchable child windows.""";
-    def __init__(self, *windows, theme=None):
+    def __init__(self, *windows, theme=None, layout_id=None, layout_path=None,
+                 viewport_width=80, viewport_height=24):
         super().__init__(theme=theme);
         self.windows = [];
         self.active_window = None;
@@ -284,8 +334,11 @@ class Workspace(Widget):
         self._keyboard_geometry_mode = None;
         self._keyboard_geometry_window = None;
         self._keyboard_geometry_original = None;
-        self._last_width = 80;
-        self._last_height = 24;
+        self._last_width = max(1, int(viewport_width));
+        self._last_height = max(1, int(viewport_height));
+        self.layout_id = str(layout_id).strip() if layout_id else None;
+        self.layout_path = Path(layout_path).expanduser() if layout_path is not None else default_workspace_layout_path();
+        self._loaded_layout_state = {};
         self.on_activate = None;
         for window in windows:
             self.add_window(window, activate=self.active_window is None and bool(window.visible));
@@ -309,9 +362,85 @@ class Workspace(Widget):
         window._workspace_height = self._last_height;
         window.set_theme(self.theme);
         self.windows.append(window);
+        saved = self._loaded_layout_state.get(window.name);
+        if isinstance(saved, dict):
+            window.apply_geometry_state(saved);
         if activate and window.visible:
             self.activate(window);
         return window;
+
+    def layout_state(self):
+        return {window.name: window.geometry_state() for window in self.windows};
+
+    def apply_layout_state(self, state):
+        if not isinstance(state, dict):
+            return False;
+        self._loaded_layout_state = {str(name): dict(value) for name, value in state.items() if isinstance(value, dict)};
+        changed = False;
+        for window in self.windows:
+            saved = self._loaded_layout_state.get(window.name);
+            if isinstance(saved, dict):
+                changed = bool(window.apply_geometry_state(saved) or changed);
+        self._refresh_focus();
+        return changed;
+
+    def _read_layout_file(self):
+        try:
+            data = json.loads(self.layout_path.read_text(encoding="utf-8"));
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return {};
+        return data if isinstance(data, dict) else {};
+
+    def load_layout(self):
+        if not self.layout_id:
+            return False;
+        data = self._read_layout_file();
+        state = data.get(self.layout_id, {});
+        if not isinstance(state, dict):
+            state = {};
+        self.apply_layout_state(state);
+        return bool(state);
+
+    def save_layout(self):
+        if not self.layout_id:
+            return False;
+        data = self._read_layout_file();
+        data[self.layout_id] = self.layout_state();
+        try:
+            self.layout_path.parent.mkdir(parents=True, exist_ok=True);
+            temporary = self.layout_path.with_name(self.layout_path.name + ".tmp");
+            temporary.write_text(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8");
+            temporary.replace(self.layout_path);
+            self._loaded_layout_state = {name: dict(value) for name, value in data[self.layout_id].items()};
+            return True;
+        except OSError:
+            return False;
+
+    def reset_layout(self, clear_saved=True):
+        changed = False;
+        self._loaded_layout_state = {};
+        for window in self.windows:
+            changed = bool(window.reset_geometry() or changed);
+        if clear_saved:
+            self.clear_saved_layout();
+        self._refresh_focus();
+        return changed;
+
+    def clear_saved_layout(self):
+        if not self.layout_id:
+            return False;
+        data = self._read_layout_file();
+        if self.layout_id not in data:
+            return True;
+        data.pop(self.layout_id, None);
+        try:
+            self.layout_path.parent.mkdir(parents=True, exist_ok=True);
+            temporary = self.layout_path.with_name(self.layout_path.name + ".tmp");
+            temporary.write_text(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8");
+            temporary.replace(self.layout_path);
+            return True;
+        except OSError:
+            return False;
 
     def remove_window(self, window):
         if window not in self.windows:
