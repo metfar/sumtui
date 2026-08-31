@@ -1,4 +1,4 @@
-# sumTUI 0.5.29
+# sumTUI 0.6.0
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -26,6 +26,15 @@ For development:
 ```bash
 python -m pip install -e .
 ```
+
+
+## sumdiff integration
+
+`sumTUI 0.6.0` adds the common handoff used by Sum editors and IDEs to the separate `sumdiff` project. `sumTUI` does **not** depend on `sumdiff`; the bridge detects it at runtime, temporarily hands the terminal to it, and restores the host editor when comparison ends.
+
+`sumedit`, `sumIDE` and IDEs derived from the common editor expose **File -> Compare with...**. The current in-memory buffer is passed to `sumdiff`, so unsaved edits can be inspected without first changing the file on disk. If that document is saved from inside `sumdiff`, the host reloads the saved version when control returns.
+
+The multi-source `sumIDE` adds **Compare with open buffer** and **Compare all open documents**. Two open documents enter Compare mode; three or more enter Parallel Documents mode, which is useful for language comparisons and multilingual Markdown work. If `sumdiff` is not installed, the editor remains usable and reports that the optional companion is missing.
 
 ## Text editing and resizable workspaces
 
@@ -85,7 +94,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.29
+## Widgets in 0.6.0
 
 ### Structure and layout
 

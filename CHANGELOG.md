@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Promoted the common editor/workspace line to 0.6.0 and added optional integration with the separate `sumdiff` application without making `sumdiff` a dependency of the toolkit.
+- Added `sumtui.compare_integration`: runtime detection and in-process terminal handoff to `sumdiff`, including live in-memory text overrides for unsaved buffers.
+- `sumedit` and all `EditApp`-derived IDEs expose **File -> Compare with...**. Files saved inside `sumdiff` are reloaded into the originating editor on return.
+- Multi-source `sumIDE` adds **Compare with open buffer** and **Compare all open documents**; two documents use Compare mode and three or more use Parallel Documents mode.
+- The integration preserves the architectural direction: `sumdiff` depends on sumTUI, never the reverse.
+- Added regression coverage for editor menu integration, live-buffer handoff data and N-document sumIDE launch selection. Regression suite: 171 tests.
+
 ## 0.5.29
 
 - Workspace windows can persist geometry across application runs: left/top, width/height and maximized state are stored by stable window name and clamped to the current terminal on restore.

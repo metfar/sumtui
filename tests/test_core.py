@@ -2078,3 +2078,45 @@ class IDECurrentSymbolTests(unittest.TestCase):
             self.assertEqual(listing.current_value.name.strip(), 'beta');
             ide.app.pop_modal();
             ide._r_session.close();
+
+class CompareIntegrationTests(unittest.TestCase):
+    def test_sumedit_file_menu_exposes_compare(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "left.txt";
+            path.write_text("left\n", encoding="utf-8");
+            app = EditApp(path);
+            labels = [item.label for item in app._menus()[0].items if not isinstance(item, Separator)];
+            self.assertIn("Compare with...", labels);
+
+    def test_sumedit_comparison_override_uses_live_buffer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "left.txt";
+            path.write_text("saved\n", encoding="utf-8");
+            app = EditApp(path);
+            app.editor.set_text("unsaved\n", modified=True);
+            overrides = app._comparison_overrides([path]);
+            self.assertEqual(overrides[path.resolve()], "unsaved\n");
+            self.assertEqual(path.read_text(encoding="utf-8"), "saved\n");
+
+    def test_sumide_can_offer_open_buffers_and_all_documents(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory);
+            paths = [];
+            for name in ("one.py", "two.R", "three.c"):
+                path = root / name;
+                path.write_text("sample\n", encoding="utf-8");
+                paths.append(path);
+            ide = ScriptIDE(paths[0]);
+            ide.open_path(paths[1], activate=False);
+            ide.open_path(paths[2], activate=False);
+            file_menu = ide._menus()[0];
+            labels = [item.label for item in file_menu.items if not isinstance(item, Separator)];
+            self.assertIn("Compare with open buffer", labels);
+            self.assertIn("Compare all open documents", labels);
+            captured = {};
+            ide._launch_comparison = lambda selected, mode=None: captured.update(paths=[Path(item) for item in selected], mode=mode) or True;
+            self.assertTrue(ide.compare_all_open_documents());
+            self.assertEqual(captured["mode"], "parallel");
+            self.assertEqual(len(captured["paths"]), 3);
+            ide._r_session.close();

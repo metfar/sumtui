@@ -422,8 +422,84 @@ class ScriptIDE(EditApp):
             bar.actions.insert(min(2, len(bar.actions)), FunctionAction(key, "Run/Stop", None));
         return bar;
 
+    def _comparison_overrides(self, paths):
+        wanted = {Path(path).expanduser().resolve() for path in paths};
+        overrides = {};
+        for state in self._code_buffers.values():
+            document = state["document"];
+            if document.path is None:
+                continue;
+            path = Path(document.path).expanduser().resolve();
+            if path in wanted:
+                overrides[path] = state["editor"].text;
+        return overrides;
+
+    def _comparison_finished(self, compare_app):
+        saved = {Path(path).expanduser().resolve() for path in getattr(compare_app, "saved_paths", set())};
+        if not saved:
+            return True;
+        changed = False;
+        for window, state in list(self._code_buffers.items()):
+            document = state["document"];
+            if document.path is None:
+                continue;
+            path = Path(document.path).expanduser().resolve();
+            if path not in saved:
+                continue;
+            try:
+                loaded = TextDocument.load(path, force_binary=self.force_binary);
+                state["document"] = loaded;
+                state["editor"].set_text(loaded.text, modified=False);
+                state["editor"].configure_syntax(filename=loaded.path.name if loaded.path is not None else None);
+                state["language"] = self._document_language(loaded, fallback=state.get("language"));
+                window.title = self._code_title_for(loaded, state["language"]);
+                changed = True;
+            except Exception as exc:
+                self._update_status("Compare reload error: {}".format(exc));
+        if getattr(self, "code_window", None) in self._code_buffers:
+            self._workspace_activated(self.code_window);
+        if changed:
+            self._update_status("Reloaded files saved by sumdiff");
+        return True;
+
+    def _compare_open_buffer(self, window):
+        current = self._code_buffers.get(self.code_window);
+        other = self._code_buffers.get(window);
+        if current is None or other is None:
+            return False;
+        if current["document"].path is None or other["document"].path is None or not Path(current["document"].path).expanduser().exists() or not Path(other["document"].path).expanduser().exists():
+            self._update_status("Save both buffers before comparing them");
+            return False;
+        return self._launch_comparison([current["document"].path, other["document"].path], mode="compare");
+
+    def _compare_open_buffer_menu(self):
+        items = [];
+        for window, state in self._code_buffers.items():
+            if window is self.code_window:
+                continue;
+            document = state["document"];
+            label = document.path.name if document.path is not None else "Untitled";
+            items.append(MenuItem(label, lambda selected=window: self._compare_open_buffer(selected), enabled=document.path is not None and Path(document.path).expanduser().exists()));
+        if not items:
+            items.append(MenuItem("No other saved buffers", enabled=False));
+        return Menu("Compare with open buffer", items);
+
+    def compare_all_open_documents(self):
+        states = [state for state in self._code_buffers.values() if state["document"].path is not None and Path(state["document"].path).expanduser().exists()];
+        if len(states) < 2:
+            self._update_status("Open at least two saved documents to compare");
+            return False;
+        paths = [state["document"].path for state in states];
+        mode = "compare" if len(paths) == 2 else "parallel";
+        return self._launch_comparison(paths, mode=mode);
+
     def _menus(self):
         menus = super()._menus();
+        file_menu = next((menu for menu in menus if menu.title == "File"), None);
+        if file_menu is not None:
+            compare_index = next((index for index, item in enumerate(file_menu.items) if getattr(item, "label", "") == "Compare with..."), 3);
+            file_menu.items.insert(compare_index + 1, MenuItem("Compare with open buffer", submenu=self._compare_open_buffer_menu()));
+            file_menu.items.insert(compare_index + 2, MenuItem("Compare all open documents", self.compare_all_open_documents, enabled=len([state for state in self._code_buffers.values() if state["document"].path is not None and Path(state["document"].path).expanduser().exists()]) >= 2));
         run_items = [
             MenuItem("Run / Stop current buffer", self.toggle_run, self._ks("script.run")),
             MenuItem("Clear output", self.clear_output),

@@ -512,6 +512,8 @@ class EditApp:
                 MenuItem("Open...", self.open_dialog, self._ks("file.open")),
                 MenuItem("Save", self.save, self._ks("file.save")),
                 MenuItem("Save As...", self.save_as_dialog),
+                Separator(),
+                MenuItem("Compare with...", self.compare_with_dialog),
                 *(
                     [Separator(), MenuItem("Export Markdown as HTML...", self.export_markdown_html), MenuItem("Export Markdown as PDF...", self.export_markdown_pdf)]
                     if markdown else []
@@ -568,6 +570,67 @@ class EditApp:
                 MenuItem("About...", self.about),
             ]),
         ];
+
+    def _comparison_overrides(self, paths):
+        overrides = {};
+        if self.document.path is not None:
+            current = Path(self.document.path).expanduser().resolve();
+            wanted = {Path(path).expanduser().resolve() for path in paths};
+            if current in wanted:
+                overrides[current] = self.editor.text;
+        return overrides;
+
+    def _comparison_finished(self, compare_app):
+        if self.document.path is None:
+            return True;
+        current = Path(self.document.path).expanduser().resolve();
+        saved = {Path(path).expanduser().resolve() for path in getattr(compare_app, "saved_paths", set())};
+        if current not in saved:
+            return True;
+        try:
+            return self._set_document(TextDocument.load(current, force_binary=self.force_binary));
+        except Exception as exc:
+            self._update_status("Compare reload error: {}".format(exc));
+            return False;
+
+    def _launch_comparison(self, paths, mode=None):
+        from ..compare_integration import SumDiffUnavailable, launch_sumdiff;
+        try:
+            compare_app = launch_sumdiff(self.app, paths, mode=mode, theme=self.app.theme.name, text_overrides=self._comparison_overrides(paths));
+        except SumDiffUnavailable:
+            self._update_status("sumdiff is not installed; install sumdiff to use Compare");
+            return False;
+        except Exception as exc:
+            self._update_status("Compare error: {}".format(exc));
+            return False;
+        self._comparison_finished(compare_app);
+        self.menu.menus = self._menus();
+        self.app.focus.set(self.editor);
+        self.app.invalidate();
+        return True;
+
+    def compare_with_dialog(self):
+        if self.document.path is None:
+            return self.save_as_dialog(on_saved=self.compare_with_dialog);
+        if not Path(self.document.path).expanduser().exists():
+            return self.save(on_saved=self.compare_with_dialog);
+        start = self.document.path.parent;
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+        def accepted(path):
+            selected = Path(path).expanduser();
+            close();
+            if selected.resolve() == Path(self.document.path).expanduser().resolve():
+                self._update_status("Choose a different file to compare");
+                return False;
+            return self._launch_comparison([self.document.path, selected], mode="compare");
+        dialog = FileDialog(path=start, title="Compare with file", on_accept=accepted, on_cancel=close, theme=self.app.theme);
+        self.app.push_modal(dialog);
+        self.app.invalidate();
+        return True;
 
     def open_menu(self, index=None):
         self.menu.menus = self._menus();
