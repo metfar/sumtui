@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.5.23
+Version: 0.5.25
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ Requires-Dist: rich>=13.0
 Requires-Dist: pygments>=2.15
 Dynamic: license-file
 
-# sumTUI 0.5.23
+# sumTUI 0.5.25
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -103,7 +103,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.23
+## Widgets in 0.5.25
 
 ### Structure and layout
 
@@ -477,9 +477,15 @@ output = WorkspaceWindow(TextView("Ready"), title="Output", name="output", left=
 desktop = Workspace(output, code);
 ```
 
-The same infrastructure now powers a generic script IDE with three default windows: **Code**, **Output**, and **Command**. `sumide` auto-detects **Python, R, Bash, C, or C++** from the filename. `sumpyide`, `sumride`, `sumbashide`, `sumcide`, and `sumcppide` force a profile explicitly. Python Command mode keeps a persistent interactive namespace; R uses a persistent R process when available; Bash and the C/C++ profiles use the system shell for direct commands. F5 or **Ctrl+R** runs/stops the current unsaved buffer, F6 or **Ctrl+Tab** changes window, and F11 or **Alt+Enter** maximizes/restores. Output has visible vertical/horizontal scrollbars and Command has visible scrollback scrolling.
+The same infrastructure now powers a generic script IDE with shared **Output** and **Command** windows plus one or more movable **Code** windows. `sumide` auto-detects **Python, R, Bash, C, or C++** independently for every opened source file, so several languages can coexist in the same workspace for comparative study. `sumpyide`, `sumride`, `sumbashide`, `sumcide`, and `sumcppide` force a profile explicitly. Python Command mode keeps a persistent interactive namespace; R uses a persistent R process when available; Bash and the C/C++ profiles use the system shell for direct commands. F5 or **Ctrl+R** runs/stops the currently active code buffer, F6 or **Ctrl+Tab** changes window, and F11 or **Alt+Enter** maximizes/restores. Output has visible vertical/horizontal scrollbars and Command has visible scrollback scrolling.
 
-C and C++ use editable compile/run templates stored with the normal sumTUI editor configuration. The defaults are intentionally small (`cc`/`c++`, then execute the produced binary); they are not a replacement for Make, CMake, or Meson, which can be run directly from Command.
+`Ctrl+O` adds another source window instead of replacing the current one. The Window menu lists every open code file together with Output and Command, and activating a Code window switches syntax highlighting, Program Map, Run behaviour, Command prompt, and C/C++ build actions to that file's language. Multiple files may also be supplied at startup:
+
+```bash
+sumide program.py analysis.R script.sh hello.c hello.cpp
+```
+
+C and C++ use editable compile/run templates stored with the normal sumTUI editor configuration. **Ctrl+F6** or `Run -> Compile current buffer` builds a persistent executable next to the source: `program.run` on POSIX systems (Linux, Android/Termux, BSD/macOS) and `program.exe` on Windows. F5 keeps the fast compile-and-run path with a temporary executable. The defaults are intentionally small (`cc`/`c++` on POSIX, `gcc`/`g++` on Windows); they are not a replacement for Make, CMake, or Meson, which can be run directly from Command.
 
 ```bash
 sumide program.py
@@ -495,7 +501,7 @@ sumcide hello.c
 sumcppide hello.cpp
 ```
 
-Python execution uses the current Python interpreter in a stoppable subprocess. R execution requires `Rscript` for source runs and `R` for the persistent Command window. See `examples/demo_workspace.py` and the launchers under `examples/bash/`: `python_ide.sh`, `r_ide.sh`, `bash_ide.sh`, `c_ide.sh`, and `cpp_ide.sh`.
+Python execution uses the current Python interpreter in a stoppable subprocess. R execution requires `Rscript` for source runs and `R` for the persistent Command window. See `examples/demo_workspace.py` and the launchers under `examples/bash/`: `python_ide.sh`, `r_ide.sh`, `bash_ide.sh`, `c_ide.sh`, `cpp_ide.sh`, and `multilang_ide.sh`.
 
 ## Generic editor and text-file tools
 
@@ -503,7 +509,7 @@ Python execution uses the current Python interpreter in a stoppable subprocess. 
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
-Markdown is treated as editable source rather than rendered documentation. Headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. In particular, the project closing line remains visible/editable as HTML source:
+Markdown is treated as editable source rather than rendered documentation. Headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. See `examples/markdown_outline.md` for a small navigable document. In particular, the project closing line remains visible/editable as HTML source:
 
 ```html
 ```

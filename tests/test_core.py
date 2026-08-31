@@ -1765,6 +1765,22 @@ class IDEShortcutAndProfileTests(unittest.TestCase):
             names = {item.name.strip() for item in build_symbol_map(source, language=language)};
             self.assertTrue(expected.issubset(names), (language, names));
 
+    def test_symbol_map_markdown_builds_document_outline_and_ignores_fenced_headings(self):
+        from sumtui.symbols import build_symbol_map, detect_language;
+        source = "# Course notes\n\n## Unit 1\n\n### Lesson A\n\n```python\n# not a heading\n```\n\nAppendix\n--------\n";
+        self.assertEqual(detect_language(filename="notes.md"), "markdown");
+        self.assertEqual(detect_language(filename="README"), "markdown");
+        symbols = build_symbol_map(source, filename="notes.md");
+        self.assertEqual(symbols[0].kind, "TOP");
+        headings = [(item.kind, item.name.strip(), item.line) for item in symbols[1:]];
+        self.assertEqual(headings, [
+            ("TITLE", "Course notes", 1),
+            ("SECTION", "Unit 1", 3),
+            ("SUBSECTION", "Lesson A", 5),
+            ("SECTION", "Appendix", 11),
+        ]);
+        self.assertFalse(any("not a heading" in item.name for item in symbols));
+
     def test_sumide_detects_bash_c_cpp_and_uses_scroll_panes(self):
         from sumtui.tools.ide import ScriptIDE;
         from sumtui import TextViewPane, CommandWindowPane;
@@ -1826,3 +1842,69 @@ class IDEShortcutAndProfileTests(unittest.TestCase):
             self.assertIn('C works', ide.output_view.text);
             ide.app.running = False;
             ide._r_session.close();
+
+class MultiSourceIDEAndCompileTests(unittest.TestCase):
+    def test_workspace_activation_callback_tracks_window(self):
+        calls = [];
+        first = WorkspaceWindow(TextView("one"), title="One", name="one");
+        second = WorkspaceWindow(TextView("two"), title="Two", name="two");
+        workspace = Workspace(first, second);
+        workspace.on_activate = lambda window: calls.append(window.name if window is not None else None);
+        workspace.activate(second);
+        workspace.activate(first);
+        self.assertEqual(calls[-2:], ["two", "one"]);
+
+    def test_sumide_opens_multiple_languages_and_switches_active_profile(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory);
+            py = root / "study.py";
+            r = root / "study.R";
+            cpp = root / "study.cpp";
+            py.write_text('print("python")\n', encoding="utf-8");
+            r.write_text('print("R")\n', encoding="utf-8");
+            cpp.write_text('int main(){return 0;}\n', encoding="utf-8");
+            ide = ScriptIDE(py);
+            r_window = ide.open_path(r, activate=False);
+            cpp_window = ide.open_path(cpp, activate=True);
+            self.assertEqual(len(ide._code_buffers), 3);
+            self.assertEqual((ide.document.path.name, ide.language), ("study.cpp", "cpp"));
+            ide.workspace.show(r_window);
+            self.assertEqual((ide.document.path.name, ide.language), ("study.R", "r"));
+            self.assertEqual(ide.command_view.prompt, "R> ");
+            ide.workspace.show(cpp_window);
+            self.assertEqual(ide.language, "cpp");
+            ide._r_session.close();
+
+    def test_sumide_compile_creates_run_executable_on_posix(self):
+        from sumtui.tools.ide import ScriptIDE;
+        if os.name == "nt" or shutil.which("cc") is None:
+            self.skipTest("POSIX cc is required");
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "hello.c";
+            path.write_text('int main(void){return 0;}\n', encoding="utf-8");
+            ide = ScriptIDE(path);
+            ide.editor.set_text('#include <stdio.h>\nint main(void){puts("compiled");return 0;}\n', modified=True);
+            ide.app.running = True;
+            self.assertTrue(ide.compile_program());
+            deadline = time.monotonic() + 10.0;
+            while time.monotonic() < deadline and (ide._process is not None or not ide._process_queue.empty()):
+                ide._poll_execution();
+                time.sleep(.01);
+            ide._poll_execution();
+            target = path.with_suffix(".run");
+            self.assertTrue(target.exists());
+            self.assertTrue(os.access(target, os.X_OK));
+            completed = subprocess.run([str(target)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False);
+            self.assertEqual(completed.returncode, 0);
+            self.assertIn("compiled", completed.stdout);
+            ide.app.running = False;
+            ide._r_session.close();
+
+    def test_sumide_executable_suffix_is_platform_specific(self):
+        from unittest.mock import patch;
+        from sumtui.tools import ide as ide_module;
+        with patch.object(ide_module.os, "name", "nt"):
+            self.assertEqual(ide_module.ScriptIDE._executable_suffix(), ".exe");
+        with patch.object(ide_module.os, "name", "posix"):
+            self.assertEqual(ide_module.ScriptIDE._executable_suffix(), ".run");

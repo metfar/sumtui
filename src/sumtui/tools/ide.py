@@ -36,9 +36,10 @@ import tempfile;
 import threading;
 import time;
 
+from ..document import TextDocument;
 from ..symbols import detect_language;
-from ..widgets import Button, CommandWindow, CommandWindowPane, Dialog, FunctionAction, HBox, Label, Menu, MenuItem, Separator, TextInput, TextView, TextViewPane, VBox, Workspace, WorkspaceWindow;
-from .edit import EditApp;
+from ..widgets import Button, CommandWindow, CommandWindowPane, Dialog, FunctionAction, HBox, Label, Menu, MenuItem, Separator, TextEditor, TextInput, TextView, TextViewPane, VBox, Workspace, WorkspaceWindow;
+from .edit import EditApp, _EditorHScroll, _EditorVScroll;
 
 
 class _RSession:
@@ -132,6 +133,8 @@ class ScriptIDE(EditApp):
         self._process_queue = queue.Queue();
         self._process_done = False;
         self._process_returncode = None;
+        self._process_mode = None;
+        self._process_artifact_path = None;
         self._temp_path = None;
         self._temp_output_path = None;
         self._direct_thread = None;
@@ -139,6 +142,8 @@ class ScriptIDE(EditApp):
         self._direct_output = "";
         self._direct_error = None;
         self._python_console = code.InteractiveConsole({"__name__": "__console__"});
+        self._code_buffers = {};
+        self._code_counter = 0;
         self._r_session = _RSession();
         super().__init__(path=path, theme=theme, **kwargs);
         self.ide_config = dict(self.config.get("ide", {})) if isinstance(self.config.get("ide", {}), dict) else {};
@@ -154,10 +159,13 @@ class ScriptIDE(EditApp):
         output_height = max(7, min(available_height - 2, 10));
         command_width = max(28, min(available_width - 2, 44));
         command_height = max(7, min(available_height - 2, 11));
-        self.code_window = WorkspaceWindow(self.panel.child, title=self._code_title(), name="code", left=1, top=0, width=code_width, height=code_height, content_style="viewer");
+        self.code_window = WorkspaceWindow(self.panel.child, title=self._code_title(), name="code", left=1, top=0, width=code_width, height=code_height, content_style="viewer", persistent=True);
         self.output_window = WorkspaceWindow(self.output_pane, title="Output", name="output", left=3, top=max(1, available_height - output_height), width=output_width, height=output_height, content_style="viewer");
         self.command_window = WorkspaceWindow(self.command_pane, title="Command", name="command", left=max(0, available_width - command_width - 1), top=max(1, available_height - command_height - 1), width=command_width, height=command_height, content_style="command");
         self.workspace = Workspace(self.output_window, self.command_window, self.code_window);
+        self._code_counter = 1;
+        self._code_buffers[self.code_window] = {"document": self.document, "editor": self.editor, "vscroll": self.vscroll, "hscroll": self.hscroll, "language": self.language};
+        self.workspace.on_activate = self._workspace_activated;
         self.desktop.body = VBox(self.workspace, self.status, self.bar, sizes=[None, 1, 1]);
         self.app.set_root(self.desktop);
         self.workspace.activate(self.code_window);
@@ -189,9 +197,212 @@ class ScriptIDE(EditApp):
         name = self.document.path.name if self.document.path is not None else "Untitled";
         return "Code - {} [{}]".format(name, self._language_label());
 
+    def _code_title_for(self, document, language):
+        name = document.path.name if document.path is not None else "Untitled";
+        label = {"python": "Python", "r": "R", "bash": "Bash", "c": "C", "cpp": "C++"}.get(language, language);
+        return "Code - {} [{}]".format(name, label);
+
+    def _document_language(self, document, fallback=None):
+        if self._language_request not in ("", "auto"):
+            return self._resolve_language(document.path, self._language_request);
+        if document.path is None and fallback in ("python", "r", "bash", "c", "cpp"):
+            return fallback;
+        return self._resolve_language(document.path, "auto");
+
+    @staticmethod
+    def _sync_markers_for(document, editor):
+        if document.eol == "CRLF":
+            editor.line_end_marker = "⏎";
+        elif document.eol == "CR":
+            editor.line_end_marker = "↩";
+        else:
+            editor.line_end_marker = "↵";
+        markers = {"\n": "↵", "\r\n": "⏎", "\r": "↩"};
+        editor.line_end_markers = [markers.get(value, "↵") for value in (document.line_endings or [])];
+        return editor;
+
+    def _make_code_editor(self, document):
+        current = self.editor;
+        editor = TextEditor(
+            document.text,
+            tab_size=current.tab_size,
+            line_numbers=True,
+            on_change=self._editor_changed,
+            on_cursor=self._cursor_changed,
+            command_shortcuts=False,
+            syntax_highlighting=current.syntax_highlighting,
+            syntax_language=str(self.config.get("syntax_mode", "auto")),
+            syntax_filename=document.path.name if document.path is not None else None,
+            line_wrapping=current.line_wrapping,
+            line_breaking=current.line_breaking,
+        );
+        editor.configure_visibility(
+            spaces=current.show_spaces,
+            tabs=current.show_tabs,
+            line_endings=current.show_line_endings,
+            controls=current.show_control_chars,
+        );
+        self._sync_markers_for(document, editor);
+        vscroll = _EditorVScroll(editor);
+        hscroll = _EditorHScroll(editor);
+        child = VBox(HBox(editor, vscroll, sizes=[None, 1]), hscroll, sizes=[None, 1]);
+        return editor, vscroll, hscroll, child;
+
+    def _workspace_activated(self, window):
+        state = self._code_buffers.get(window);
+        if state is None:
+            return False;
+        self.document = state["document"];
+        self.editor = state["editor"];
+        self.vscroll = state["vscroll"];
+        self.hscroll = state["hscroll"];
+        self.language = state["language"];
+        self.code_window = window;
+        self._sync_markers_for(self.document, self.editor);
+        window.title = self._code_title_for(self.document, self.language);
+        if hasattr(self, "command_view"):
+            self.command_view.set_prompt(self._prompt());
+        if hasattr(self, "menu"):
+            self.menu.menus = self._menus();
+        self._update_status("Active {} source".format(self._language_label()));
+        return True;
+
+    def _add_code_document(self, document, language=None, activate=True, persistent=False):
+        language = language or self._document_language(document, fallback=self.language);
+        editor, vscroll, hscroll, child = self._make_code_editor(document);
+        self._code_counter += 1;
+        offset = (self._code_counter - 1) % 6;
+        width = max(30, min(max(40, int(self.app.width)) - 2, int(max(40, int(self.app.width)) * 0.78)));
+        height = max(9, min(max(12, int(self.app.height) - 3) - 1, int(max(12, int(self.app.height) - 3) * 0.72)));
+        window = WorkspaceWindow(
+            child,
+            title=self._code_title_for(document, language),
+            name="code:{}".format(self._code_counter),
+            left=1 + offset * 2,
+            top=offset,
+            width=width,
+            height=height,
+            content_style="viewer",
+            persistent=bool(persistent),
+        );
+        self._code_buffers[window] = {"document": document, "editor": editor, "vscroll": vscroll, "hscroll": hscroll, "language": language};
+        self.workspace.add_window(window, activate=activate);
+        if not activate:
+            self.menu.menus = self._menus();
+            self.app.invalidate();
+        return window;
+
+    def open_path(self, path, activate=True):
+        document = TextDocument.load(Path(path).expanduser(), force_binary=self.force_binary) if Path(path).expanduser().exists() else TextDocument.empty(Path(path).expanduser());
+        language = self._document_language(document, fallback=self.language);
+        return self._add_code_document(document, language=language, activate=activate, persistent=False);
+
+    def _open_dialog_now(self):
+        start = self.document.path.parent if self.document.path is not None else Path.cwd();
+        def close():
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+        def accepted(path):
+            try:
+                close();
+                self.open_path(path, activate=True);
+            except Exception as exc:
+                self._update_status("Open error: {}".format(exc));
+        from ..widgets import FileDialog;
+        dialog = FileDialog(path=start, title="Open source file", on_accept=accepted, on_cancel=close, theme=self.app.theme);
+        self.app.push_modal(dialog);
+        self.app.invalidate();
+        return True;
+
+    def open_dialog(self):
+        return self._open_dialog_now();
+
+    def new_file(self):
+        document = TextDocument.empty();
+        return bool(self._add_code_document(document, language=self.language, activate=True, persistent=False));
+
+    def _set_document(self, document):
+        state = self._code_buffers.get(getattr(self, "code_window", None));
+        if state is None:
+            return super()._set_document(document);
+        state["document"] = document;
+        self.document = document;
+        self.editor.set_text(document.text, modified=False);
+        self.editor.configure_syntax(filename=document.path.name if document.path is not None else None);
+        state["language"] = self._document_language(document, fallback=state.get("language"));
+        self.language = state["language"];
+        self._sync_markers_for(document, self.editor);
+        self.code_window.title = self._code_title_for(document, self.language);
+        self.command_view.set_prompt(self._prompt());
+        self.menu.menus = self._menus();
+        self.app.focus.set(self.editor);
+        self._update_status("Loaded");
+        return True;
+
+    def save(self, on_saved=None):
+        if self.document.path is None:
+            return super().save(on_saved=on_saved);
+        result = super().save(on_saved=None);
+        if result:
+            state = self._code_buffers.get(getattr(self, "code_window", None));
+            if state is not None:
+                state["document"] = self.document;
+                state["language"] = self._document_language(self.document, fallback=state.get("language"));
+                self.language = state["language"];
+                self.code_window.title = self._code_title_for(self.document, self.language);
+                self.command_view.set_prompt(self._prompt());
+                self.menu.menus = self._menus();
+            if on_saved is not None:
+                return on_saved();
+        return result;
+
+    def _close_code_window_now(self, target):
+        state = self._code_buffers.get(target);
+        if state is None:
+            return self._close_workspace_window_now(target);
+        if target.persistent:
+            return self._close_workspace_window_now(target);
+        changed = self.workspace.remove_window(target);
+        if changed:
+            self._code_buffers.pop(target, None);
+            self.menu.menus = self._menus();
+            self._update_status("Closed source window");
+            self.app.invalidate();
+        return bool(changed);
+
+    def close_workspace_window(self, window=None):
+        target = window or self.workspace.active_window;
+        if target is None:
+            return False;
+        state = self._code_buffers.get(target);
+        if state is None:
+            return super().close_workspace_window(target);
+        self.workspace.show(target);
+        self._workspace_activated(target);
+        if state["editor"].modified:
+            return self._confirm_unsaved(lambda: self._close_code_window_now(target));
+        return self._close_code_window_now(target);
+
+    def _confirm_all_unsaved(self, callback):
+        dirty = [(window, state) for window, state in self._code_buffers.items() if state["editor"].modified];
+        if not dirty:
+            return callback();
+        window, state = dirty[0];
+        self.workspace.show(window);
+        self._workspace_activated(window);
+        def continue_after_choice():
+            state["editor"].modified = False;
+            return self._confirm_all_unsaved(callback);
+        return self._confirm_unsaved(continue_after_choice);
+
+    def quit(self):
+        return self._confirm_all_unsaved(self._quit_now);
+
     def _register_keybindings(self):
         super()._register_keybindings();
         self.keys.register("script.run", "Run / Stop", ["f5", "ctrl+r"], context="editor", callback=self.toggle_run);
+        self.keys.register("script.compile", "Compile", ["ctrl+f6"], context="editor", callback=self.compile_program);
         self.keys.register("menu.run", "Run menu", ["alt+r"], context="editor", callback=lambda: self.open_menu(6));
         self.keys.register("menu.help", "Help menu", ["alt+h"], context="editor", callback=lambda: self.open_menu(7));
         return self.keys;
@@ -210,7 +421,8 @@ class ScriptIDE(EditApp):
             MenuItem("Clear output", self.clear_output),
         ];
         if self.language in ("c", "cpp"):
-            run_items.insert(1, MenuItem("Build commands...", self.build_commands_dialog));
+            run_items.insert(1, MenuItem("Compile current buffer", self.compile_program, self._ks("script.compile")));
+            run_items.insert(2, MenuItem("Build commands...", self.build_commands_dialog));
         run_menu = Menu("Run", run_items);
         options = next((menu for menu in menus if menu.title == "Options"), None);
         if options is not None and self.language in ("c", "cpp"):
@@ -228,18 +440,6 @@ class ScriptIDE(EditApp):
                 self.app.invalidate();
                 return True;
         return super()._menu_closed();
-
-    def _set_document(self, document):
-        result = super()._set_document(document);
-        if self._language_request in ("", "auto"):
-            self.language = self._resolve_language(document.path, "auto");
-            if hasattr(self, "command_view"):
-                self.command_view.set_prompt(self._prompt());
-        if hasattr(self, "code_window"):
-            self.code_window.title = self._code_title();
-        if hasattr(self, "menu"):
-            self.menu.menus = self._menus();
-        return result;
 
     def clear_output(self):
         self.output_view.set_text("");
@@ -280,18 +480,42 @@ class ScriptIDE(EditApp):
         raise RuntimeError("{} uses the build command path".format(self._language_label()));
 
     def _build_defaults(self):
+        c_compiler = "gcc" if os.name == "nt" else "cc";
+        cpp_compiler = "g++" if os.name == "nt" else "c++";
         return {
-            "c_compile": 'cc -std=c17 -Wall -Wextra -O0 -g {source} -o {output}',
+            "c_compile": '{} -std=c17 -Wall -Wextra -O0 -g {{source}} -o {{output}}'.format(c_compiler),
             "c_run": '{output}',
-            "cpp_compile": 'c++ -std=c++17 -Wall -Wextra -O0 -g {source} -o {output}',
+            "cpp_compile": '{} -std=c++17 -Wall -Wextra -O0 -g {{source}} -o {{output}}'.format(cpp_compiler),
             "cpp_run": '{output}',
         };
 
     def _build_value(self, key):
         return str(self.ide_config.get(key, self._build_defaults()[key]));
 
+    @staticmethod
+    def _quote_build_path(value):
+        return subprocess.list2cmdline([str(value)]) if os.name == "nt" else shlex.quote(str(value));
+
     def _expanded_build(self, template, source, output):
-        return str(template).format(source=shlex.quote(str(source)), output=shlex.quote(str(output)));
+        return str(template).format(source=self._quote_build_path(source), output=self._quote_build_path(output));
+
+    @staticmethod
+    def _shell_command(command):
+        if os.name == "nt":
+            shell = os.environ.get("COMSPEC") or shutil.which("cmd.exe") or "cmd.exe";
+            return [shell, "/c", str(command)];
+        shell = shutil.which("sh") or "/bin/sh";
+        return [shell, "-c", str(command)];
+
+    @staticmethod
+    def _executable_suffix():
+        return ".exe" if os.name == "nt" else ".run";
+
+    def compiled_output_path(self):
+        suffix = self._executable_suffix();
+        if self.document.path is not None:
+            return self.document.path.with_suffix(suffix);
+        return Path.cwd() / ("untitled" + suffix);
 
     def build_commands_dialog(self):
         defaults = self._build_defaults();
@@ -328,17 +552,18 @@ class ScriptIDE(EditApp):
         self._temp_path = path;
         self._temp_output_path = None;
         if self.language in ("c", "cpp"):
-            output_path = Path(str(path) + ".out");
+            output_path = Path(str(path) + self._executable_suffix());
             self._temp_output_path = output_path;
             prefix = "c" if self.language == "c" else "cpp";
             compile_command = self._expanded_build(self._build_value(prefix + "_compile"), path, output_path);
             run_command = self._expanded_build(self._build_value(prefix + "_run"), path, output_path);
-            shell = shutil.which("sh") or "/bin/sh";
-            command = [shell, "-c", compile_command + " && " + run_command];
+            command = self._shell_command(compile_command + " && " + run_command);
         else:
             command = self._runner_command(path);
         self._process_done = False;
         self._process_returncode = None;
+        self._process_mode = "run";
+        self._process_artifact_path = None;
         self._process = subprocess.Popen(
             command,
             cwd=cwd,
@@ -357,6 +582,61 @@ class ScriptIDE(EditApp):
                 self._process_done = True;
         self._process_thread = threading.Thread(target=reader, name="sumIDE-run", daemon=True);
         self._process_thread.start();
+        return True;
+
+    def _start_compile_process(self):
+        if self.language not in ("c", "cpp"):
+            raise RuntimeError("Compile is available for C/C++ buffers");
+        path = self._temporary_source();
+        output_path = self.compiled_output_path();
+        cwd = str(self.document.path.parent if self.document.path is not None else Path.cwd());
+        self._temp_path = path;
+        self._temp_output_path = None;
+        self._process_artifact_path = output_path;
+        prefix = "c" if self.language == "c" else "cpp";
+        compile_command = self._expanded_build(self._build_value(prefix + "_compile"), path, output_path);
+        command = self._shell_command(compile_command);
+        self._process_done = False;
+        self._process_returncode = None;
+        self._process_mode = "compile";
+        self._process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        );
+        def reader():
+            try:
+                for line in self._process.stdout:
+                    self._process_queue.put(line);
+            finally:
+                self._process_returncode = self._process.wait();
+                self._process_done = True;
+        self._process_thread = threading.Thread(target=reader, name="sumIDE-compile", daemon=True);
+        self._process_thread.start();
+        return True;
+
+    def compile_program(self):
+        if self.language not in ("c", "cpp"):
+            self._update_status("Compile is only available for C/C++ buffers.");
+            return False;
+        if self._process is not None and self._process.poll() is None:
+            self._update_status("A process is already running. F5 stops it.");
+            return True;
+        target = self.compiled_output_path();
+        self.output_view.set_text("--- Compile {} -> {} ---\n".format(self.document.path.name if self.document.path is not None else "Untitled", target.name));
+        self.workspace.show(self.output_window);
+        try:
+            self._start_compile_process();
+            self._update_status("Compiling {} -> {}".format(self._language_label(), target));
+        except Exception as exc:
+            self._append_output("Error: {}\n".format(exc));
+            self._cleanup_process();
+            self._update_status("Compile failed");
+        self.app.invalidate();
         return True;
 
     def run_program(self):
@@ -394,9 +674,18 @@ class ScriptIDE(EditApp):
     def _cleanup_process(self):
         path = self._temp_path;
         self._temp_path = None;
+        process = self._process;
+        if process is not None:
+            try:
+                if process.stdout is not None:
+                    process.stdout.close();
+            except Exception:
+                pass;
         self._process = None;
         self._process_thread = None;
         self._process_done = False;
+        self._process_mode = None;
+        self._process_artifact_path = None;
         if path is not None:
             try: path.unlink();
             except OSError: pass;
@@ -487,8 +776,20 @@ class ScriptIDE(EditApp):
             dirty = True;
         if self._process_done:
             code_value = self._process_returncode;
+            mode = self._process_mode or "run";
+            artifact = self._process_artifact_path;
             self._append_output("--- exit {} ---\n".format(code_value));
-            self._update_status("Run complete" if code_value == 0 else "Run failed (exit {})".format(code_value));
+            if mode == "compile":
+                if code_value == 0 and artifact is not None:
+                    if os.name != "nt":
+                        try: artifact.chmod(artifact.stat().st_mode | 0o111);
+                        except OSError: pass;
+                    self._append_output("--- executable: {} ---\n".format(artifact));
+                    self._update_status("Compile complete: {}".format(artifact.name));
+                else:
+                    self._update_status("Compile failed (exit {})".format(code_value));
+            else:
+                self._update_status("Run complete" if code_value == 0 else "Run failed (exit {})".format(code_value));
             self._cleanup_process();
             dirty = True;
         if self._direct_done:
@@ -504,7 +805,7 @@ class ScriptIDE(EditApp):
 
 def _main(argv=None, forced_language=None, prog="sumide"):
     parser = argparse.ArgumentParser(prog=prog, description="Movable-window Python/R/Bash/C/C++ IDE built with sumTUI");
-    parser.add_argument("file", nargs="?", help="source file");
+    parser.add_argument("files", nargs="*", help="source files; different languages may be opened together in sumide");
     parser.add_argument("--language", choices=("auto", "python", "r", "bash", "c", "cpp"), default=forced_language or "auto", help="language profile (default: auto by extension)");
     parser.add_argument("--theme", default=None, help="sumTUI theme");
     args = parser.parse_args(argv);
@@ -513,7 +814,11 @@ def _main(argv=None, forced_language=None, prog="sumide"):
         print("{} requires an interactive terminal".format(prog), file=sys.stderr);
         return 2;
     try:
-        return ScriptIDE(args.file, language=language, theme=args.theme).run();
+        files = list(args.files or []);
+        ide = ScriptIDE(files[0] if files else None, language=language, theme=args.theme);
+        for source in files[1:]:
+            ide.open_path(source, activate=False);
+        return ide.run();
     except Exception as exc:
         print("{}: {}".format(prog, exc), file=sys.stderr);
         return 1;

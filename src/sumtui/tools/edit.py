@@ -255,7 +255,7 @@ class EditApp:
             ("file.new", "New", ["ctrl+n"], self.new_file),
             ("file.open", "Open", ["ctrl+o"], self.open_dialog),
             ("file.save", "Save", ["ctrl+s"], self.save),
-            ("code.symbols", "Functions / classes / main", ["f2", "alt+p"], self.symbol_map_dialog),
+            ("code.symbols", "Program map / outline", ["f2", "alt+p"], self.symbol_map_dialog),
             ("app.exit", "Exit", ["f10", "ctrl+q"], self.quit),
             ("editor.undo", "Undo", ["ctrl+z"], self.editor_undo),
             ("editor.redo", "Redo", ["ctrl+y"], self.editor_redo),
@@ -495,7 +495,7 @@ class EditApp:
                 MenuItem("Search & Replace...", self.replace_dialog, self._ks("search.replace")),
                 Separator(),
                 MenuItem("Go to Line...", self.goto_line_dialog, self._ks("search.goto_line")),
-                MenuItem("Functions / Classes / Main...", self.symbol_map_dialog, self._ks("code.symbols")),
+                MenuItem("Program Map / Outline...", self.symbol_map_dialog, self._ks("code.symbols")),
             ]),
             Menu("View", [
                 MenuItem("Syntax highlighting", self.toggle_syntax, checked=lambda: self.editor.syntax_highlighting),
@@ -594,7 +594,10 @@ class EditApp:
 
     def symbol_map_dialog(self):
         symbols = self.symbol_map();
-        listing = ListView([(item.label, item) for item in symbols], title="Functions / Classes / Main");
+        markdown = self.symbol_language() == "markdown";
+        listing_title = "Titles / Sections / Subsections" if markdown else "Functions / Classes / Main";
+        dialog_title = "Document outline" if markdown else "Program map";
+        listing = ListView([(item.label, item) for item in symbols], title=listing_title);
         def close(*_args):
             self.app.pop_modal();
             self.app.focus.set(self.editor);
@@ -614,7 +617,7 @@ class EditApp:
             return True;
         listing.on_activate = activate;
         body = VBox(listing, HBox(Button("Go", on_press=activate, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[None, None]);
-        self.app.push_modal(Dialog(body, title="Program map", width=68, height=min(24, max(9, len(symbols) + 6)), on_cancel=close, shadow=True));
+        self.app.push_modal(Dialog(body, title=dialog_title, width=68, height=min(24, max(9, len(symbols) + 6)), on_cancel=close, shadow=True));
         self.app.focus.set(listing);
         self.app.invalidate();
         return True;

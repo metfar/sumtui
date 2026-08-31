@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.25
+
+- F2 / Program Map now becomes a Markdown document outline for `.md`, `.markdown`, `.mdown`, `.mkd`, and extensionless `README` files.
+- Markdown outline entries recognize ATX levels `#` through `######` and Setext title/section underlines, show TITLE / SECTION / SUBSECTION hierarchy, and jump to the heading line.
+- Heading-like text inside fenced code blocks is excluded from the outline, so embedded examples do not pollute document navigation.
+- Renamed the generic Search-menu entry to `Program Map / Outline...`; code languages retain the existing Functions / Classes / Main map.
+- Added `examples/markdown_outline.md` and regression coverage for Markdown detection, heading levels, Setext sections, and fenced-code exclusion. Regression suite: 156 tests.
+
+## 0.5.24
+
+- sumIDE now opens multiple source files at once, including mixed Python, R, Bash, C and C++ code in one movable workspace. `Ctrl+O` adds a Code window and the Window menu can switch between every source plus Output/Command.
+- The active Code window owns its language profile, syntax, Program Map, direct-command prompt and Run/build behaviour.
+- Added `Ctrl+F6` / `Run -> Compile current buffer` for C/C++. Persistent build output is `<stem>.run` on POSIX/Android and `<stem>.exe` on Windows; F5 remains compile-and-run through a temporary executable.
+- C/C++ build command expansion now quotes paths appropriately for POSIX or Windows shells, with POSIX `cc`/`c++` and Windows `gcc`/`g++` defaults.
+- Added Workspace activation callbacks so IDE hosts can synchronize document state when windows are selected by keyboard or mouse.
+- Added `examples/bash/multilang_ide.sh` for comparative multi-language study.
+
 ## 0.5.23
 
 - Fixed the C/C++ IDE **Build commands** dialog: it no longer passes an unsupported `width` argument to `Label`; the label column width is controlled by `HBox` as intended.

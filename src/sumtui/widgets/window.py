@@ -254,6 +254,7 @@ class Workspace(Widget):
         self._drag_window = None;
         self._last_width = 80;
         self._last_height = 24;
+        self.on_activate = None;
         for window in windows:
             self.add_window(window, activate=self.active_window is None and bool(window.visible));
         self.set_theme(self.theme);
@@ -314,14 +315,22 @@ class Workspace(Widget):
             manager.set(focus);
         return focus;
 
+    def _notify_activate(self):
+        callback = self.on_activate;
+        if callback is not None:
+            callback(self.active_window);
+        return self.active_window;
+
     def _activate_last_visible(self):
         visible = self.visible_windows;
         if not visible:
             self.active_window = None;
+            self._notify_activate();
             return None;
         self.active_window = visible[-1];
         for current in self.windows:
             current.active = current is self.active_window;
+        self._notify_activate();
         return self.active_window;
 
     def activate(self, window_or_name):
@@ -337,6 +346,7 @@ class Workspace(Widget):
         for current in self.windows:
             current.active = current is window;
         self._refresh_focus();
+        self._notify_activate();
         return True;
 
     def show(self, window_or_name):
