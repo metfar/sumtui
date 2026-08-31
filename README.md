@@ -1,4 +1,4 @@
-# sumTUI 0.5.22
+# sumTUI 0.5.23
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -85,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.22
+## Widgets in 0.5.23
 
 ### Structure and layout
 

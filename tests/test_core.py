@@ -1797,6 +1797,16 @@ class IDEShortcutAndProfileTests(unittest.TestCase):
             ide.app.running = False;
             ide._r_session.close();
 
+
+    def test_sumide_c_cpp_build_commands_dialog_opens(self):
+        from sumtui.tools.ide import ScriptIDE;
+        for language in ("c", "cpp"):
+            ide = ScriptIDE(language=language);
+            self.assertTrue(ide.build_commands_dialog());
+            self.assertEqual(ide.app.modal_depth, 1);
+            ide.app.pop_modal();
+            ide._r_session.close();
+
     def test_sumide_compiles_and_runs_c_buffer(self):
         from sumtui.tools.ide import ScriptIDE;
         if shutil.which('cc') is None:

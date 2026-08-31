@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.5.22
+Version: 0.5.23
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ Requires-Dist: rich>=13.0
 Requires-Dist: pygments>=2.15
 Dynamic: license-file
 
-# sumTUI 0.5.22
+# sumTUI 0.5.23
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -103,7 +103,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.22
+## Widgets in 0.5.23
 
 ### Structure and layout
 

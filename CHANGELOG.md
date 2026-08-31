@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.23
+
+- Fixed the C/C++ IDE **Build commands** dialog: it no longer passes an unsupported `width` argument to `Label`; the label column width is controlled by `HBox` as intended.
+- Added a regression test that opens the Build commands dialog for both C and C++ profiles.
+
 ## 0.5.22
 
 - F2 is now the reusable **Program Map / Symbols** action; the shared symbol mapper recognizes MAIN plus Python classes/functions/methods, R functions/classes, Bash functions, BASIC SUB/FUNCTION, xBase PROCEDURE/FUNCTION/classes, and C/C++ functions/classes/methods.

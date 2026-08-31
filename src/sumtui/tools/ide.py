@@ -299,7 +299,7 @@ class ScriptIDE(EditApp):
         rows = [];
         labels = (("C compile", "c_compile"), ("C run", "c_run"), ("C++ compile", "cpp_compile"), ("C++ run", "cpp_run"));
         for label, key in labels:
-            rows.append(HBox(Label(label, width=14), entries[key], sizes=[14, None]));
+            rows.append(HBox(Label(label), entries[key], sizes=[14, None]));
         def close(*_args):
             self.app.pop_modal();
             self.app.focus.set(self.editor);
