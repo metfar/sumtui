@@ -35,13 +35,18 @@ class TextView(Widget):
 
     def __init__(self, text="", on_activate=None, theme=None):
         super().__init__(theme=theme);
-        self.lines = str(text).splitlines() or [""];
+        self.lines = self._split_text(text);
         self.offset = 0;
         self.x_offset = 0;
         self.page_size = 1;
         self.page_width = 1;
         self.content_width = self._measure_width();
         self.on_activate = on_activate;
+
+    @staticmethod
+    def _split_text(text):
+        normalized = str(text).replace("\r\n", "\n").replace("\r", "\n");
+        return normalized.split("\n");
 
     @property
     def text(self):
@@ -55,10 +60,18 @@ class TextView(Widget):
         return max([text_cell_length(line.expandtabs(4)) for line in self.lines] or [0]);
 
     def set_text(self, text):
-        self.lines = str(text).splitlines() or [""];
+        self.lines = self._split_text(text);
         self.offset = min(self.offset, max(0, len(self.lines) - 1));
         self.content_width = self._measure_width();
         self.x_offset = min(self.x_offset, self.max_x_offset);
+        return self;
+
+    def append_text(self, text):
+        piece = str(text).replace("\r\n", "\n").replace("\r", "\n");
+        if not piece:
+            return self;
+        self.set_text(self.text + piece);
+        self.offset = max(0, len(self.lines) - self.page_size);
         return self;
 
     def scroll(self, delta):

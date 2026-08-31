@@ -37,6 +37,7 @@ from ..document import TextDocument;
 from ..events import Key;
 from ..keybindings import KeyBindingManager, format_key_spec;
 from ..syntax import SYNTAX_MODES, normalize_mode;
+from ..symbols import build_symbol_map, detect_language;
 from ..theme import THEMES, available_theme_names, refresh_user_themes;
 from ..widgets import Button, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, VBox, Widget;
 
@@ -46,10 +47,10 @@ _HELP_TEXT = """sumTUI edit
 
 Keyboard
   F1                  Help
-  F2                  Save
+  F2 / Alt+P          Functions / classes / main map
   F3                  Find next
-  F6                  Next window/work area
-  F11                 Maximize/restore workspace window
+  F6 / Ctrl+Tab       Next window/work area
+  F11 / Alt+Enter     Maximize/restore workspace window
   Ctrl+F4             Close workspace window
   Alt+Arrow           Move workspace window
   F9                  Menu
@@ -63,12 +64,16 @@ Keyboard
   Ctrl+C / Ctrl+Ins   Copy
   Ctrl+X / Shift+Del  Cut
   Ctrl+V / Shift+Ins  Paste
+  Ctrl+S              Save
+  Ctrl+O              Open
+  Ctrl+Q              Exit
   Ctrl+Z / Ctrl+Y     Undo / Redo
   Ctrl+A              Select all
   Ctrl+F              Find
   Shift+F3            Find previous
   Ctrl+H              Search and replace
   Ctrl+G              Go to line
+  Alt+F/E/S/V/O/W/H   File/Edit/Search/View/Options/Window/Help menu
 
 Mouse (POSIX terminals with SGR mouse reporting)
   Left click          Place the caret / focus a control
@@ -249,8 +254,9 @@ class EditApp:
             ("help.editor", "Help", ["f1"], self.help),
             ("file.new", "New", ["ctrl+n"], self.new_file),
             ("file.open", "Open", ["ctrl+o"], self.open_dialog),
-            ("file.save", "Save", ["f2", "ctrl+s"], self.save),
-            ("app.exit", "Exit", ["f10", "alt+x", "ctrl+q"], self.quit),
+            ("file.save", "Save", ["ctrl+s"], self.save),
+            ("code.symbols", "Functions / classes / main", ["f2", "alt+p"], self.symbol_map_dialog),
+            ("app.exit", "Exit", ["f10", "ctrl+q"], self.quit),
             ("editor.undo", "Undo", ["ctrl+z"], self.editor_undo),
             ("editor.redo", "Redo", ["ctrl+y"], self.editor_redo),
             ("editor.cut", "Cut", ["ctrl+x", "shift+delete"], self.editor_cut),
@@ -262,9 +268,9 @@ class EditApp:
             ("search.previous", "Find Previous", ["shift+f3"], self.find_previous),
             ("search.replace", "Search & Replace", ["ctrl+h"], self.replace_dialog),
             ("search.goto_line", "Go to Line", ["ctrl+g"], self.goto_line_dialog),
-            ("window.next", "Next Window", ["f6"], self.switch_window),
+            ("window.next", "Next Window", ["f6", "ctrl+tab"], self.switch_window),
             ("window.close", "Close Window", ["ctrl+f4"], self.close_workspace_window),
-            ("window.maximize", "Maximize / Restore Window", ["f11"], self.toggle_workspace_maximize),
+            ("window.maximize", "Maximize / Restore Window", ["f11", "alt+enter"], self.toggle_workspace_maximize),
             ("menu.activate", "Menu", ["f9"], self.open_menu),
             ("menu.file", "File menu", ["alt+f"], lambda: self.open_menu(0)),
             ("menu.edit", "Edit menu", ["alt+e"], lambda: self.open_menu(1)),
@@ -283,7 +289,7 @@ class EditApp:
 
     def _make_function_bar(self):
         actions = [];
-        for action_name, label in (("help.editor", "Help"), ("file.save", "Save"), ("search.next", "Find"), ("window.next", "Window"), ("menu.activate", "Menu"), ("app.exit", "Exit")):
+        for action_name, label in (("help.editor", "Help"), ("code.symbols", "Symbols"), ("search.next", "Find"), ("window.next", "Window"), ("menu.activate", "Menu"), ("app.exit", "Exit")):
             key = self.keys.primary(action_name);
             if key:
                 actions.append((key, label, None));
@@ -340,6 +346,16 @@ class EditApp:
             self.app.invalidate();
         return bool(changed);
 
+    def _close_workspace_window_now(self, target):
+        workspace = self._workspace();
+        if workspace is None:
+            return False;
+        changed = workspace.close(target);
+        if changed:
+            self._update_status("Closed window: {}".format(target.title));
+            self.app.invalidate();
+        return bool(changed);
+
     def close_workspace_window(self, window=None):
         workspace = self._workspace();
         if workspace is None:
@@ -347,11 +363,9 @@ class EditApp:
         target = window or workspace.active_window;
         if target is None:
             return False;
-        changed = workspace.close(target);
-        if changed:
-            self._update_status("Closed window: {}".format(target.title));
-            self.app.invalidate();
-        return bool(changed);
+        if target is getattr(self, "code_window", None) and self.editor.modified:
+            return self._confirm_unsaved(lambda: self._close_workspace_window_now(target));
+        return self._close_workspace_window_now(target);
 
     def toggle_workspace_maximize(self, window=None):
         workspace = self._workspace();
@@ -376,8 +390,8 @@ class EditApp:
             ]);
         items = [
             MenuItem("Next Window", self.switch_window, self._ks("window.next")),
-            MenuItem("Maximize / Restore", self.toggle_workspace_maximize, "F11", enabled=workspace.active_window is not None),
-            MenuItem("Close current", self.close_workspace_window, "Ctrl+F4", enabled=workspace.active_window is not None),
+            MenuItem("Maximize / Restore", self.toggle_workspace_maximize, self._ks("window.maximize"), enabled=workspace.active_window is not None),
+            MenuItem("Close current", self.close_workspace_window, self._ks("window.close"), enabled=workspace.active_window is not None),
             Separator(),
         ];
         for window in workspace.windows:
@@ -386,9 +400,9 @@ class EditApp:
             if window.visible:
                 entries.append(MenuItem("Activate", lambda selected=window: self.activate_workspace_window(selected), radio=lambda selected=window: workspace.active_window is selected));
                 if window.maximizable:
-                    entries.append(MenuItem("Restore" if window.maximized else "Maximize", lambda selected=window: self.toggle_workspace_maximize(selected), "F11"));
+                    entries.append(MenuItem("Restore" if window.maximized else "Maximize", lambda selected=window: self.toggle_workspace_maximize(selected), self._ks("window.maximize")));
                 if window.closable:
-                    entries.append(MenuItem("Close", lambda selected=window: self.close_workspace_window(selected), "Ctrl+F4" if workspace.active_window is window else ""));
+                    entries.append(MenuItem("Close", lambda selected=window: self.close_workspace_window(selected), self._ks("window.close") if workspace.active_window is window else ""));
             else:
                 entries.append(MenuItem("Open", lambda selected=window: self.activate_workspace_window(selected)));
             items.append(MenuItem(label, submenu=Menu(label, entries), radio=lambda selected=window: workspace.active_window is selected));
@@ -481,6 +495,7 @@ class EditApp:
                 MenuItem("Search & Replace...", self.replace_dialog, self._ks("search.replace")),
                 Separator(),
                 MenuItem("Go to Line...", self.goto_line_dialog, self._ks("search.goto_line")),
+                MenuItem("Functions / Classes / Main...", self.symbol_map_dialog, self._ks("code.symbols")),
             ]),
             Menu("View", [
                 MenuItem("Syntax highlighting", self.toggle_syntax, checked=lambda: self.editor.syntax_highlighting),
@@ -566,10 +581,83 @@ class EditApp:
         self._update_status("Loaded");
         return True;
 
-    def new_file(self):
-        return self._set_document(TextDocument.empty());
+    def symbol_language(self):
+        filename = self.document.path.name if self.document.path is not None else None;
+        configured = getattr(getattr(self.editor, "syntax", None), "mode", "auto");
+        if configured in ("", "auto", None):
+            configured = None;
+        return detect_language(filename=filename, language=configured);
 
-    def open_dialog(self):
+    def symbol_map(self):
+        filename = self.document.path.name if self.document.path is not None else None;
+        return build_symbol_map(self.editor.text, language=self.symbol_language(), filename=filename);
+
+    def symbol_map_dialog(self):
+        symbols = self.symbol_map();
+        listing = ListView([(item.label, item) for item in symbols], title="Functions / Classes / Main");
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+        def activate(*_args):
+            item = listing.current_value;
+            if item is None:
+                return False;
+            close();
+            self.editor.goto_line(item.line, item.column);
+            workspace = self._workspace();
+            if workspace is not None and hasattr(self, "code_window"):
+                workspace.show(self.code_window);
+            self._update_status("{} {} — line {}".format(item.kind.upper(), item.name, item.line));
+            self.app.invalidate();
+            return True;
+        listing.on_activate = activate;
+        body = VBox(listing, HBox(Button("Go", on_press=activate, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[None, None]);
+        self.app.push_modal(Dialog(body, title="Program map", width=68, height=min(24, max(9, len(symbols) + 6)), on_cancel=close, shadow=True));
+        self.app.focus.set(listing);
+        self.app.invalidate();
+        return True;
+
+    def _finish_destructive_action(self, callback):
+        self.app.pop_modal();
+        self.app.focus.set(self.editor);
+        self.app.invalidate();
+        return callback();
+
+    def _confirm_unsaved(self, callback):
+        if not self.editor.modified:
+            return callback();
+        def cancel(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+        def forget(*_args):
+            return self._finish_destructive_action(callback);
+        def save_then(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return self.save(on_saved=callback);
+        body = VBox(
+            Label("The current file has unsaved changes."),
+            HBox(
+                Button("SAVE_AND_EXIT", on_press=save_then, default=True),
+                Button("FORGET_AND_EXIT", on_press=forget),
+                Button("CANCEL", on_press=cancel),
+                ratios=[1, 1, 1],
+            ),
+            sizes=[1, None],
+        );
+        self.app.push_modal(Dialog(body, title="Unsaved changes", width=76, height=8, on_cancel=cancel, shadow=True));
+        self.app.invalidate();
+        return True;
+
+    def new_file(self):
+        return self._confirm_unsaved(lambda: self._set_document(TextDocument.empty()));
+
+    def _open_dialog_now(self):
         start = self.document.path.parent if self.document.path is not None else Path.cwd();
         def close():
             self.app.pop_modal();
@@ -588,7 +676,10 @@ class EditApp:
         self.app.invalidate();
         return True;
 
-    def save_as_dialog(self):
+    def open_dialog(self):
+        return self._confirm_unsaved(self._open_dialog_now);
+
+    def save_as_dialog(self, on_saved=None):
         default = str(self.document.path or Path.cwd() / "untitled.txt");
         entry = TextInput(default);
         def close():
@@ -599,27 +690,29 @@ class EditApp:
             self.document.path = Path(entry.value).expanduser();
             self.editor.configure_syntax(filename=self.document.path.name);
             close();
-            self.save();
+            self.save(on_saved=on_saved);
         body = VBox(entry, HBox(Button("Save", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, None]);
         self.app.push_modal(Dialog(body, title="Save As", width=72, height=7, on_cancel=close));
         self.app.focus.set(entry);
         self.app.invalidate();
         return True;
 
-    def save(self):
+    def save(self, on_saved=None):
         if self.document.path is None:
-            return self.save_as_dialog();
+            return self.save_as_dialog(on_saved=on_saved);
         try:
             self.document.text = self.editor.text;
             self.document.save(text=self.editor.text);
             self.editor.mark_saved();
             self._update_status("Saved");
+            if on_saved is not None:
+                return on_saved();
             return True;
         except Exception as exc:
             self._update_status("Save error: {}".format(exc));
             return False;
 
-    def reload(self):
+    def _reload_now(self):
         if self.document.path is None:
             return False;
         try:
@@ -627,6 +720,9 @@ class EditApp:
         except Exception as exc:
             self._update_status("Reload error: {}".format(exc));
             return False;
+
+    def reload(self):
+        return self._confirm_unsaved(self._reload_now);
 
     def set_eol(self, style):
         if style == "PRESERVE":
@@ -1077,7 +1173,8 @@ class EditApp:
         return True;
 
     def save_config(self):
-        data = {
+        data = dict(self.config);
+        data.update({
             "theme": self.app.theme.name,
             "tab_size": int(self.editor.tab_size),
             "show_spaces": bool(self.editor.show_spaces),
@@ -1089,7 +1186,7 @@ class EditApp:
             "line_wrapping": int(self.editor.line_wrapping),
             "line_breaking": int(self.editor.line_breaking),
             "keybindings": self.keys.overrides(),
-        };
+        });
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True);
             temporary = self.config_path.with_name(self.config_path.name + ".tmp");
@@ -1152,9 +1249,12 @@ Copyright 2018- William Martinez Bas <metfar@gmail.com>
 """.format(__version__);
         return self._show_text_dialog("About sumTUI edit", text, width=70, height=16);
 
-    def quit(self):
+    def _quit_now(self):
         self.app.stop();
         return True;
+
+    def quit(self):
+        return self._confirm_unsaved(self._quit_now);
 
     def run(self):
         return self.app.run();

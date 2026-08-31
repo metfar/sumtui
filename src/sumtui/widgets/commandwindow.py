@@ -71,6 +71,7 @@ class CommandWindow(Widget):
         self.cursor = 0;
         self.view_offset = 0;
         self.history_scroll = 0;
+        self.x_offset = 0;
         self._last_content_height = 1;
         self.fields = [];
         self.read_active = False;
@@ -92,6 +93,7 @@ class CommandWindow(Widget):
         self.output = [];
         self.screen = {};
         self.history_scroll = 0;
+        self.x_offset = 0;
         self.clear_fields();
         return self;
 
@@ -216,7 +218,7 @@ class CommandWindow(Widget):
                 shown = value[x_offset:x_offset + field.width].ljust(field.width);
                 for offset, char in enumerate(shown):
                     row = field.row;
-                    column = field.column + offset;
+                    column = field.column + offset - self.x_offset;
                     if 0 <= row <= max_row and 0 <= column <= max_column:
                         chars[row][column] = char;
                 continue;
@@ -228,7 +230,7 @@ class CommandWindow(Widget):
                 shown = shown[:field.width].ljust(field.width);
                 for offset, char in enumerate(shown):
                     row = field.row + local_row;
-                    column = field.column + offset;
+                    column = field.column + offset - self.x_offset;
                     if 0 <= row <= max_row and 0 <= column <= max_column:
                         chars[row][column] = char;
         return ["".join(row).rstrip() for row in chars];
@@ -471,6 +473,29 @@ class CommandWindow(Widget):
     def write_error(self, text):
         return self.write(text, style="command_error");
 
+    @property
+    def content_width(self):
+        values = [len(str(line).expandtabs(4)) for line, _role in self.output];
+        for row, column in self.screen:
+            values.append(int(column) + 1);
+        for field in self.fields:
+            values.append(int(field.column) + max(int(field.width), len(str(field.value))));
+        return max(values or [0]);
+
+    @property
+    def max_x_offset(self):
+        return max(0, int(self.content_width) - max(1, int(self.viewport_width)));
+
+    def scroll_horizontal(self, delta):
+        old = self.x_offset;
+        if delta == "start":
+            self.x_offset = 0;
+        elif delta == "end":
+            self.x_offset = self.max_x_offset;
+        else:
+            self.x_offset = max(0, min(self.max_x_offset, self.x_offset + int(delta)));
+        return self.x_offset != old;
+
     def set_value(self, value):
         self.value = str(value);
         self.cursor = len(self.value);
@@ -617,15 +642,18 @@ class CommandWindow(Widget):
         # newline can consume two physical terminal rows when Rich wraps it.
         chars = [[" " for _ in range(width)] for _ in range(content_height)];
         roles = [["command" for _ in range(width)] for _ in range(content_height)];
+        self.x_offset = max(0, min(int(self.x_offset), self.max_x_offset));
         for row, (line, role) in enumerate(visible):
-            for column, char in enumerate(str(line)[:width]):
+            shown = str(line).expandtabs(4)[self.x_offset:self.x_offset + width];
+            for column, char in enumerate(shown):
                 chars[row][column] = char;
                 roles[row][column] = role;
         if self.history_scroll == 0:
             for (row, column), (char, role) in self.screen.items():
-                if 0 <= row < content_height and 0 <= column < width:
-                    chars[row][column] = char;
-                    roles[row][column] = role;
+                visible_column = int(column) - int(self.x_offset);
+                if 0 <= row < content_height and 0 <= visible_column < width:
+                    chars[row][visible_column] = char;
+                    roles[row][visible_column] = role;
 
         for index, field in enumerate(self.fields if self.history_scroll == 0 else []):
             active = self.read_active and index == self.read_index;
@@ -644,7 +672,7 @@ class CommandWindow(Widget):
                 shown = value[x_offset:x_offset + field.width].ljust(field.width);
                 for offset, char in enumerate(shown):
                     row = field.row;
-                    column = field.column + offset;
+                    column = field.column + offset - self.x_offset;
                     if 0 <= row < content_height and 0 <= column < width:
                         chars[row][column] = char;
                         roles[row][column] = "command_field";
@@ -655,7 +683,7 @@ class CommandWindow(Widget):
                         caret = field.width;
                     else:
                         caret = max(0, min(field.width - 1, caret));
-                    column = field.column + caret;
+                    column = field.column + caret - self.x_offset;
                     if 0 <= row < content_height and 0 <= column < width:
                         roles[row][column] = "cursor_cell";
                 continue;
@@ -677,13 +705,13 @@ class CommandWindow(Widget):
                 shown = shown[:field.width].ljust(field.width);
                 for offset, char in enumerate(shown):
                     row = field.row + local_row;
-                    column = field.column + offset;
+                    column = field.column + offset - self.x_offset;
                     if 0 <= row < content_height and 0 <= column < width:
                         chars[row][column] = char;
                         roles[row][column] = "command_field";
             if active and y_offset <= cursor_row < y_offset + field.height:
                 row = field.row + (cursor_row - y_offset);
-                column = field.column + max(0, min(field.width - 1, cursor_col));
+                column = field.column + max(0, min(field.width - 1, cursor_col)) - self.x_offset;
                 if 0 <= row < content_height and 0 <= column < width:
                     roles[row][column] = "cursor_cell";
 

@@ -39,6 +39,7 @@ from .markdownview import MarkdownView;
 from .menu import ContextMenu, Menu, MenuBar, MenuDesktop, MenuItem, Separator;
 from .progress import ProgressBar;
 from .scrollbar import ScrollBar;
+from .scrollpane import CommandWindowPane, TextViewPane;
 from .slider import Slider;
 from .splitter import Splitter;
 from .syntaxview import SyntaxView;
@@ -50,7 +51,7 @@ __all__ = [
     "Widget", "Label", "Panel", "StatusBar", "CommandWindow", "ScreenField", "Dialog", "GroupBox",
     "FormField", "ReadOnlyField", "RecordForm", "BrowseForm",
     "Button", "TextInput", "TextArea", "TextEditor", "CheckBox", "RadioButton", "RadioGroup", "Choice", "ComboBox",
-    "ProgressBar", "Slider", "ScrollBar", "TextView", "MarkdownView", "SyntaxView", "HexView",
+    "ProgressBar", "Slider", "ScrollBar", "TextView", "TextViewPane", "CommandWindowPane", "MarkdownView", "SyntaxView", "HexView",
     "FunctionAction", "FunctionBar", "MenuItem", "Separator", "Menu", "MenuBar", "MenuDesktop", "ContextMenu",
     "HBox", "LayoutItem", "VBox", "Splitter",
     "Column", "TableRow", "TableView", "ListView", "TreeNode", "TreeView",

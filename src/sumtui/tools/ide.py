@@ -20,7 +20,7 @@
 #  MA 02110-1301, USA.
 #  
 #
-"""Windowed Python/R source IDE built on the reusable sumTUI workspace.""";
+"""Windowed Python/R/Bash/C/C++ source IDE built on the reusable sumTUI workspace.""";
 import argparse;
 import code;
 import contextlib;
@@ -28,6 +28,7 @@ import io;
 import os;
 from pathlib import Path;
 import queue;
+import shlex;
 import shutil;
 import subprocess;
 import sys;
@@ -35,7 +36,8 @@ import tempfile;
 import threading;
 import time;
 
-from ..widgets import CommandWindow, FunctionAction, Menu, MenuItem, TextView, VBox, Workspace, WorkspaceWindow;
+from ..symbols import detect_language;
+from ..widgets import Button, CommandWindow, CommandWindowPane, Dialog, FunctionAction, HBox, Label, Menu, MenuItem, Separator, TextInput, TextView, TextViewPane, VBox, Workspace, WorkspaceWindow;
 from .edit import EditApp;
 
 
@@ -121,8 +123,9 @@ class _RSession:
 
 
 class ScriptIDE(EditApp):
-    """Common movable-window IDE for Python and R source files.""";
+    """Common movable-window IDE for Python, R, Bash, C and C++ source files.""";
     def __init__(self, path=None, language="auto", theme=None, **kwargs):
+        self._language_request = str(language or "auto").strip().lower();
         self.language = self._resolve_language(path, language);
         self._process = None;
         self._process_thread = None;
@@ -130,6 +133,7 @@ class ScriptIDE(EditApp):
         self._process_done = False;
         self._process_returncode = None;
         self._temp_path = None;
+        self._temp_output_path = None;
         self._direct_thread = None;
         self._direct_done = False;
         self._direct_output = "";
@@ -137,8 +141,11 @@ class ScriptIDE(EditApp):
         self._python_console = code.InteractiveConsole({"__name__": "__console__"});
         self._r_session = _RSession();
         super().__init__(path=path, theme=theme, **kwargs);
+        self.ide_config = dict(self.config.get("ide", {})) if isinstance(self.config.get("ide", {}), dict) else {};
         self.output_view = TextView("Ready. F5 runs the current buffer.");
         self.command_view = CommandWindow(prompt=self._prompt(), on_submit=self._submit_direct);
+        self.output_pane = TextViewPane(self.output_view);
+        self.command_pane = CommandWindowPane(self.command_view);
         available_width = max(40, int(self.app.width));
         available_height = max(12, int(self.app.height) - 3);
         code_width = max(30, min(available_width - 2, int(available_width * 0.78)));
@@ -148,8 +155,8 @@ class ScriptIDE(EditApp):
         command_width = max(28, min(available_width - 2, 44));
         command_height = max(7, min(available_height - 2, 11));
         self.code_window = WorkspaceWindow(self.panel.child, title=self._code_title(), name="code", left=1, top=0, width=code_width, height=code_height, content_style="viewer");
-        self.output_window = WorkspaceWindow(self.output_view, title="Output", name="output", left=3, top=max(1, available_height - output_height), width=output_width, height=output_height, content_style="viewer");
-        self.command_window = WorkspaceWindow(self.command_view, title="Command", name="command", left=max(0, available_width - command_width - 1), top=max(1, available_height - command_height - 1), width=command_width, height=command_height, content_style="command");
+        self.output_window = WorkspaceWindow(self.output_pane, title="Output", name="output", left=3, top=max(1, available_height - output_height), width=output_width, height=output_height, content_style="viewer");
+        self.command_window = WorkspaceWindow(self.command_pane, title="Command", name="command", left=max(0, available_width - command_width - 1), top=max(1, available_height - command_height - 1), width=command_width, height=command_height, content_style="command");
         self.workspace = Workspace(self.output_window, self.command_window, self.code_window);
         self.desktop.body = VBox(self.workspace, self.status, self.bar, sizes=[None, 1, 1]);
         self.app.set_root(self.desktop);
@@ -161,27 +168,30 @@ class ScriptIDE(EditApp):
     @staticmethod
     def _resolve_language(path, language):
         requested = str(language or "auto").strip().lower();
-        if requested in ("python", "py"):
-            return "python";
-        if requested in ("r", "rscript"):
-            return "r";
+        aliases = {"py": "python", "python3": "python", "rscript": "r", "sh": "bash", "shell": "bash", "c++": "cpp", "cxx": "cpp", "cc": "cpp"};
         if requested not in ("", "auto"):
+            resolved = aliases.get(requested, requested);
+        else:
+            resolved = detect_language(filename=str(path or ""));
+            if resolved == "text":
+                resolved = "python";
+        if resolved not in ("python", "r", "bash", "c", "cpp"):
             raise ValueError("Unknown IDE language: {}".format(language));
-        suffix = Path(path).suffix.lower() if path else "";
-        if suffix == ".r":
-            return "r";
-        return "python";
+        return resolved;
 
     def _prompt(self):
-        return ">>> " if self.language == "python" else "R> ";
+        return {"python": ">>> ", "r": "R> ", "bash": "$ ", "c": "sh> ", "cpp": "sh> "}.get(self.language, "> ");
+
+    def _language_label(self):
+        return {"python": "Python", "r": "R", "bash": "Bash", "c": "C", "cpp": "C++"}.get(self.language, self.language);
 
     def _code_title(self):
         name = self.document.path.name if self.document.path is not None else "Untitled";
-        return "Code - {} [{}]".format(name, "Python" if self.language == "python" else "R");
+        return "Code - {} [{}]".format(name, self._language_label());
 
     def _register_keybindings(self):
         super()._register_keybindings();
-        self.keys.register("script.run", "Run / Stop", ["f5"], context="editor", callback=self.toggle_run);
+        self.keys.register("script.run", "Run / Stop", ["f5", "ctrl+r"], context="editor", callback=self.toggle_run);
         self.keys.register("menu.run", "Run menu", ["alt+r"], context="editor", callback=lambda: self.open_menu(6));
         self.keys.register("menu.help", "Help menu", ["alt+h"], context="editor", callback=lambda: self.open_menu(7));
         return self.keys;
@@ -195,10 +205,17 @@ class ScriptIDE(EditApp):
 
     def _menus(self):
         menus = super()._menus();
-        run_menu = Menu("Run", [
+        run_items = [
             MenuItem("Run / Stop current buffer", self.toggle_run, self._ks("script.run")),
             MenuItem("Clear output", self.clear_output),
-        ]);
+        ];
+        if self.language in ("c", "cpp"):
+            run_items.insert(1, MenuItem("Build commands...", self.build_commands_dialog));
+        run_menu = Menu("Run", run_items);
+        options = next((menu for menu in menus if menu.title == "Options"), None);
+        if options is not None and self.language in ("c", "cpp"):
+            options.items.insert(0, MenuItem("C/C++ build commands...", self.build_commands_dialog));
+            options.items.insert(1, Separator());
         help_index = next((index for index, menu in enumerate(menus) if menu.title == "Help"), len(menus));
         menus.insert(help_index, run_menu);
         return menus;
@@ -214,8 +231,14 @@ class ScriptIDE(EditApp):
 
     def _set_document(self, document):
         result = super()._set_document(document);
+        if self._language_request in ("", "auto"):
+            self.language = self._resolve_language(document.path, "auto");
+            if hasattr(self, "command_view"):
+                self.command_view.set_prompt(self._prompt());
         if hasattr(self, "code_window"):
             self.code_window.title = self._code_title();
+        if hasattr(self, "menu"):
+            self.menu.menus = self._menus();
         return result;
 
     def clear_output(self):
@@ -225,15 +248,13 @@ class ScriptIDE(EditApp):
 
     def _append_output(self, text):
         piece = str(text);
-        current = self.output_view.text;
-        if current == "Ready. F5 runs the current buffer.":
-            current = "";
-        self.output_view.set_text(current + piece);
-        self.output_view.offset = max(0, len(self.output_view.lines) - self.output_view.page_size);
+        if self.output_view.text == "Ready. F5 runs the current buffer.":
+            self.output_view.set_text("");
+        self.output_view.append_text(piece);
         return True;
 
     def _temporary_source(self):
-        suffix = ".py" if self.language == "python" else ".R";
+        suffix = {"python": ".py", "r": ".R", "bash": ".sh", "c": ".c", "cpp": ".cpp"}[self.language];
         directory = self.document.path.parent if self.document.path is not None else Path.cwd();
         handle = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=suffix, prefix=".sumide-", dir=str(directory), delete=False);
         try:
@@ -246,16 +267,76 @@ class ScriptIDE(EditApp):
     def _runner_command(self, path):
         if self.language == "python":
             return [sys.executable, "-u", str(path)];
-        executable = shutil.which("Rscript");
-        if not executable:
-            raise RuntimeError("Rscript was not found in PATH");
-        return [executable, "--vanilla", str(path)];
+        if self.language == "r":
+            executable = shutil.which("Rscript");
+            if not executable:
+                raise RuntimeError("Rscript was not found in PATH");
+            return [executable, "--vanilla", str(path)];
+        if self.language == "bash":
+            executable = shutil.which("bash") or shutil.which("sh");
+            if not executable:
+                raise RuntimeError("bash/sh was not found in PATH");
+            return [executable, str(path)];
+        raise RuntimeError("{} uses the build command path".format(self._language_label()));
+
+    def _build_defaults(self):
+        return {
+            "c_compile": 'cc -std=c17 -Wall -Wextra -O0 -g {source} -o {output}',
+            "c_run": '{output}',
+            "cpp_compile": 'c++ -std=c++17 -Wall -Wextra -O0 -g {source} -o {output}',
+            "cpp_run": '{output}',
+        };
+
+    def _build_value(self, key):
+        return str(self.ide_config.get(key, self._build_defaults()[key]));
+
+    def _expanded_build(self, template, source, output):
+        return str(template).format(source=shlex.quote(str(source)), output=shlex.quote(str(output)));
+
+    def build_commands_dialog(self):
+        defaults = self._build_defaults();
+        entries = {key: TextInput(self._build_value(key)) for key in ("c_compile", "c_run", "cpp_compile", "cpp_run")};
+        rows = [];
+        labels = (("C compile", "c_compile"), ("C run", "c_run"), ("C++ compile", "cpp_compile"), ("C++ run", "cpp_run"));
+        for label, key in labels:
+            rows.append(HBox(Label(label, width=14), entries[key], sizes=[14, None]));
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+        def save_values(*_args):
+            for key, entry in entries.items():
+                value = str(entry.value).strip();
+                self.ide_config[key] = value or defaults[key];
+            close();
+            self._update_status("Build commands updated; Options -> Save configuration persists them.");
+            return True;
+        body = VBox(*rows, HBox(Button("OK", on_press=save_values, default=True, height=3), Button("Cancel", on_press=close, height=3), ratios=[1, 1]), sizes=[1, 1, 1, 1, None]);
+        self.app.push_modal(Dialog(body, title="C/C++ build commands", width=90, height=13, on_cancel=close, shadow=True));
+        self.app.focus.set(entries["c_compile"] if self.language == "c" else entries["cpp_compile"]);
+        self.app.invalidate();
+        return True;
+
+    def save_config(self):
+        self.config["ide"] = dict(self.ide_config);
+        return super().save_config();
 
     def _start_process(self):
         path = self._temporary_source();
-        command = self._runner_command(path);
         cwd = str(self.document.path.parent if self.document.path is not None else Path.cwd());
         self._temp_path = path;
+        self._temp_output_path = None;
+        if self.language in ("c", "cpp"):
+            output_path = Path(str(path) + ".out");
+            self._temp_output_path = output_path;
+            prefix = "c" if self.language == "c" else "cpp";
+            compile_command = self._expanded_build(self._build_value(prefix + "_compile"), path, output_path);
+            run_command = self._expanded_build(self._build_value(prefix + "_run"), path, output_path);
+            shell = shutil.which("sh") or "/bin/sh";
+            command = [shell, "-c", compile_command + " && " + run_command];
+        else:
+            command = self._runner_command(path);
         self._process_done = False;
         self._process_returncode = None;
         self._process = subprocess.Popen(
@@ -319,6 +400,11 @@ class ScriptIDE(EditApp):
         if path is not None:
             try: path.unlink();
             except OSError: pass;
+        output_path = self._temp_output_path;
+        self._temp_output_path = None;
+        if output_path is not None:
+            try: output_path.unlink();
+            except OSError: pass;
         return True;
 
     def _python_direct(self, source):
@@ -341,8 +427,11 @@ class ScriptIDE(EditApp):
                 more = False;
             elif self.language == "python":
                 output, more = self._python_direct(source);
-            else:
+            elif self.language == "r":
                 output = self._r_session.execute(source);
+                more = False;
+            else:
+                output = self._run_shell_direct(source);
                 more = False;
             self._direct_output = output;
             if self.language == "python":
@@ -407,16 +496,16 @@ class ScriptIDE(EditApp):
             dirty = True;
         return dirty;
 
-    def quit(self):
+    def _quit_now(self):
         self.stop_program();
         self._r_session.close();
-        return super().quit();
+        return super()._quit_now();
 
 
 def _main(argv=None, forced_language=None, prog="sumide"):
-    parser = argparse.ArgumentParser(prog=prog, description="Movable-window Python/R IDE built with sumTUI");
-    parser.add_argument("file", nargs="?", help="Python or R source file");
-    parser.add_argument("--language", choices=("auto", "python", "r"), default=forced_language or "auto", help="language profile (default: auto by extension)");
+    parser = argparse.ArgumentParser(prog=prog, description="Movable-window Python/R/Bash/C/C++ IDE built with sumTUI");
+    parser.add_argument("file", nargs="?", help="source file");
+    parser.add_argument("--language", choices=("auto", "python", "r", "bash", "c", "cpp"), default=forced_language or "auto", help="language profile (default: auto by extension)");
     parser.add_argument("--theme", default=None, help="sumTUI theme");
     args = parser.parse_args(argv);
     language = forced_language or args.language;
@@ -440,6 +529,18 @@ def main_python(argv=None):
 
 def main_r(argv=None):
     return _main(argv=argv, forced_language="r", prog="sumride");
+
+
+def main_bash(argv=None):
+    return _main(argv=argv, forced_language="bash", prog="sumbashide");
+
+
+def main_c(argv=None):
+    return _main(argv=argv, forced_language="c", prog="sumcide");
+
+
+def main_cpp(argv=None):
+    return _main(argv=argv, forced_language="cpp", prog="sumcppide");
 
 
 if __name__ == "__main__":

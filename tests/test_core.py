@@ -1738,3 +1738,81 @@ class ExternalTerminalBridgeTests(unittest.TestCase):
         worker.join(timeout=1.0);
         self.assertFalse(worker.is_alive());
         self.assertEqual(result, ["shell-done"]);
+
+class IDEShortcutAndProfileTests(unittest.TestCase):
+    def test_editapp_uses_ctrl_q_for_quit_and_ctrl_x_for_cut(self):
+        from sumtui.tools.edit import EditApp;
+        app = EditApp();
+        self.assertIn('ctrl+q', app.keys.bindings_for('app.exit'));
+        self.assertNotIn('ctrl+x', app.keys.bindings_for('app.exit'));
+        self.assertIn('ctrl+x', app.keys.bindings_for('editor.cut'));
+        self.assertIn('alt+p', app.keys.bindings_for('code.symbols'));
+        self.assertIn('ctrl+tab', app.keys.bindings_for('window.next'));
+        self.assertIn('alt+enter', app.keys.bindings_for('window.maximize'));
+
+    def test_symbol_map_covers_python_r_bash_c_cpp_basic_and_xbase(self):
+        from sumtui.symbols import build_symbol_map;
+        samples = [
+            ('python', 'def f():\n    pass\nclass C:\n    def m(self):\n        pass\n', {'f', 'C'}),
+            ('r', 'f <- function(x) x\n', {'f'}),
+            ('bash', 'hello() {\n  echo hi\n}\n', {'hello'}),
+            ('c', 'int main(void) { return 0; }\nint add(int a,int b) { return a+b; }\n', {'main', 'add'}),
+            ('cpp', 'class Box {};\nint Box::size() { return 1; }\n', {'Box', 'Box::size'}),
+            ('basic', 'SUB Hello\nEND SUB\nFUNCTION Add\nEND FUNCTION\n', {'Hello', 'Add'}),
+            ('xbase', 'PROCEDURE Hello\nRETURN\nFUNCTION Add\nRETURN 1\n', {'Hello', 'Add'}),
+        ];
+        for language, source, expected in samples:
+            names = {item.name.strip() for item in build_symbol_map(source, language=language)};
+            self.assertTrue(expected.issubset(names), (language, names));
+
+    def test_sumide_detects_bash_c_cpp_and_uses_scroll_panes(self):
+        from sumtui.tools.ide import ScriptIDE;
+        from sumtui import TextViewPane, CommandWindowPane;
+        with tempfile.TemporaryDirectory() as directory:
+            for filename, language in [('a.sh', 'bash'), ('a.c', 'c'), ('a.cpp', 'cpp')]:
+                path = Path(directory) / filename;
+                path.write_text('', encoding='utf-8');
+                ide = ScriptIDE(path);
+                self.assertEqual(ide.language, language);
+                self.assertIsInstance(ide.output_window.child, TextViewPane);
+                self.assertIsInstance(ide.command_window.child, CommandWindowPane);
+                self.assertIn('ctrl+r', ide.keys.bindings_for('script.run'));
+                ide._r_session.close();
+
+    def test_sumide_runs_unsaved_bash_buffer(self):
+        from sumtui.tools.ide import ScriptIDE;
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'demo.sh';
+            path.write_text('echo saved\n', encoding='utf-8');
+            ide = ScriptIDE(path);
+            ide.editor.set_text('printf "one\\ntwo\\n"\n', modified=True);
+            ide.app.running = True;
+            ide.run_program();
+            deadline = time.monotonic() + 5.0;
+            while time.monotonic() < deadline and (ide._process is not None or not ide._process_queue.empty()):
+                ide._poll_execution();
+                time.sleep(.01);
+            ide._poll_execution();
+            self.assertIn('one\ntwo\n', ide.output_view.text);
+            ide.app.running = False;
+            ide._r_session.close();
+
+    def test_sumide_compiles_and_runs_c_buffer(self):
+        from sumtui.tools.ide import ScriptIDE;
+        if shutil.which('cc') is None:
+            self.skipTest('cc is not installed');
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'demo.c';
+            path.write_text('int main(void){return 0;}\n', encoding='utf-8');
+            ide = ScriptIDE(path);
+            ide.editor.set_text('#include <stdio.h>\nint main(void){puts("C works"); return 0;}\n', modified=True);
+            ide.app.running = True;
+            ide.run_program();
+            deadline = time.monotonic() + 10.0;
+            while time.monotonic() < deadline and (ide._process is not None or not ide._process_queue.empty()):
+                ide._poll_execution();
+                time.sleep(.01);
+            ide._poll_execution();
+            self.assertIn('C works', ide.output_view.text);
+            ide.app.running = False;
+            ide._r_session.close();

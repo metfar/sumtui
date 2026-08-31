@@ -1,4 +1,4 @@
-# sumTUI 0.5.21
+# sumTUI 0.5.22
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -85,7 +85,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.5.21
+## Widgets in 0.5.22
 
 ### Structure and layout
 
@@ -445,9 +445,11 @@ BrowseForm(["id", "name", "amount"], rows)
 
 `RecordForm` is editable by default for every non-read-only field.  `Enter`, `Down`, and `Tab` advance through fields; `Up` and `Shift+Tab` move backward.  Host applications can bind `Ctrl+End` for save and `Esc` for abort without the field editor swallowing those keys.
 
-## Movable IDE workspaces and Python/R frontends
+## Movable IDE workspaces and Python/R/Bash/C/C++ frontends
 
 `Workspace` and `WorkspaceWindow` provide a small overlapping-window desktop for IDE-style applications. A workspace window owns an exact terminal-cell rectangle, can be activated and raised above its siblings, moved by dragging its title border or with `Alt+Arrow` (`Shift+Alt+Arrow` moves five cells), maximized/restored with **F11**, and closed with **Ctrl+F4**. Persistent/default windows are hidden rather than destroyed, so a `Window` menu can reopen them later. **F6** cycles through visible windows in z-order.
+
+Function-key-free terminals such as Termux can use the same IDE without escape-prefix codes: **Alt+F/E/S/V/O/W/R/H** opens File/Edit/Search/View/Options/Window/Run/Help, **Alt+P** opens Program Map, **Ctrl+R** is Run/Stop, **Ctrl+Tab** changes window, **Alt+Enter** maximizes/restores, and **Ctrl+Q** quits. The traditional function keys remain active on full keyboards.
 
 ```python
 from sumtui import TextEditor, TextView, Workspace, WorkspaceWindow;
@@ -457,20 +459,29 @@ output = WorkspaceWindow(TextView("Ready"), title="Output", name="output", left=
 desktop = Workspace(output, code);
 ```
 
-The same infrastructure now powers a generic script IDE with three default windows: **Code**, **Output**, and **Command**. `sumide` auto-detects Python versus R from the filename; `sumpyide` and `sumride` select a language explicitly. The Command window is stateful: Python uses a persistent interactive namespace and R uses a persistent R process, while a leading `!` runs a shell command. F5 runs/stops the current unsaved editor buffer, F6 changes window, F11 maximizes/restores, and the `Window` menu activates, closes, or reopens the default windows.
+The same infrastructure now powers a generic script IDE with three default windows: **Code**, **Output**, and **Command**. `sumide` auto-detects **Python, R, Bash, C, or C++** from the filename. `sumpyide`, `sumride`, `sumbashide`, `sumcide`, and `sumcppide` force a profile explicitly. Python Command mode keeps a persistent interactive namespace; R uses a persistent R process when available; Bash and the C/C++ profiles use the system shell for direct commands. F5 or **Ctrl+R** runs/stops the current unsaved buffer, F6 or **Ctrl+Tab** changes window, and F11 or **Alt+Enter** maximizes/restores. Output has visible vertical/horizontal scrollbars and Command has visible scrollback scrolling.
+
+C and C++ use editable compile/run templates stored with the normal sumTUI editor configuration. The defaults are intentionally small (`cc`/`c++`, then execute the produced binary); they are not a replacement for Make, CMake, or Meson, which can be run directly from Command.
 
 ```bash
 sumide program.py
 sumide analysis.R
+sumide script.sh
+sumide hello.c
+sumide hello.cpp
+
 sumpyide program.py
 sumride analysis.R
+sumbashide script.sh
+sumcide hello.c
+sumcppide hello.cpp
 ```
 
-Python execution uses the current Python interpreter in a stoppable subprocess. R execution requires `Rscript` for source runs and `R` for the persistent Command window. See `examples/demo_workspace.py`, `examples/bash/python_ide.sh`, and `examples/bash/r_ide.sh`.
+Python execution uses the current Python interpreter in a stoppable subprocess. R execution requires `Rscript` for source runs and `R` for the persistent Command window. See `examples/demo_workspace.py` and the launchers under `examples/bash/`: `python_ide.sh`, `r_ide.sh`, `bash_ide.sh`, `c_ide.sh`, and `cpp_ide.sh`.
 
 ## Generic editor and text-file tools
 
-`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F6** is reserved as **Next Window** for IDE-style work areas, **F11** is **Maximize/Restore Window**, **Ctrl+F4** closes the active workspace window, **F9** opens the menu and **F10** exits. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
+`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, **Ctrl+F4** closes the active workspace window, **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
@@ -861,5 +872,11 @@ embedded = theme_to_dict(theme);
 ```
 
 See `examples/demo_theme_serialization.py` and `examples/bash/theme_editor.sh`.
+
+
+
+## Editor safety
+
+Before New/Open/Quit or closing a modified Code window can discard the current buffer, the common editor layer asks for **SAVE_AND_EXIT**, **FORGET_AND_EXIT**, or **CANCEL**. This behavior is shared by `sumedit` and the IDE frontends.
 
 <p align=center><b>- oOo -<b></p>

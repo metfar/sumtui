@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.22
+
+- F2 is now the reusable **Program Map / Symbols** action; the shared symbol mapper recognizes MAIN plus Python classes/functions/methods, R functions/classes, Bash functions, BASIC SUB/FUNCTION, xBase PROCEDURE/FUNCTION/classes, and C/C++ functions/classes/methods.
+- Standardized editor/IDE shortcuts: Ctrl+S Save, Ctrl+O Open, Ctrl+F Find, Ctrl+X Cut, Ctrl+Q Quit; F5/Ctrl+R Run/Stop in runnable IDEs; F6/Ctrl+Tab Next Window; F11/Alt+Enter Maximize/Restore.
+- Added explicit Alt menu accelerators suitable for Termux and other keyboards without function keys: Alt+F/E/S/V/O/W/R/H, plus Alt+P for Program Map.
+- Added SAVE_AND_EXIT / FORGET_AND_EXIT / CANCEL confirmation before destructive operations on a modified Code buffer.
+- Added visible `TextViewPane` and `CommandWindowPane` scrollbars for IDE Output/Command and switched streamed output to newline-preserving append semantics.
+- Extended the generic IDE from Python/R to Python, R, Bash, C and C++; added `sumbashide`, `sumcide`, `sumcppide` and configurable C/C++ compile/run templates.
+- Regression suite: 150 tests.
+
 ## 0.5.21
 
 - Added `Application.run_external(callback)` for temporarily yielding the real terminal to an external interactive process and restoring the sumTUI alternate screen/input mode afterward.
