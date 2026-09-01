@@ -40,9 +40,13 @@ class TextArea(Widget):
     def __init__(self, text="", tab_size=4, line_numbers=False, readonly=False, on_change=None,
                  on_cursor=None, clipboard=None, undo_limit=1000, tab_moves_focus=False, command_shortcuts=True,
                  syntax_highlighting=False, syntax_language="auto", syntax_filename=None,
-                 line_wrapping=0, line_breaking=0, theme=None):
+                 line_wrapping=0, line_breaking=0, indent_size=None, soft_tab_size=None, expand_tabs=True, shift_round=False, theme=None):
         super().__init__(theme=theme);
         self.tab_size = max(1, int(tab_size));
+        self.indent_size = max(1, int(self.tab_size if indent_size is None else indent_size));
+        self.soft_tab_size = max(1, int(self.indent_size if soft_tab_size is None else soft_tab_size));
+        self.expand_tabs = bool(expand_tabs);
+        self.shift_round = bool(shift_round);
         self.line_numbers = bool(line_numbers);
         self.readonly = bool(readonly);
         self.on_change = on_change;
@@ -559,6 +563,186 @@ class TextArea(Widget):
         row, column = self._position(offset);
         return self._apply_move(row, column, selecting=selecting);
 
+    def delete_to_next_word(self):
+        """Delete the current forward segment without crossing the line boundary.
+
+        From a word, delete the rest of that word plus following separators up
+        to the next word.  From whitespace/punctuation, delete only that
+        separator run.  At trailing whitespace, this removes the trailing
+        whitespace and leaves the caret in place.
+        """
+        if self.readonly or self.has_selection:
+            return False;
+        line = self.lines[self.row];
+        start = self.column;
+        if start >= len(line):
+            return False;
+        pos = start;
+        if self._is_word_char(line[pos]):
+            while pos < len(line) and self._is_word_char(line[pos]):
+                pos += 1;
+            while pos < len(line) and not self._is_word_char(line[pos]):
+                pos += 1;
+        else:
+            while pos < len(line) and not self._is_word_char(line[pos]):
+                pos += 1;
+        if pos <= start:
+            return False;
+        line_start = self._offset(self.row, 0);
+        return self._replace_range(line_start + start, line_start + pos, "", kind="delete_word_forward");
+
+    def delete_to_previous_word(self):
+        """Delete one backward word/separator segment without crossing a line.
+
+        If the character immediately left of the caret is whitespace or
+        punctuation, delete that separator run back to the end of the previous
+        word (or the beginning of the line).  If it is a word character,
+        delete that word back to its beginning.
+        """
+        if self.readonly or self.has_selection:
+            return False;
+        line = self.lines[self.row];
+        end = self.column;
+        if end <= 0:
+            return False;
+        pos = end;
+        if self._is_word_char(line[pos - 1]):
+            while pos > 0 and self._is_word_char(line[pos - 1]):
+                pos -= 1;
+        else:
+            while pos > 0 and not self._is_word_char(line[pos - 1]):
+                pos -= 1;
+        if pos >= end:
+            return False;
+        line_start = self._offset(self.row, 0);
+        return self._replace_range(line_start + pos, line_start + end, "", kind="delete_word_backward");
+
+    def _selected_line_range(self):
+        if not self.has_selection:
+            return self.row, self.row;
+        bounds = self.selection_offsets();
+        start_row, _start_column = self._position(bounds[0]);
+        end_row, end_column = self._position(bounds[1]);
+        if end_row > start_row and end_column == 0:
+            end_row -= 1;
+        return start_row, max(start_row, end_row);
+
+    @staticmethod
+    def _adjust_endpoint_for_prefix_change(endpoint, first_row, last_row, deltas):
+        if endpoint is None:
+            return None;
+        row, column = endpoint;
+        if first_row <= row <= last_row:
+            column = max(0, column + deltas.get(row, 0));
+        return row, column;
+
+    def _apply_line_prefix_changes(self, changes, kind):
+        if self.readonly or not changes:
+            return False;
+        before = self._snapshot();
+        old_anchor = self.anchor;
+        old_cursor = (self.row, self.column);
+        deltas = {};
+        for row, replacement in changes.items():
+            original = self.lines[row];
+            old_prefix_length, new_prefix = replacement;
+            self.lines[row] = str(new_prefix) + original[int(old_prefix_length):];
+            deltas[row] = len(str(new_prefix)) - int(old_prefix_length);
+        first_row = min(changes);
+        last_row = max(changes);
+        adjusted_cursor = self._adjust_endpoint_for_prefix_change(old_cursor, first_row, last_row, deltas);
+        adjusted_anchor = self._adjust_endpoint_for_prefix_change(old_anchor, first_row, last_row, deltas);
+        self.row, self.column = adjusted_cursor;
+        self.anchor = adjusted_anchor;
+        self.preferred_column = self.column;
+        self.modified = True;
+        self._ensure_visible();
+        self._push_edit(before, kind=kind, merge=False);
+        self._changed();
+        return True;
+
+    def indent_lines(self):
+        """Indent selected/current lines by one configured shift width."""
+        if self.readonly:
+            return False;
+        first_row, last_row = self._selected_line_range();
+        changes = {};
+        for row in range(first_row, last_row + 1):
+            line = self.lines[row];
+            if not self.expand_tabs:
+                prefix = "\t";
+            elif self.shift_round:
+                spaces = len(line) - len(line.lstrip(" "));
+                amount = self.indent_size - (spaces % self.indent_size);
+                prefix = " " * max(1, amount);
+            else:
+                prefix = " " * self.indent_size;
+            changes[row] = (0, prefix);
+        return self._apply_line_prefix_changes(changes, kind="indent");
+
+    def unindent_lines(self):
+        """Move selected/current line starts left by one indentation level."""
+        if self.readonly:
+            return False;
+        first_row, last_row = self._selected_line_range();
+        changes = {};
+        for row in range(first_row, last_row + 1):
+            line = self.lines[row];
+            if line.startswith("\t"):
+                changes[row] = (1, "");
+                continue;
+            spaces = len(line) - len(line.lstrip(" "));
+            if self.shift_round and spaces > 0:
+                remainder = spaces % self.indent_size;
+                remove = remainder if remainder else min(self.indent_size, spaces);
+            else:
+                remove = min(self.indent_size, spaces);
+            if remove > 0:
+                changes[row] = (remove, "");
+        return self._apply_line_prefix_changes(changes, kind="unindent");
+
+    @staticmethod
+    def _replace_fixed_groups(line, source, replacement):
+        return str(line).replace(str(source), str(replacement));
+
+    def _transform_all_lines(self, transform, kind):
+        if self.readonly:
+            return False;
+        old_lines = list(self.lines);
+        new_lines = [transform(line) for line in old_lines];
+        if new_lines == old_lines:
+            return False;
+        before = self._snapshot();
+        old_cursor = (self.row, self.column);
+        old_anchor = self.anchor;
+        self.lines = new_lines;
+        cursor_prefix = transform(old_lines[old_cursor[0]][:old_cursor[1]]);
+        self.row = old_cursor[0];
+        self.column = min(len(self.lines[self.row]), len(cursor_prefix));
+        if old_anchor is not None:
+            anchor_prefix = transform(old_lines[old_anchor[0]][:old_anchor[1]]);
+            self.anchor = (old_anchor[0], min(len(self.lines[old_anchor[0]]), len(anchor_prefix)));
+        else:
+            self.anchor = None;
+        self.preferred_column = self.column;
+        self.modified = True;
+        self._ensure_visible();
+        self._push_edit(before, kind=kind, merge=False);
+        self._changed();
+        return True;
+
+    def tabs_to_spaces(self, width=None):
+        """Replace every literal tab in the document with *width* spaces."""
+        width = self.tab_size if width is None else max(1, int(width));
+        spaces = " " * width;
+        return self._transform_all_lines(lambda line: line.replace("\t", spaces), kind="tabs_to_spaces");
+
+    def spaces_to_tabs(self, width=None):
+        """Replace every fixed group of *width* spaces with one literal tab."""
+        width = self.tab_size if width is None else max(1, int(width));
+        spaces = " " * width;
+        return self._transform_all_lines(lambda line: self._replace_fixed_groups(line, spaces, "\t"), kind="spaces_to_tabs");
+
     def handle_event(self, event):
         if isinstance(event, MouseEvent):
             if event.action == "scroll_up":
@@ -598,6 +782,10 @@ class TextArea(Widget):
         ctrl = bool(getattr(event, "ctrl", False));
         shift = bool(getattr(event, "shift", False));
         alt = bool(getattr(event, "alt", False));
+        if alt and key == "w":
+            if ctrl:
+                return self.delete_to_previous_word();
+            return self.delete_to_next_word();
         if self.command_shortcuts:
             if ctrl and key == "z":
                 return self.undo();
@@ -652,9 +840,20 @@ class TextArea(Widget):
         if key == Key.ENTER:
             return self._insert_text("\n", kind="newline");
         if key == Key.TAB:
-            if shift or self.tab_moves_focus:
+            if self.has_selection:
+                if shift:
+                    changed = self.unindent_lines();
+                    return changed or not self.readonly;
+                return self.indent_lines();
+            if shift:
+                changed = self.unindent_lines();
+                return changed or not self.readonly;
+            if self.tab_moves_focus:
                 return False;
-            spaces = self.tab_size - (self.column % self.tab_size);
+            if not self.expand_tabs:
+                return self._insert_text("\t", kind="tab");
+            width = max(1, int(self.soft_tab_size));
+            spaces = width - (self.column % width);
             return self._insert_text(" " * spaces, kind="tab");
         text = getattr(event, "text", "");
         if text and not ctrl and not alt:
@@ -769,9 +968,10 @@ class TextEditor(TextArea):
     def __init__(self, text="", tab_size=4, line_numbers=True, readonly=False, on_change=None,
                  on_cursor=None, clipboard=None, undo_limit=1000, tab_moves_focus=False, command_shortcuts=True,
                  syntax_highlighting=False, syntax_language="auto", syntax_filename=None,
-                 line_wrapping=0, line_breaking=0, theme=None):
+                 line_wrapping=0, line_breaking=0, indent_size=None, soft_tab_size=None, expand_tabs=True, shift_round=False, theme=None):
         super().__init__(text=text, tab_size=tab_size, line_numbers=line_numbers, readonly=readonly,
                          on_change=on_change, on_cursor=on_cursor, clipboard=clipboard,
                          undo_limit=undo_limit, tab_moves_focus=tab_moves_focus, command_shortcuts=command_shortcuts,
                          syntax_highlighting=syntax_highlighting, syntax_language=syntax_language, syntax_filename=syntax_filename,
-                         line_wrapping=line_wrapping, line_breaking=line_breaking, theme=theme);
+                         line_wrapping=line_wrapping, line_breaking=line_breaking, indent_size=indent_size, soft_tab_size=soft_tab_size,
+                         expand_tabs=expand_tabs, shift_round=shift_round, theme=theme);

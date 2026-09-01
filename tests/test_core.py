@@ -623,6 +623,9 @@ class EditorToolTests(unittest.TestCase):
         editor = EditApp();
         self.assertIn("f9", editor.app.bindings);
         self.assertIn("f10", editor.app.bindings);
+        self.assertIn("alt+i", editor.app.bindings);
+        self.assertNotIn("alt+w", editor.app.bindings);
+        self.assertEqual(editor.keys.primary("menu.window"), "alt+i");
         self.assertEqual([menu.title for menu in editor.menu.menus], ["File", "Edit", "Search", "View", "Options", "Window", "Help"]);
         self.assertTrue(editor.app.capture_control_keys);
         self.assertTrue(editor.open_menu(0));
@@ -1128,6 +1131,78 @@ class AdvancedTextEditorTests(unittest.TestCase):
         self.assertEqual(editor.column, 4);
         self.assertTrue(editor.handle_event(KeyEvent(Key.LEFT, ctrl=True, shift=True)));
         self.assertEqual(editor.selected_text, "one ");
+
+    def test_alt_w_deletes_forward_word_and_separator_segment(self):
+        editor = TextEditor("casa               roja");
+        self.assertTrue(editor.handle_event(KeyEvent("w", alt=True)));
+        self.assertEqual(editor.text, "roja");
+        self.assertEqual(editor.column, 0);
+
+        editor = TextEditor("casa               ");
+        editor.goto_line(1, 5);
+        self.assertTrue(editor.handle_event(KeyEvent("w", alt=True)));
+        self.assertEqual(editor.text, "casa");
+        self.assertEqual(editor.column, 4);
+
+        editor = TextEditor("casa   roja");
+        editor.goto_line(1, 5);
+        self.assertTrue(editor.handle_event(KeyEvent("w", alt=True)));
+        self.assertEqual(editor.text, "casaroja");
+        self.assertEqual(editor.column, 4);
+
+    def test_ctrl_alt_w_deletes_backward_segments_one_at_a_time(self):
+        editor = TextEditor("casa               roja");
+        editor.goto_line(1, 20);
+        self.assertTrue(editor.handle_event(KeyEvent("w", ctrl=True, alt=True)));
+        self.assertEqual(editor.text, "casaroja");
+        self.assertEqual(editor.column, 4);
+        self.assertTrue(editor.handle_event(KeyEvent("w", ctrl=True, alt=True)));
+        self.assertEqual(editor.text, "roja");
+        self.assertEqual(editor.column, 0);
+
+        editor = TextEditor("               roja");
+        editor.goto_line(1, 16);
+        self.assertTrue(editor.handle_event(KeyEvent("w", ctrl=True, alt=True)));
+        self.assertEqual(editor.text, "roja");
+        self.assertEqual(editor.column, 0);
+
+    def test_alt_word_deletion_never_crosses_line_boundary(self):
+        editor = TextEditor("one\ntwo");
+        editor.goto_line(1, 4);
+        self.assertFalse(editor.handle_event(KeyEvent("w", alt=True)));
+        self.assertEqual(editor.text, "one\ntwo");
+        editor.goto_line(2, 1);
+        self.assertFalse(editor.handle_event(KeyEvent("w", ctrl=True, alt=True)));
+        self.assertEqual(editor.text, "one\ntwo");
+
+    def test_tab_and_shift_tab_indent_selected_lines_and_keep_selection(self):
+        editor = TextEditor("one\n  two\nthree\nfour", tab_size=4);
+        editor.select_offsets(0, len("one\n  two\nthree\n"));
+        self.assertTrue(editor.handle_event(KeyEvent(Key.TAB)));
+        self.assertEqual(editor.text, "    one\n      two\n    three\nfour");
+        self.assertTrue(editor.has_selection);
+        self.assertNotIn("    four", editor.text);
+        self.assertTrue(editor.handle_event(KeyEvent(Key.TAB, shift=True)));
+        self.assertEqual(editor.text, "one\n  two\nthree\nfour");
+        self.assertTrue(editor.has_selection);
+
+    def test_shift_tab_unindents_current_line(self):
+        editor = TextEditor("    one\n\ttwo", tab_size=4);
+        editor.goto_line(1, 7);
+        self.assertTrue(editor.handle_event(KeyEvent(Key.TAB, shift=True)));
+        self.assertEqual(editor.lines[0], "one");
+        editor.goto_line(2, 5);
+        self.assertTrue(editor.handle_event(KeyEvent(Key.TAB, shift=True)));
+        self.assertEqual(editor.lines[1], "two");
+
+    def test_whole_document_tab_space_conversion_uses_current_tab_width_and_undo(self):
+        editor = TextEditor("a\tb\n    c        d", tab_size=4);
+        self.assertTrue(editor.tabs_to_spaces());
+        self.assertEqual(editor.text, "a    b\n    c        d");
+        self.assertTrue(editor.spaces_to_tabs());
+        self.assertEqual(editor.text, "a\tb\n\tc\t\td");
+        self.assertTrue(editor.undo());
+        self.assertEqual(editor.text, "a    b\n    c        d");
 
     def test_ctrl_home_end_and_shift_vertical_page_selection(self):
         editor = TextEditor("zero\none\ntwo\nthree\nfour\nfive");

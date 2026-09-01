@@ -40,7 +40,9 @@ from ..syntax import SYNTAX_MODES, normalize_mode;
 from ..symbols import build_symbol_map, detect_language, symbol_index_for_line;
 from ..theme import THEMES, available_theme_names, refresh_user_themes;
 from ..markdown_export import export_html, export_pdf;
+from ..modeline import scan_vim_modelines;
 from ..widgets import Button, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, MarkdownView, MarkdownViewPane, VBox, Widget;
+from .edit_preferences import open_preferences;
 
 
 _EOL_MARKERS = {"\n": "↵", "\r\n": "⏎", "\r": "↩"};
@@ -77,7 +79,10 @@ Keyboard
   Shift+F3            Find previous
   Ctrl+H              Search and replace
   Ctrl+G              Go to line
-  Alt+F/E/S/V/O/W/H   File/Edit/Search/View/Options/Window/Help menu
+  Alt+W               Delete through next word boundary
+  Ctrl+Alt+W          Delete previous word/separator segment
+  Tab / Shift+Tab     Indent / unindent selected lines
+  Alt+F/E/S/V/O/I/H   File/Edit/Search/View/Options/Window/Help menu
 
 Mouse (POSIX terminals with SGR mouse reporting)
   Left click          Place the caret / focus a control
@@ -102,6 +107,7 @@ Syntax highlighting is available in the editor and is auto-detected from the fil
 Markdown highlighting includes headings, emphasis, links, inline HTML and fenced code blocks; fenced Python, Bash, SQL, BASIC, sumX and other known languages reuse their normal syntax roles.
 Markdown files also provide a rendered preview with bordered tables and integrated HTML/PDF export.
 Options contains Tab width, Theme, Line wrapping, Line breaking, Keyboard shortcuts and Save configuration.
+Edit contains whole-document Tabs -> Spaces and Spaces -> Tabs conversion using the current Tab width.
 Ralesk's MC is included as a Geany-derived Midnight Commander-like theme and is the fresh-install sumedit default.
 Line wrapping is visual only: -1 means automatic to the current editor width, 0 disables wrapping, and positive values set a maximum visual width. 78 is the legacy 80-column-window preset (80 minus two border cells).
 Line breaking is separate and modifies text when enabled; 0 keeps automatic hard breaking off.
@@ -212,10 +218,23 @@ class EditApp:
         self.search_whole_word = False;
         self.search_regex = False;
         self.search_wrap = True;
-        tab_size = int(self.config.get("tab_size", 4));
-        if tab_size not in (2, 4, 8):
-            tab_size = 4;
-        syntax_mode = normalize_mode(self.config.get("syntax_mode", "auto"));
+        try: tab_size = max(1, int(self.config.get("tab_size", 4)));
+        except (TypeError, ValueError): tab_size = 4;
+        try: indent_size = max(1, int(self.config.get("indent_size", tab_size)));
+        except (TypeError, ValueError): indent_size = tab_size;
+        try: soft_tab_size = max(1, int(self.config.get("soft_tab_size", indent_size)));
+        except (TypeError, ValueError): soft_tab_size = indent_size;
+        expand_tabs = bool(self.config.get("expand_tabs", True));
+        shift_round = bool(self.config.get("shift_round", False));
+        modeline = {};
+        if bool(self.config.get("read_vim_modelines", True)):
+            modeline = scan_vim_modelines(self.document.text, self.config.get("modeline_lines", 5));
+            tab_size = int(modeline.get("tabstop", tab_size));
+            indent_size = int(modeline.get("shiftwidth", indent_size));
+            soft_tab_size = int(modeline.get("softtabstop", soft_tab_size));
+            expand_tabs = bool(modeline.get("expandtab", expand_tabs));
+            shift_round = bool(modeline.get("shiftround", shift_round));
+        syntax_mode = normalize_mode(modeline.get("syntax", self.config.get("syntax_mode", "auto")));
         syntax_enabled = bool(self.config.get("syntax_highlighting", True));
         syntax_filename = self.document.path.name if self.document.path is not None else None;
         try:
@@ -228,7 +247,8 @@ class EditApp:
             line_breaking = 0;
         self.editor = TextEditor(self.document.text, tab_size=tab_size, line_numbers=True, on_change=self._editor_changed, on_cursor=self._cursor_changed, command_shortcuts=False,
                                  syntax_highlighting=syntax_enabled, syntax_language=syntax_mode, syntax_filename=syntax_filename,
-                                 line_wrapping=line_wrapping, line_breaking=line_breaking);
+                                 line_wrapping=line_wrapping, line_breaking=line_breaking, indent_size=indent_size, soft_tab_size=soft_tab_size,
+                                 expand_tabs=expand_tabs, shift_round=shift_round);
         self.editor.configure_visibility(
             spaces=bool(self.config.get("show_spaces", False)),
             tabs=bool(self.config.get("show_tabs", False)),
@@ -238,6 +258,12 @@ class EditApp:
         self.keys = KeyBindingManager();
         self._register_keybindings();
         self.keys.load_overrides(self.config.get("keybindings", {}));
+        if "fileformat" in modeline:
+            self.document.eol = str(modeline["fileformat"]);
+            self.document.preferred_eol = self.document.eol;
+        if "fileencoding" in modeline:
+            self.document.encoding = str(modeline["fileencoding"]);
+            self.document.encoding_label = str(modeline["fileencoding"]).upper();
         self._sync_document_markers();
         self.vscroll = _EditorVScroll(self.editor);
         self.hscroll = _EditorHScroll(self.editor);
@@ -284,7 +310,7 @@ class EditApp:
             ("menu.search", "Search menu", ["alt+s"], lambda: self.open_menu(2)),
             ("menu.view", "View menu", ["alt+v"], lambda: self.open_menu(3)),
             ("menu.options", "Options menu", ["alt+o"], lambda: self.open_menu(4)),
-            ("menu.window", "Window menu", ["alt+w"], lambda: self.open_menu(5)),
+            ("menu.window", "Window menu", ["alt+i"], lambda: self.open_menu(5)),
             ("menu.help", "Help menu", ["alt+h"], lambda: self.open_menu(6)),
         ];
         for name, label, defaults, callback in actions:
@@ -532,6 +558,9 @@ class EditApp:
                 MenuItem("Copy", self.editor_copy, self._ks("editor.copy")),
                 MenuItem("Paste", self.editor_paste, self._ks("editor.paste")),
                 Separator(),
+                MenuItem("Tabs -> {} spaces".format(self.editor.tab_size), self.editor_tabs_to_spaces),
+                MenuItem("{} spaces -> Tabs".format(self.editor.tab_size), self.editor_spaces_to_tabs),
+                Separator(),
                 MenuItem("Select All", self.editor_select_all, self._ks("editor.select_all")),
             ]),
             Menu("Search", [
@@ -561,6 +590,7 @@ class EditApp:
                 MenuItem("Line breaking", submenu=breaking_menu),
                 Separator(),
                 MenuItem("Keyboard shortcuts...", self.shortcuts_dialog),
+                MenuItem("Preferences...", self.preferences_dialog),
                 MenuItem("Save configuration", self.save_config),
             ]),
             self._window_menu(),
@@ -680,10 +710,35 @@ class EditApp:
         self.app.invalidate();
         return text;
 
+    def _apply_document_modeline(self):
+        if not bool(self.config.get("read_vim_modelines", True)):
+            return {};
+        modeline = scan_vim_modelines(self.document.text, self.config.get("modeline_lines", 5));
+        if "tabstop" in modeline:
+            self.editor.tab_size = int(modeline["tabstop"]);
+        if "shiftwidth" in modeline:
+            self.editor.indent_size = int(modeline["shiftwidth"]);
+        if "softtabstop" in modeline:
+            self.editor.soft_tab_size = int(modeline["softtabstop"]);
+        if "expandtab" in modeline:
+            self.editor.expand_tabs = bool(modeline["expandtab"]);
+        if "shiftround" in modeline:
+            self.editor.shift_round = bool(modeline["shiftround"]);
+        if "syntax" in modeline:
+            self.editor.configure_syntax(language=modeline["syntax"]);
+        if "fileformat" in modeline:
+            self.document.eol = str(modeline["fileformat"]);
+            self.document.preferred_eol = self.document.eol;
+        if "fileencoding" in modeline:
+            self.document.encoding = str(modeline["fileencoding"]);
+            self.document.encoding_label = str(modeline["fileencoding"]).upper();
+        return modeline;
+
     def _set_document(self, document):
         self.document = document;
         self.editor.set_text(document.text, modified=False);
         self.editor.configure_syntax(filename=document.path.name if document.path is not None else None);
+        self._apply_document_modeline();
         self._sync_document_markers();
         self.panel.title = document.path.name if document.path is not None else "Untitled";
         self.app.focus.set(self.editor);
@@ -1141,7 +1196,12 @@ class EditApp:
         return True;
 
     def set_tab_width(self, width):
+        old = int(self.editor.tab_size);
         self.editor.tab_size = int(width);
+        if int(getattr(self.editor, "indent_size", old)) == old:
+            self.editor.indent_size = int(width);
+        if int(getattr(self.editor, "soft_tab_size", old)) == old:
+            self.editor.soft_tab_size = int(width);
         self._update_status("Tab width {}".format(width));
         return True;
 
@@ -1356,11 +1416,20 @@ class EditApp:
         self.app.invalidate();
         return True;
 
+    def preferences_dialog(self):
+        return open_preferences(self);
+
     def save_config(self):
         data = dict(self.config);
         data.update({
             "theme": self.app.theme.name,
             "tab_size": int(self.editor.tab_size),
+            "indent_size": int(getattr(self.editor, "indent_size", self.editor.tab_size)),
+            "soft_tab_size": int(getattr(self.editor, "soft_tab_size", self.editor.tab_size)),
+            "expand_tabs": bool(getattr(self.editor, "expand_tabs", True)),
+            "shift_round": bool(getattr(self.editor, "shift_round", False)),
+            "read_vim_modelines": bool(self.config.get("read_vim_modelines", True)),
+            "modeline_lines": int(self.config.get("modeline_lines", 5)),
             "show_spaces": bool(self.editor.show_spaces),
             "show_tabs": bool(self.editor.show_tabs),
             "show_line_endings": bool(self.editor.show_line_endings),
@@ -1410,6 +1479,18 @@ class EditApp:
 
     def editor_paste(self):
         return self.editor.paste();
+
+    def editor_tabs_to_spaces(self):
+        changed = self.editor.tabs_to_spaces();
+        if changed:
+            self._update_status("Converted tabs to {} spaces".format(self.editor.tab_size));
+        return changed;
+
+    def editor_spaces_to_tabs(self):
+        changed = self.editor.spaces_to_tabs();
+        if changed:
+            self._update_status("Converted groups of {} spaces to tabs".format(self.editor.tab_size));
+        return changed;
 
     def editor_select_all(self):
         return self.editor.select_all();

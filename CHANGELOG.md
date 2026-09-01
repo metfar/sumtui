@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.7.0 - 2026-09-01
+
+- Established the post-split editor foundation for the current Sum ecosystem: `sumTUI` owns reusable TUI/editor primitives and the standalone `sumedit`; application-level IDE behavior lives in the independent `sumIDE` project.
+- Centralized `sumedit` preferences in a sectioned dialog instead of requiring direct JSON/menu-fragment editing.
+- Added safe Vim modelines in the first/last configurable lines with a strict whitelist for `ts/sw/sts`, `et/noet`, `sr/nosr`, `syntax/ft`, `ff`, and `fenc`; modelines never execute Vim commands.
+- Split indentation semantics into visual tab width, shift width and soft-tab width. Modern defaults are four columns; language-specific overrides belong to `sumIDE`.
+- Added `Alt+W` forward word/whitespace deletion, `Ctrl+Alt+W` backward deletion, selected-block `Tab`/`Shift+Tab`, and whole-document tabs/spaces conversion.
+- Reassigned the Window accelerator to `Alt+I`, permanently freeing `Alt+W` for editing.
+- Kept `sumtui.tools.ide` as a compatibility bridge only; it now points users to `sumIDE >= 0.2.0`.
+- This release incorporates and supersedes the 0.6.1/0.6.2 editor/IDE-split work while preserving the earlier changelog below.
+
+## 0.6.2
+
+- Extracted the application-level multi-language IDE into the independent `sumIDE` project. `sumTUI` now owns the reusable TUI/editor primitives and keeps `sumedit`; the old `sumtui.tools.ide` module is only a compatibility bridge when `sumIDE` is installed.
+- Removed the `sumide`, `sumpyide`, `sumride`, `sumbashide`, `sumcide` and `sumcppide` console-script ownership from the `sumTUI` package.
+- Added a sectioned **Options -> Preferences...** dialog to `sumedit`, centralizing General, Editor/Features, Editor/Indentation, Editor/Modelines, Files, Keybindings, Display and Advanced settings instead of exposing configuration only through JSON/menu fragments.
+- Added safe Vim modeline parsing in the first/last configurable lines. Supported metadata: `ts/tabstop`, `sw/shiftwidth`, `sts/softtabstop`, `et/noet`, `sr/nosr`, `syntax/ft`, `ff/fileformat`, and `fenc/fileencoding`; arbitrary Vim commands are never executed.
+- Split editor indentation semantics into visual tab width, shift/indent width and soft-tab width. Literal TAB insertion versus spaces is controlled independently by `expand_tabs`; `shiftround` is supported.
+- Kept modern defaults at four columns; language-specific defaults belong to `sumIDE` (HTML uses two spaces there).
+
+## 0.6.1
+
+- Added editor word/whitespace deletion: **Alt+W** deletes forward through the next word boundary and **Ctrl+Alt+W** deletes one backward word/separator segment without crossing line boundaries.
+- Reassigned the Window-menu accelerator from **Alt+W** to **Alt+I** so Alt+W remains a consistent editing command.
+- Added block indentation: **Tab** indents all selected lines and **Shift+Tab** unindents them while preserving the selection; Shift+Tab also unindents the current line.
+- Added whole-document **Tabs -> N spaces** and **N spaces -> Tabs** conversions using the configured tab width.
+- Added regression coverage for forward/backward deletion, line-boundary safety, block indentation, tab/space conversion and the new Window accelerator. Regression suite: 177 tests.
+
 ## 0.6.0
 
 - Promoted the common editor/workspace line to 0.6.0 and added optional integration with the separate `sumdiff` application without making `sumdiff` a dependency of the toolkit.

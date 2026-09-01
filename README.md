@@ -1,8 +1,10 @@
-# sumTUI 0.6.0
+# sumTUI 0.7.0
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
 The project is a console-side sibling of SumGUI. It keeps the same general philosophy and the same family of themes while remaining independent from pygame.
+
+**Architecture note for 0.7.0:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
 
 `CommandWindow` READ forms support `Tab`/`Shift+Tab` navigation between absolute `ScreenField` inputs. Fixed-width field editing uses normal caret semantics: the caret can sit one cell beyond the field, so Backspace at end-of-field deletes the actual final character; deletion shifts remaining text left and pads the field at the right edge.
 
@@ -30,7 +32,7 @@ python -m pip install -e .
 
 ## sumdiff integration
 
-`sumTUI 0.6.0` adds the common handoff used by Sum editors and IDEs to the separate `sumdiff` project. `sumTUI` does **not** depend on `sumdiff`; the bridge detects it at runtime, temporarily hands the terminal to it, and restores the host editor when comparison ends.
+`sumTUI 0.6.0` introduced the common handoff used by Sum editors and IDEs to the separate `sumdiff` project. `sumTUI` does **not** depend on `sumdiff`; the bridge detects it at runtime, temporarily hands the terminal to it, and restores the host editor when comparison ends.
 
 `sumedit`, `sumIDE` and IDEs derived from the common editor expose **File -> Compare with...**. The current in-memory buffer is passed to `sumdiff`, so unsaved edits can be inspected without first changing the file on disk. If that document is saved from inside `sumdiff`, the host reloads the saved version when control returns.
 
@@ -94,7 +96,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.6.0
+## Widgets in 0.7.0
 
 ### Structure and layout
 
@@ -459,7 +461,7 @@ BrowseForm(["id", "name", "amount"], rows)
 
 `Workspace` and `WorkspaceWindow` provide a small overlapping-window desktop for IDE-style applications. A workspace window owns an exact terminal-cell rectangle, can be activated and raised above its siblings, moved by dragging its title border or with `Alt+Arrow` (`Shift+Alt+Arrow` moves five cells), maximized/restored with **F11**, and closed with **Ctrl+F4**. Persistent/default windows are hidden rather than destroyed, so a `Window` menu can reopen them later. **F6** cycles through visible windows in z-order. Workspace geometry (left/top/width/height and maximized state) is restored on the next run; **Window -> Reset Window Layout** clears the saved geometry and immediately returns every workspace window to its application defaults. Layout persistence is stored in the sibling `workspaces.json` file, separately from manually saved editor preferences, so moving a window does not implicitly persist unrelated option changes.
 
-Function-key-free terminals such as Termux can use the same IDE without escape-prefix codes: **Alt+F/E/S/V/O/W/R/H** opens File/Edit/Search/View/Options/Window/Run/Help, **Alt+P** opens Program Map, **Ctrl+R** is Run/Stop, **Ctrl+Tab** changes window, **Alt+Enter** maximizes/restores, and **Ctrl+Q** quits. The traditional function keys remain active on full keyboards.
+Function-key-free terminals such as Termux can use the same IDE without escape-prefix codes: **Alt+F/E/S/V/O/I/R/H** opens File/Edit/Search/View/Options/Window/Run/Help, **Alt+P** opens Program Map, **Ctrl+R** is Run/Stop, **Ctrl+Tab** changes window, **Alt+Enter** maximizes/restores, and **Ctrl+Q** quits. The traditional function keys remain active on full keyboards.
 
 ```python
 from sumtui import TextEditor, TextView, Workspace, WorkspaceWindow;
@@ -497,7 +499,7 @@ Python execution uses the current Python interpreter in a stoppable subprocess. 
 
 ## Generic editor and text-file tools
 
-`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, and **Ctrl+F4** closes the active workspace window. Mouse users can drag a window title to move it and drag its lower-right corner to resize it. **Alt+M** enters keyboard Move and **Alt+Z** enters keyboard Resize; arrows adjust one cell, Shift+arrows five cells, Enter accepts, and Escape cancels. **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
+`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. **Alt+W** deletes forward through the next word boundary without crossing the current line; **Ctrl+Alt+W** deletes one backward word/separator segment. With a multiline selection, **Tab** indents every touched line and **Shift+Tab** unindents it; a selection ending at column 0 of the following line does not include that following line. The Edit menu also provides whole-document **Tabs -> N spaces** and **N spaces -> Tabs** conversions using the current Tab width. **Alt+I** opens the Window menu, leaving Alt+W exclusively available for editing. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, and **Ctrl+F4** closes the active workspace window. Mouse users can drag a window title to move it and drag its lower-right corner to resize it. **Alt+M** enters keyboard Move and **Alt+Z** enters keyboard Resize; arrows adjust one cell, Shift+arrows five cells, Enter accepts, and Escape cancels. **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
