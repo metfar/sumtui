@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.7.3
+Version: 0.7.4
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -514,7 +514,7 @@ sumcide hello.c
 sumcppide hello.cpp
 ```
 
-Python execution uses the current Python interpreter in a stoppable subprocess. R execution requires `Rscript` for source runs and `R` for the persistent Command window. See `examples/demo_workspace.py` and the launchers under `examples/bash/`: `python_ide.sh`, `r_ide.sh`, `bash_ide.sh`, `c_ide.sh`, `cpp_ide.sh`, and `multilang_ide.sh`.
+Application-level IDE launchers and `hello.*` programming examples now belong to the separate **sumIDE** project. sumTUI keeps `examples/demo_workspace.py` only as a toolkit demonstration of the reusable workspace/window primitives.
 
 ## Generic editor and text-file tools
 
@@ -522,7 +522,7 @@ Python execution uses the current Python interpreter in a stoppable subprocess. 
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 
-Markdown remains directly editable as source: headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. When F2 opens, the list is preselected on the section that owns the editor's current cursor line; the same current-routine behavior applies to Python, R, Bash, BASIC, xBase, C and C++ maps. See `examples/markdown_outline.md` for a small navigable document. The outline dialog sizes its list so every entry fits when the document is small, while larger outlines remain keyboard-scrollable. In particular, the project closing line remains visible/editable as HTML source:
+Markdown remains directly editable as source: headings, emphasis, links, inline HTML, and fenced blocks are highlighted; fenced blocks such as `python`, `bash`, `sql`, `basic`, `sumx`, and other known languages reuse the same semantic colours they receive when opened directly. Markdown mapping is an automatic **sumedit** capability, not an IDE-only option: whenever the current document is detected as Markdown, the F2 surface and menu relabel themselves as the Markdown map. **F2 / Alt+P** turns Markdown headings into a document outline: ATX headings (`#` through `######`) and Setext headings (`===` / `---`) appear as TITLE / SECTION / SUBSECTION entries, preserve their hierarchy visually, ignore heading-looking text inside fenced code blocks, and jump directly to the selected heading. When F2 opens, the list is preselected on the section that owns the editor's current cursor line; the same current-routine behavior applies to Python, R, Bash, BASIC, xBase, C and C++ maps. See `examples/markdown_outline.md` for a small navigable document. The outline dialog sizes its list so every entry fits when the document is small, while larger outlines remain keyboard-scrollable. In particular, the project closing line remains visible/editable as HTML source:
 
 ```html
 ```
@@ -549,7 +549,7 @@ To install the short `edit` wrapper under your own `$HOME/bin` without touching 
 sumedit --install-alias
 ```
 
-The wrapper deliberately uses `exec python3 -m sumtui.tools.edit "$@"` so quoting and argument boundaries are preserved. To force the Geany-inspired palette for one invocation, use `sumedit --theme "Ralesk's MC" FILE`; `examples/bash/edit_ralesk.sh` demonstrates the same from Bash.
+The wrapper deliberately uses `exec python3 -m sumtui.tools.edit "$@"` so quoting and argument boundaries are preserved. To force the Geany-inspired palette for one invocation, use `sumedit --theme "Ralesk's MC" FILE`; `examples/edit/edit_ralesk.sh` demonstrates the same from Bash.
 
 A runnable Python example for hidden-character rendering is included as:
 
@@ -565,10 +565,10 @@ Python and Bash examples also cover the reusable key-binding registry and a temp
 ```bash
 python examples/demo_control_keys.py
 python examples/demo_keybindings.py
-bash examples/bash/edit_file.sh README.md
-bash examples/bash/edit_custom_keys.sh README.md
-bash examples/bash/edit_markdown.sh README.md
-bash examples/bash/edit_wrapping.sh README.md
+bash examples/edit/edit_file.sh README.md
+bash examples/edit/edit_custom_keys.sh README.md
+bash examples/edit/edit_markdown.sh README.md
+bash examples/edit/edit_wrapping.sh README.md
 ```
 
 `sumeol --check FILE` reports encoding and LF/CRLF/CR usage. Conversions use `--to lf`, `--to crlf`, or `--to cr`, preserving the detected character encoding by default. `sumeol --install-compat-aliases` optionally installs `dos2unix`, `unix2dos`, `mac2unix`, and `unix2mac` wrappers in `$HOME/bin`.
@@ -626,11 +626,11 @@ Exit status conventions are:
 4  controlling-terminal error
 ```
 
-Runnable shell examples are included under `examples/bash/`:
+Runnable shell examples are grouped with the sumTUI tool they demonstrate:
 
 ```bash
-bash examples/bash/suminput_choice.sh
-bash examples/bash/eol_convert.sh README.md
+bash examples/suminput/choice.sh
+bash examples/edit/eol_convert.sh README.md
 ```
 
 The equivalent Python-side positioned-window example is `examples/demo_positioned_dialog.py`. This keeps the documentation practical across Python and shell usage rather than leaving cross-environment behavior as prose only.
@@ -712,7 +712,7 @@ json    JSON object preserving booleans
 null    name\0value\0 pairs for Bash/process-substitution transport without eval
 ```
 
-The full personal-data example is `examples/bash/sumdialog/21_forms_personal_data.sh`. Additional examples exercise every form component and each structured output style.
+The full personal-data example is `examples/sumdialog/21_forms_personal_data.sh`. Additional examples exercise every form component and each structured output style.
 
 ### Declarative `.sdlg` forms
 
@@ -848,40 +848,40 @@ form = read_form([
 print(form.value);
 ```
 
-See `examples/demo_sumdialog.py` and the complete Bash suite under `examples/bash/sumdialog/`. The dispatcher makes each example easy to launch:
+See `examples/demo_sumdialog.py` and the complete Bash suite under `examples/sumdialog/`. The dispatcher makes each example easy to launch:
 
 ```bash
-bash examples/bash/sumdialog_examples.sh list
-bash examples/bash/sumdialog_examples.sh info
-bash examples/bash/sumdialog_examples.sh question
-bash examples/bash/sumdialog_examples.sh entry
-bash examples/bash/sumdialog_examples.sh entry-secret
-bash examples/bash/sumdialog_examples.sh entry-picture
-bash examples/bash/sumdialog_examples.sh entry-keys-timeout
-bash examples/bash/sumdialog_examples.sh entry-multiline
-bash examples/bash/sumdialog_examples.sh file
-bash examples/bash/sumdialog_examples.sh directory
-bash examples/bash/sumdialog_examples.sh listbox
-bash examples/bash/sumdialog_examples.sh radio
-bash examples/bash/sumdialog_examples.sh checklist
-bash examples/bash/sumdialog_examples.sh text
-bash examples/bash/sumdialog_examples.sh markdown
-bash examples/bash/sumdialog_examples.sh appearance
-bash examples/bash/sumdialog_examples.sh progress-percent
-bash examples/bash/sumdialog_examples.sh progress-bytes
-bash examples/bash/sumdialog_examples.sh exit-status
-bash examples/bash/sumdialog_examples.sh forms-personal
-bash examples/bash/sumdialog_examples.sh forms-components
-bash examples/bash/sumdialog_examples.sh forms-json
-bash examples/bash/sumdialog_examples.sh forms-shell-safety
-bash examples/bash/sumdialog_examples.sh forms-null
-bash examples/bash/sumdialog_examples.sh declarative-form
-bash examples/bash/sumdialog_examples.sh retro-menu
-bash examples/bash/sumdialog_examples.sh retro-menu-separators
-bash examples/bash/sumdialog_examples.sh demo
+bash examples/sumdialog/examples.sh list
+bash examples/sumdialog/examples.sh info
+bash examples/sumdialog/examples.sh question
+bash examples/sumdialog/examples.sh entry
+bash examples/sumdialog/examples.sh entry-secret
+bash examples/sumdialog/examples.sh entry-picture
+bash examples/sumdialog/examples.sh entry-keys-timeout
+bash examples/sumdialog/examples.sh entry-multiline
+bash examples/sumdialog/examples.sh file
+bash examples/sumdialog/examples.sh directory
+bash examples/sumdialog/examples.sh listbox
+bash examples/sumdialog/examples.sh radio
+bash examples/sumdialog/examples.sh checklist
+bash examples/sumdialog/examples.sh text
+bash examples/sumdialog/examples.sh markdown
+bash examples/sumdialog/examples.sh appearance
+bash examples/sumdialog/examples.sh progress-percent
+bash examples/sumdialog/examples.sh progress-bytes
+bash examples/sumdialog/examples.sh exit-status
+bash examples/sumdialog/examples.sh forms-personal
+bash examples/sumdialog/examples.sh forms-components
+bash examples/sumdialog/examples.sh forms-json
+bash examples/sumdialog/examples.sh forms-shell-safety
+bash examples/sumdialog/examples.sh forms-null
+bash examples/sumdialog/examples.sh declarative-form
+bash examples/sumdialog/examples.sh retro-menu
+bash examples/sumdialog/examples.sh retro-menu-separators
+bash examples/sumdialog/examples.sh demo
 ```
 
-There is one focused `.sh` file per current mode/behavior, including hidden and masked entry, PICTURE and overflow, key filtering, default/timeout handling, multiline input, initial file paths, repeated checklist selections and custom separators, filename/stdin viewers, custom labels/themes/sizing, percentage progress, byte-pass-through progress, declarative `.sdlg` forms, retro button menus, and the interactive demo launcher. `examples/bash/sumdialog/README.md` is the full coverage index.
+There is one focused `.sh` file per current mode/behavior, including hidden and masked entry, PICTURE and overflow, key filtering, default/timeout handling, multiline input, initial file paths, repeated checklist selections and custom separators, filename/stdin viewers, custom labels/themes/sizing, percentage progress, byte-pass-through progress, declarative `.sdlg` forms, retro button menus, and the interactive demo launcher. `examples/sumdialog/README.md` is the full coverage index.
 
 ## Small tools, fewer mandatory external utilities
 
@@ -908,7 +908,7 @@ path = save_user_theme(theme);
 embedded = theme_to_dict(theme);
 ```
 
-See `examples/demo_theme_serialization.py` and `examples/bash/theme_editor.sh`.
+See `examples/demo_theme_serialization.py` and `examples/theme/editor.sh`.
 
 
 

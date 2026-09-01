@@ -274,7 +274,7 @@ class WorkspaceWindow(Widget):
         if isinstance(event, MouseEvent):
             local_x = int(event.x) - int(self._mouse_left);
             local_y = int(event.y) - int(self._mouse_top);
-            resize_corner = local_y == int(self._mouse_height) - 1 and local_x >= max(0, int(self._mouse_width) - 2);
+            resize_corner = local_y >= max(0, int(self._mouse_height) - 2) and local_x >= max(0, int(self._mouse_width) - 3);
             if event.action == "press" and event.button == "left" and resize_corner:
                 if not self.maximized:
                     self._resizing = True;

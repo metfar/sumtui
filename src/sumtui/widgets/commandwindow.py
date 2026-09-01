@@ -50,16 +50,18 @@ class ScreenField:
     multiline: bool = False;
     picture: str = "";
     overflow: bool = False;
+    char_filter: object = None;
 
 
 class CommandWindow(Widget):
     """Interactive command-history window inspired by dBASE/FoxPro."""
     focusable = True;
 
-    def __init__(self, prompt=". " , on_submit=None, history_limit=500, output_limit=5000, theme=None, show_prompt=True):
+    def __init__(self, prompt=". " , on_submit=None, history_limit=500, output_limit=5000, theme=None, show_prompt=True, content_style="command"):
         super().__init__(theme=theme);
         self.prompt = str(prompt);
         self.show_prompt = bool(show_prompt);
+        self.content_style = None if content_style is None else str(content_style);
         self.on_submit = on_submit;
         self.history_limit = max(1, int(history_limit));
         self.output_limit = max(10, int(output_limit));
@@ -85,6 +87,15 @@ class CommandWindow(Widget):
         self.on_read_accept = None;
         self.on_read_cancel = None;
 
+    def _role_style(self, role):
+        """Return a Rich style, allowing embedded command surfaces to inherit their container background."""
+        role = str(role or "command");
+        if role == "command" and self.content_style is None:
+            return Style();
+        if role == "command" and self.content_style not in (None, "command"):
+            return Style.parse(self.theme.style(self.content_style));
+        return Style.parse(self.theme.style(role));
+
     def set_prompt(self, prompt):
         self.prompt = str(prompt);
         return self;
@@ -108,7 +119,7 @@ class CommandWindow(Widget):
         self.on_read_cancel = None;
         return self;
 
-    def define_field(self, name, row, column, width, value="", fixed=True, height=1, max_length=None, multiline=None, picture="", overflow=False):
+    def define_field(self, name, row, column, width, value="", fixed=True, height=1, max_length=None, multiline=None, picture="", overflow=False, char_filter=None):
         """Define or replace an absolute input field.
 
         ``width``/``height`` are presentation dimensions.  A longer logical
@@ -123,7 +134,7 @@ class CommandWindow(Widget):
             max_length = max(0, int(max_length));
         if multiline is None:
             multiline = height > 1;
-        field = ScreenField(str(name), int(row), int(column), width, str(value), bool(fixed), height, max_length, bool(multiline), str(picture or ""), bool(overflow));
+        field = ScreenField(str(name), int(row), int(column), width, str(value), bool(fixed), height, max_length, bool(multiline), str(picture or ""), bool(overflow), char_filter);
         if field.row < 0 or field.column < 0:
             raise ValueError("row and column must be >= 0");
         if field.max_length is not None and len(field.value) > field.max_length:
@@ -388,9 +399,21 @@ class CommandWindow(Widget):
         if text and not ctrl and not getattr(event, "alt", False):
             changed = False;
             for char in str(text):
+                if field.char_filter is not None:
+                    filtered = field.char_filter(self.read_cursor, char);
+                    if filtered is None or filtered is False:
+                        continue;
+                    char = str(filtered);
+                    if not char:
+                        continue;
+                    char = char[0];
                 limit = self._field_limit(field);
                 logical_length = len(field.value);
-                replacing = (not self.read_insert and field.fixed and self.read_cursor < logical_length);
+                # READ starts in classic overwrite mode.  A bounded GET with
+                # explicit WIDTH/PICTURE is not marked ``fixed``, but an
+                # existing character must still be replaceable when the field
+                # is already at its logical limit.
+                replacing = (not self.read_insert and self.read_cursor < logical_length);
                 if limit is not None and logical_length >= limit and not replacing:
                     break;
                 if replacing:
@@ -610,12 +633,12 @@ class CommandWindow(Widget):
         self.view_offset = max(0, min(self.view_offset, max_offset));
         visible = self.value[self.view_offset:self.view_offset + inner];
         cursor = self.cursor - self.view_offset;
-        base = self.theme.style("command");
-        out = Text(self.prompt, style=self.theme.style("command_prompt"));
+        base = self._role_style("command");
+        out = Text(self.prompt, style=self._role_style("command_prompt"));
         padded = visible.ljust(inner);
         if self.focused and 0 <= cursor < inner:
             out.append(padded[:cursor], style=base);
-            out.append(padded[cursor:cursor + 1] or " ", style=self.theme.style("cursor_cell"));
+            out.append(padded[cursor:cursor + 1] or " ", style=self._role_style("cursor_cell"));
             out.append(padded[cursor + 1:], style=base);
         else:
             out.append(padded, style=base);
@@ -728,10 +751,10 @@ class CommandWindow(Widget):
                 for column in range(1, last + 2):
                     role = roles[row][column] if column <= last else None;
                     if role != current_role:
-                        out.append("".join(chars[row][start:column]), style=self.theme.style(current_role));
+                        out.append("".join(chars[row][start:column]), style=self._role_style(current_role));
                         start = column;
                         current_role = role;
-            out.append("\n", style=self.theme.style("command"));
+            out.append("\n", style=self._role_style("command"));
         if not self.show_prompt:
             yield out;
             return;
@@ -743,10 +766,10 @@ class CommandWindow(Widget):
                 hint += "  Enter newline  Tab next/accept";
             else:
                 hint += "  Tab next/accept";
-            out.append(hint[:width].ljust(width), style=self.theme.style("command_info"));
+            out.append(hint[:width].ljust(width), style=self._role_style("command_info"));
         elif self.history_scroll > 0:
             hint = "[scrollback: -{} lines]  PgDn -> newer".format(self.history_scroll);
-            out.append(hint[:width].ljust(width), style=self.theme.style("command_info"));
+            out.append(hint[:width].ljust(width), style=self._role_style("command_info"));
         else:
             out.append_text(self._input_text(width));
         yield out;

@@ -324,7 +324,8 @@ class EditApp:
 
     def _make_function_bar(self):
         actions = [];
-        for action_name, label in (("help.editor", "Help"), ("code.symbols", "Symbols"), ("search.next", "Find"), ("window.next", "Window"), ("menu.activate", "Menu"), ("app.exit", "Exit")):
+        map_label = "Map" if self.symbol_language() == "markdown" else "Symbols";
+        for action_name, label in (("help.editor", "Help"), ("code.symbols", map_label), ("search.next", "Find"), ("window.next", "Window"), ("menu.activate", "Menu"), ("app.exit", "Exit")):
             key = self.keys.primary(action_name);
             if key:
                 actions.append((key, label, None));
@@ -573,7 +574,7 @@ class EditApp:
                 MenuItem("Search & Replace...", self.replace_dialog, self._ks("search.replace")),
                 Separator(),
                 MenuItem("Go to Line...", self.goto_line_dialog, self._ks("search.goto_line")),
-                MenuItem("Program Map / Outline...", self.symbol_map_dialog, self._ks("code.symbols")),
+                MenuItem("Markdown Map..." if markdown else "Program Map / Outline...", self.symbol_map_dialog, self._ks("code.symbols")),
             ]),
             Menu("View", [
                 *( [MenuItem("Markdown Preview...", self.markdown_preview), Separator()] if markdown else [] ),
@@ -743,6 +744,7 @@ class EditApp:
         self._apply_document_modeline();
         self._sync_document_markers();
         self.panel.title = document.path.name if document.path is not None else "Untitled";
+        self._refresh_key_surfaces();
         self.app.focus.set(self.editor);
         self._update_status("Loaded");
         return True;
@@ -930,6 +932,7 @@ class EditApp:
         def accepted(*_args):
             self.document.path = Path(entry.value).expanduser();
             self.editor.configure_syntax(filename=self.document.path.name);
+            self._refresh_key_surfaces();
             close();
             self.save(on_saved=on_saved);
         body = VBox(entry, HBox(Button("Save", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, None]);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4 - 2026-09-01
+
+- Made Markdown document mapping an explicit always-available `sumedit` behavior: Markdown detection automatically relabels F2/menu mapping as a document outline; it is not a sumIDE-only option.
+- Added an inheritable `CommandWindow` content style so command/screen surfaces embedded in colored dialogs can preserve the parent dialog background instead of painting default command-background cells over it.
+- Reorganized shell examples by the sumTUI facility they demonstrate (`examples/edit`, `examples/suminput`, `examples/sumdialog`, `examples/theme`) and removed application-level IDE/`hello.*` examples, which now belong to sumIDE.
+- Kept the reusable workspace geometry model, including mouse and keyboard resizing, as the common foundation used by the new sumIDE three-window default layout.
+
 ## 0.7.3 - 2026-09-01
 
 - Moved ownership of Markdown ↔ `.helpdb` parsing/serialization and command-line conversion to `sumdoc` 0.2.1.

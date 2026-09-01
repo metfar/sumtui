@@ -479,6 +479,25 @@ class CommandWindowTests(unittest.TestCase):
         self.assertIn(" Notes:", history);
         self.assertIn(" hello worl", history);
 
+
+    def test_commandwindow_can_inherit_dialog_color_scheme(self):
+        command = CommandWindow(prompt="", show_prompt=False, content_style=None);
+        command.write_at(1, 2, "¿Desea continuar?");
+        command.define_field("answer", 3, 2, 1, "N", fixed=False, max_length=1);
+        command.begin_read();
+        dialog = Dialog(command, title=" Confirmación ", width=46, height=9, padding=(0, 0), panel=True, color_scheme=5);
+        console = Console(width=70, height=16, force_terminal=False, color_system="truecolor");
+        lines = console.render_lines(dialog, console.options.update(width=70, height=16), pad=True);
+        target = next(line for line in lines if "¿Desea continuar?" in "".join(segment.text for segment in line));
+        backgrounds = [];
+        for segment in target:
+            if "¿Desea continuar?" in segment.text or (segment.text.startswith("  ") and segment.text.strip() == ""):
+                style = segment.style;
+                if style is not None and style.bgcolor is not None:
+                    backgrounds.append(str(style.bgcolor));
+        self.assertTrue(backgrounds);
+        self.assertEqual(len(set(backgrounds)), 1);
+
     def test_command_read_render_shows_field_and_cursor(self):
         console = Console(width=50, height=10, force_terminal=False);
         command = CommandWindow();
@@ -1536,8 +1555,8 @@ output=shell
 
     def test_sumdialog_bash_examples_are_syntax_valid(self):
         root = Path(__file__).resolve().parents[1];
-        scripts = sorted((root / "examples" / "bash" / "sumdialog").glob("*.sh"));
-        scripts.append(root / "examples" / "bash" / "sumdialog_examples.sh");
+        scripts = sorted((root / "examples" / "sumdialog").glob("*.sh"));
+        scripts.append(root / "examples" / "sumdialog" / "examples.sh");
         self.assertGreaterEqual(len(scripts), 29);
         for script in scripts:
             completed = subprocess.run(["bash", "-n", str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False);
