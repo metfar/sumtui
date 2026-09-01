@@ -40,7 +40,7 @@ from rich.style import Style;
 from sumtui import Application, BrowseForm, Button, CheckBox, Choice, Column, CommandWindow, ContextMenu, Dialog, FileDialog, FormField, GroupBox, HBox, HexView, KeyBindingManager, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RecordForm, ScrollBar, Separator, Slider, Splitter, RadioGroup, TableView, TextEditor, TextInput, TextView, TreeNode, TreeView, VBox, Workspace, WorkspaceWindow, format_key_spec;
 from sumtui.backends import AnsiDecoder, PosixInput;
 from sumtui.events import Key, KeyEvent, MouseEvent, normalize_key_spec;
-from sumtui.theme import make_theme;
+from sumtui.theme import make_theme, message_color_scheme;
 from sumtui.progress_cli_support import parse_size;
 from sumtui.tools.edit import EditApp;
 from sumtui.syntax import EditorSyntaxHighlighter, ExtendedBasicLexer, detect_mode;
@@ -57,6 +57,17 @@ class ThemeTests(unittest.TestCase):
 
     def test_rar_theme(self):
         self.assertEqual(make_theme("rar").name, "RAR");
+
+    def test_message_color_schemes_use_nearest_semantic_dos_colors(self):
+        theme = make_theme("XBASE");
+        self.assertEqual(message_color_scheme(theme, "info"), 11);
+        self.assertEqual(message_color_scheme(theme, "question"), 9);
+        self.assertEqual(message_color_scheme(theme, "warning"), 14);
+        self.assertEqual(message_color_scheme(theme, "error"), 12);
+        self.assertEqual(theme.style("message_info"), "bold #000000");
+        self.assertEqual(theme.style("message_question"), "bold #ffffff");
+        self.assertEqual(theme.style("message_warning"), "bold #000000");
+        self.assertEqual(theme.style("message_error"), "bold #ffffff");
 
     def test_ralesk_mc_theme_uses_geany_semantic_palette(self):
         theme = make_theme("ralesk");
@@ -2399,3 +2410,87 @@ def test_listview_pane_has_visible_vertical_scrollbar():
     pane = ListViewPane(listing);
     assert pane.view is listing;
     assert pane.vscroll.orientation == "vertical";
+
+
+def test_validation_allowed_values_and_confirm_off_recovery():
+    from sumtui.validation import allowed_values_validator;
+    errors = [];
+    submitted = [];
+    field = TextInput(
+        "",
+        max_length=1,
+        confirm_at_limit=False,
+        validator=allowed_values_validator(("S", "N"), message="Use S or N"),
+        on_validation_error=lambda value, message, widget: errors.append((value, message)),
+        on_submit=lambda value: submitted.append(value),
+    );
+    assert field.handle_event(KeyEvent("x", text="X"));
+    assert field.value == "X";
+    assert submitted == [];
+    assert errors[-1] == ("X", "Use S or N");
+    assert field.handle_event(KeyEvent("s", text="S"));
+    assert field.value == "S";
+    assert submitted == ["S"];
+
+
+def test_picture_m_is_choice_mask_and_pure_uppercase_picture_is_passthrough():
+    from sumtui import InputMask;
+    menu = InputMask.parse("@M S,N");
+    assert menu.choices == ("S", "N");
+    assert menu.capacity == 1;
+    assert menu.input_char(0, "s") == "S";
+    assert menu.input_char(0, "x") is None;
+    assert menu.valid_value("n");
+    upper = InputMask.parse("@!");
+    assert upper.capacity == 0;
+    assert upper.input_char(0, "s") == "S";
+
+
+def test_sumdialog_entry_exposes_allowed_values_and_validation_message():
+    from contextlib import redirect_stdout;
+    from unittest.mock import patch;
+    from sumtui.dialogs import DialogResult;
+    from sumtui.tools import dialog as dialog_tool;
+    with patch.object(dialog_tool, "read_entry", return_value=DialogResult("S", 0)) as mocked:
+        with redirect_stdout(io.StringIO()):
+            assert dialog_tool.main(["--entry", "--valid-values", "S,N", "--validation-error", "Use S or N", "--max-length", "1"]) == 0;
+    kwargs = mocked.call_args.kwargs;
+    assert kwargs["valid_values"] == "S,N";
+    assert kwargs["validation_error"] == "Use S or N";
+
+
+def test_sumdialog_form_validation_round_trips_through_dialog_spec():
+    from sumtui.dialogspec import parse_dialog_spec;
+    spec = parse_dialog_spec("""#!/usr/bin/env sumdialog
+[form]
+add.entry:answer="Answer"
+field:answer.max_length=1
+field:answer.confirm=true
+field:answer.valid_values=S,N
+field:answer.validation_error=Use S or N
+""");
+    field = spec.fields[0];
+    assert field.max_length == 1;
+    assert field.confirm is True;
+    assert field.valid_values == ("S", "N");
+    assert field.validation_error == "Use S or N";
+
+
+def test_prompt_picture_m_installs_choice_validation_and_logical_capacity():
+    from sumtui.prompt import InputSpec, _single_line_widget;
+    spec = InputSpec(picture="@M S,N", confirm=True).normalize();
+    field, picture = _single_line_widget(spec);
+    assert picture.choices == ("S", "N");
+    assert field.max_length == 1;
+    assert field.handle_event(KeyEvent("s", text="s"));
+    assert field.value == "S";
+    assert field.validate();
+
+
+def test_prompt_pure_picture_function_does_not_create_zero_length_field():
+    from sumtui.prompt import InputSpec, _single_line_widget;
+    field, picture = _single_line_widget(InputSpec(picture="@!", max_length=1).normalize());
+    assert picture.capacity == 0;
+    assert field.max_length == 1;
+    assert field.handle_event(KeyEvent("s", text="s"));
+    assert field.value == "S";

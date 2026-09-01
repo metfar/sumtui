@@ -84,6 +84,9 @@ class DialogSpec:
                         "height": item.height,
                         "max_length": item.max_length,
                         "confirm": item.confirm,
+                        "valid_values": list(item.valid_values),
+                        "case_sensitive": item.case_sensitive,
+                        "validation_error": item.validation_error,
                     }
                     for item in self.fields
                 ],
@@ -239,14 +242,21 @@ def parse_dialog_spec(text, source="<memory>"):
             continue;
 
         if section == "form" and key_lower.startswith("field:"):
-            match = re.fullmatch(r"field:([A-Za-z_][A-Za-z0-9_]*)\.(default|required|width|height|max_length|confirm)", key, re.IGNORECASE);
+            match = re.fullmatch(r"field:([A-Za-z_][A-Za-z0-9_]*)\.(default|required|width|height|max_length|confirm|valid_values|case_sensitive|validation_error)", key, re.IGNORECASE);
             if match is None:
-                fail(line_number, "field property must use field:NAME.default|required|width|height|max_length|confirm");
+                fail(line_number, "field property must use field:NAME.default|required|width|height|max_length|confirm|valid_values|case_sensitive|validation_error");
             name = match.group(1);
             prop = match.group(2).lower();
             if name not in form_by_name:
                 fail(line_number, "field {!r} referenced before declaration".format(name));
             value = parsed[0] if parsed else "";
+            if prop in ("valid_values", "validation_error") and raw_value is not None:
+                raw_property = str(raw_value).strip();
+                if len(raw_property) >= 2 and raw_property[:1] == raw_property[-1:] and raw_property[:1] in ("\"", "'"):
+                    property_parts = shlex.split(raw_property, comments=False, posix=True);
+                    value = property_parts[0] if property_parts else "";
+                else:
+                    value = raw_property;
             spec = form_by_name[name];
             try:
                 if prop == "default":
@@ -261,6 +271,12 @@ def parse_dialog_spec(text, source="<memory>"):
                     spec.max_length = _int_or_none(value, "field max_length");
                 elif prop == "confirm":
                     spec.confirm = _parse_bool(value);
+                elif prop == "valid_values":
+                    spec.valid_values = tuple(item.strip() for item in str(value).replace("|", ",").split(",") if item.strip() != "");
+                elif prop == "case_sensitive":
+                    spec.case_sensitive = _parse_bool(value);
+                elif prop == "validation_error":
+                    spec.validation_error = str(value);
             except ValueError as exc:
                 fail(line_number, str(exc));
             continue;

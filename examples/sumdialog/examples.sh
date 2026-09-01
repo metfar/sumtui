@@ -10,7 +10,7 @@ Usage: bash examples/bash/sumdialog_examples.sh NAME [args...]
 Names:
   list, version
   info, warning, error, question
-  entry, entry-secret, entry-picture, entry-keys-timeout, entry-multiline
+  entry, entry-secret, entry-picture, entry-keys-timeout, entry-multiline, entry-validation
   file, directory, listbox, radio, checklist
   text, markdown, appearance
   progress-percent, progress-bytes, exit-status
@@ -33,6 +33,7 @@ case "$name" in
     entry-picture) exec bash "$base/07_entry_picture.sh" "$@" ;;
     entry-keys-timeout) exec bash "$base/08_entry_keys_timeout.sh" "$@" ;;
     entry-multiline) exec bash "$base/09_entry_multiline.sh" "$@" ;;
+    entry-validation) exec bash "$base/30_entry_validation.sh" "$@" ;;
     file) exec bash "$base/10_file_selection.sh" "$@" ;;
     directory) exec bash "$base/11_directory_selection.sh" "$@" ;;
     listbox) exec bash "$base/12_list.sh" "$@" ;;

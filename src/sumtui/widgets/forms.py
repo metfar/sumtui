@@ -27,6 +27,7 @@ from rich.cells import cell_len;
 from rich.text import Text;
 
 from ..events import Key, MouseEvent;
+from ..validation import run_validator;
 from .base import Widget;
 
 
@@ -130,7 +131,8 @@ class TextInput(Widget):
     def __init__(self, value="", placeholder="", password=False, width=None, max_length=None,
                  on_change=None, on_submit=None, mask="", echo_mask=None, hidden=False,
                  char_filter=None, display_transform=None, display_cursor=None,
-                 clear_on_first_edit=False, confirm_at_limit=True, theme=None):
+                 clear_on_first_edit=False, confirm_at_limit=True, validator=None,
+                 validation_error="Invalid value", on_validation_error=None, theme=None):
         super().__init__(theme=theme);
         self.value = str(value);
         self.placeholder = str(placeholder);
@@ -143,6 +145,11 @@ class TextInput(Widget):
         self.display_cursor = display_cursor;
         self.clear_on_first_edit = bool(clear_on_first_edit);
         self.confirm_at_limit = bool(confirm_at_limit);
+        self.validator = validator;
+        self.validation_error = str(validation_error or "Invalid value");
+        self.on_validation_error = on_validation_error;
+        self.last_validation_message = "";
+        self._validation_blocked_at_limit = False;
         self._first_edit_pending = bool(clear_on_first_edit and self.value);
         self.width = None if width is None else max(3, int(width));
         self.max_length = None if max_length is None else max(0, int(max_length));
@@ -167,6 +174,16 @@ class TextInput(Widget):
         if self.on_change is not None:
             self.on_change(self.value);
         return True;
+
+    def validate(self):
+        result = run_validator(self.validator, self.value, self.validation_error);
+        self.last_validation_message = str(result.message or "");
+        if result.valid:
+            self._validation_blocked_at_limit = False;
+            return True;
+        if self.on_validation_error is not None:
+            self.on_validation_error(self.value, self.last_validation_message, self);
+        return False;
 
     def _filtered_text(self, text):
         output = [];
@@ -200,7 +217,7 @@ class TextInput(Widget):
             target = self.cursor;
             full = bool(limit is not None and len(self.value) >= limit);
             at_full_end = bool(full and self.cursor >= limit);
-            if at_full_end and self.confirm_at_limit:
+            if at_full_end and (self.confirm_at_limit or self._validation_blocked_at_limit):
                 target = limit - 1;
             transformed = source_char;
             if self.char_filter is not None:
@@ -224,6 +241,9 @@ class TextInput(Widget):
                 self.cursor = min(len(self.value), target + 1);
             changed = True;
             if limit is not None and not self.confirm_at_limit and len(self.value) >= limit and self.cursor >= limit:
+                if not self.validate():
+                    self._validation_blocked_at_limit = True;
+                    break;
                 if self.on_submit is not None:
                     self.on_submit(self.value);
                 elif self._focus_manager is not None:
@@ -288,9 +308,15 @@ class TextInput(Widget):
             self._changed();
             return True;
         if key == Key.ENTER:
+            if not self.validate():
+                return True;
             if self.on_submit is not None:
                 self.on_submit(self.value);
             return self.on_submit is not None;
+        if key == Key.TAB and self.validator is not None:
+            if not self.validate():
+                return True;
+            return False;
         if getattr(event, "text", "") and not getattr(event, "ctrl", False) and not getattr(event, "alt", False):
             return self._insert(event.text);
         return False;

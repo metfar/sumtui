@@ -120,6 +120,16 @@ class Theme:
             return "{} on {}".format(self.color("text"), self.color("button_alt"));
         if role == "error":
             return "bold {}".format(self.color("error"));
+        if role in ("message_info", "message_question", "message_warning", "message_error"):
+            kind = str(role).split("_", 1)[1];
+            scheme = message_color_scheme(self, kind);
+            palette = tuple(getattr(self, "palette", ()) or ());
+            if scheme is None or not palette:
+                return "bold {}".format(self.color("text"));
+            background = palette[int(scheme) % len(palette)];
+            luminance = (background[0] * 299 + background[1] * 587 + background[2] * 114) / 1000.0;
+            foreground = (0, 0, 0) if luminance >= 140 else (255, 255, 255);
+            return "bold {}".format(_hex(foreground));
         if role == "cursor":
             return self.color("cursor");
         if role == "table_header":
@@ -324,7 +334,7 @@ THEME_COLOR_FIELDS = (
 );
 THEME_EDIT_ROLES = (
     "screen", "panel", "border", "text", "muted", "title", "selection", "selection_unfocused",
-    "function_key", "function_label", "status", "error", "cursor", "table_header", "dialog",
+    "function_key", "function_label", "status", "error", "message_info", "message_question", "message_warning", "message_error", "cursor", "table_header", "dialog",
     "input", "input_focus", "input_border", "cursor_cell", "button_control", "button_focus",
     "control_focus", "disabled", "progress_done", "progress_empty", "slider_fill", "slider_empty",
     "slider_handle", "slider_handle_focus", "menu_bar", "menu_title", "menu_title_active", "menu",
@@ -337,6 +347,32 @@ THEME_EDIT_ROLES = (
     "syntax_error", "viewer", "command", "command_prompt", "command_echo", "command_info",
     "command_error", "command_field",
 );
+
+
+MESSAGE_COLOR_TARGETS = {
+    "info": (85, 255, 255),
+    "question": (85, 85, 255),
+    "warning": (255, 255, 85),
+    "error": (255, 85, 85),
+};
+
+
+def message_color_scheme(theme=None, kind="info"):
+    """Return the palette index closest to a semantic message color.
+
+    Dialog COLOR SCHEME values are palette indexes.  Choosing the nearest
+    palette color keeps information/question/warning/error dialogs recognizable
+    across DOS, Spectrum, C64, MSX and user themes instead of hard-coding DOS
+    indexes that mean something different in another palette.
+    """;
+    selected = make_theme(theme) if isinstance(theme, str) else (theme or DEFAULT_THEME);
+    palette = tuple(getattr(selected, "palette", ()) or ());
+    if not palette:
+        return None;
+    target = MESSAGE_COLOR_TARGETS.get(str(kind or "info").strip().casefold(), MESSAGE_COLOR_TARGETS["info"]);
+    def distance(color):
+        return sum((int(color[index]) - int(target[index])) ** 2 for index in range(3));
+    return min(range(len(palette)), key=lambda index: distance(palette[index]));
 
 
 def _parse_color(value):

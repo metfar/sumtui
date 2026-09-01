@@ -569,6 +569,7 @@ notes=$(suminput --dialog --width 50 --height 6 "Notes")
 ```
 
 `--mask` repeats the supplied visual string once per entered character; the real value is never copied to the display.  `--hidden` uses no echo at all.  Secret input is not placed in editor/command history or the system clipboard by `suminput`. `--max-length N` sets the logical field capacity independently of `--width`. `--confirm` is the default: once a bounded field is full, further printable keys overwrite its final logical character until Enter/Tab/navigation confirms it. `--no-confirm` auto-submits when the logical capacity is reached.
+Validation is also shared by the input engine. `--valid-values S,N` restricts the complete value, and `--validation-error "Use S or N"` supplies the message shown while the field remains active. `PICTURE "@M S,N"` is the compact choice-mask form and provides the same validation directly from the mask. Validation and `CONFIRM` compose: `--no-confirm` advances only after the full bounded value is valid; an invalid full value remains editable.
 
 DOS/4DOS-style choice behavior is available without requiring a separate `choice` utility:
 
@@ -648,7 +649,11 @@ phone=$(sumdialog --entry --picture "(999) 999-9999" --width 14 --text "Phone:")
 answer=$(sumdialog --entry --keys YN --default N --timeout N,10 --text "Continue?")
 last=$(sumdialog --entry --max-length 1 --confirm --text "One character:")
 auto=$(sumdialog --entry --max-length 4 --no-confirm --text "Four characters:")
+answer=$(sumdialog --entry --max-length 1 --valid-values S,N --validation-error "Use S or N" --text "Continue? [S/N]")
+answer2=$(sumdialog --entry --picture "@M S,N" --text "Continue? [S/N]")
 ```
+
+Message dialogs also carry semantic colors from the active theme palette: information uses a cyan-like color, questions blue, warnings yellow and errors red. The nearest available palette color is selected, so DOS/XBASE/FOXPRO as well as alternate retro themes preserve the same meaning without hard-coding one palette.
 
 File, directory and list selection:
 
@@ -844,6 +849,7 @@ bash examples/sumdialog/examples.sh entry-secret
 bash examples/sumdialog/examples.sh entry-picture
 bash examples/sumdialog/examples.sh entry-keys-timeout
 bash examples/sumdialog/examples.sh entry-multiline
+bash examples/sumdialog/examples.sh entry-validation
 bash examples/sumdialog/examples.sh file
 bash examples/sumdialog/examples.sh directory
 bash examples/sumdialog/examples.sh listbox

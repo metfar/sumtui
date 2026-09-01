@@ -50,11 +50,12 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 | `27_retro_menu.sh` | executes `retro_menu.sdlg` and branches on the selected retro button value |
 | `28_demo.sh` | launches `sumdialog --demo` with the Ralesk's MC theme |
 | `29_retro_menu_separators.sh` | retro menu using blank spacing and a configurable full-width separator rule |
+| `30_entry_validation.sh` | complete-value validation with `--valid-values`, custom validation error text, and the compact `PICTURE "@M ..."` choice mask |
 | `project_form.sdlg` | declarative form containing entry/password/textarea/checkbox/combo/radio/list/file/directory fields |
 | `retro_menu.sdlg` | classic vertical button menu with Entrar/Listar/Buscar/Reporte/Salir |
 | `retro_menu_spacing.sdlg` | declarative `separator.blank`, `separator.blank=N`, and `separator.line="CHAR"` spacing/rules |
 
-`--entry --max-length N` sets logical capacity independently from visual `--width`. `--confirm` is ON by default; `--no-confirm` auto-submits at the limit. Forms can use `--form-max-length NAME=N` and `--form-no-confirm NAME`, while `.sdlg` files use `field:NAME.max_length` and `field:NAME.confirm`.
+`--entry --max-length N` sets logical capacity independently from visual `--width`. `--confirm` is ON by default; `--no-confirm` auto-submits at the limit only after validation succeeds. `--valid-values A,B,...` plus `--validation-error TEXT` validate complete values, and `PICTURE "@M A,B,..."` provides a compact choice mask. Forms expose the same policy through `--form-valid-values`, `--form-error` and `.sdlg` `field:NAME.valid_values` / `field:NAME.validation_error`.
 
 `--forms --output shell` emits validated Bash variable names and values protected with POSIX single-quote escaping. For example, `This is John's house` is reconstructed exactly after `eval`, while text such as `$(command)` remains data. `--output null` is available when a script wants to avoid `eval` entirely.
 

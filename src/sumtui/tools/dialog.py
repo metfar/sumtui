@@ -103,9 +103,12 @@ def _field_assignment_map(values, option_name):
 def _form_specs(args):
     defaults = _field_assignment_map(args.form_default, "--form-default");
     max_lengths = _field_assignment_map(args.form_max_length, "--form-max-length");
+    valid_values = _field_assignment_map(args.form_valid_values, "--form-valid-values");
+    errors = _field_assignment_map(args.form_error, "--form-error");
     no_confirm = set(str(name) for name in list(args.form_no_confirm or []));
+    case_sensitive = set(str(name) for name in list(args.form_case_sensitive or []));
     required = set(str(name) for name in list(args.required or []));
-    for name in required | no_confirm:
+    for name in required | no_confirm | case_sensitive:
         if not _VAR_RE.fullmatch(name):
             raise ValueError("invalid form variable name: {}".format(name));
     specs = [];
@@ -134,19 +137,32 @@ def _form_specs(args):
                 max_length = max(0, int(max_lengths[name]));
             except ValueError as exc:
                 raise ValueError("--form-max-length requires NAME=INTEGER") from exc;
-        specs.append(FormFieldSpec(name=name, label=label, kind=kind, default=default, options=options, required=(name in required), max_length=max_length, confirm=(name not in no_confirm)));
+        specs.append(FormFieldSpec(
+            name=name, label=label, kind=kind, default=default, options=options, required=(name in required),
+            max_length=max_length, confirm=(name not in no_confirm), valid_values=valid_values.get(name, ""),
+            case_sensitive=(name in case_sensitive), validation_error=errors.get(name, "Invalid value"),
+        ));
     unknown_defaults = sorted(set(defaults) - seen);
     unknown_required = sorted(required - seen);
     unknown_max_lengths = sorted(set(max_lengths) - seen);
+    unknown_valid_values = sorted(set(valid_values) - seen);
+    unknown_errors = sorted(set(errors) - seen);
     unknown_no_confirm = sorted(no_confirm - seen);
+    unknown_case_sensitive = sorted(case_sensitive - seen);
     if unknown_defaults:
         raise ValueError("--form-default references unknown field: {}".format(unknown_defaults[0]));
     if unknown_required:
         raise ValueError("--required references unknown field: {}".format(unknown_required[0]));
     if unknown_max_lengths:
         raise ValueError("--form-max-length references unknown field: {}".format(unknown_max_lengths[0]));
+    if unknown_valid_values:
+        raise ValueError("--form-valid-values references unknown field: {}".format(unknown_valid_values[0]));
+    if unknown_errors:
+        raise ValueError("--form-error references unknown field: {}".format(unknown_errors[0]));
     if unknown_no_confirm:
         raise ValueError("--form-no-confirm references unknown field: {}".format(unknown_no_confirm[0]));
+    if unknown_case_sensitive:
+        raise ValueError("--form-case-sensitive references unknown field: {}".format(unknown_case_sensitive[0]));
     return specs;
 
 
@@ -241,6 +257,8 @@ def _parser():
     parser.add_argument("--picture", default="", help="xBase-like PICTURE mask for --entry");
     parser.add_argument("--overflow", action="store_true", help="allow --entry input after PICTURE capacity");
     parser.add_argument("--max-length", type=int, default=None, help="logical --entry capacity; independent of visible --width");
+    parser.add_argument("--valid-values", default="", metavar="A,B,...", help="accept only one of these complete --entry values; comma or | separated");
+    parser.add_argument("--validation-error", default="Invalid value", help="validation error shown when --valid-values rejects --entry");
     confirm_group = parser.add_mutually_exclusive_group();
     confirm_group.add_argument("--confirm", dest="confirm", action="store_true", help="keep a full bounded --entry active until explicit confirmation (default)");
     confirm_group.add_argument("--no-confirm", dest="confirm", action="store_false", help="auto-submit a bounded --entry when its logical capacity is reached");
@@ -265,6 +283,9 @@ def _parser():
     parser.add_argument("--form-default", action="append", default=[], metavar="NAME=VALUE", help="set a default value for one --forms field; repeatable");
     parser.add_argument("--required", action="append", default=[], metavar="NAME", help="mark one --forms field as required; repeatable");
     parser.add_argument("--form-max-length", action="append", default=[], metavar="NAME=N", help="set one form field logical capacity independently of its visible width; repeatable");
+    parser.add_argument("--form-valid-values", action="append", default=[], metavar="NAME=A,B,...", help="restrict one form field to complete allowed values; repeatable");
+    parser.add_argument("--form-error", action="append", default=[], metavar="NAME=TEXT", help="set one form field validation error text; repeatable");
+    parser.add_argument("--form-case-sensitive", action="append", default=[], metavar="NAME", help="make one form field allowed-value validation case-sensitive; repeatable");
     parser.add_argument("--form-no-confirm", action="append", default=[], metavar="NAME", help="auto-advance one bounded form field when its logical capacity is reached; repeatable");
     parser.add_argument("--output", choices=("shell", "values", "lines", "json", "null"), default="shell", help="--forms output format; default shell");
     parser.add_argument("--menu-button", dest="menu_entries", action=_AddMenuButton, nargs=2, metavar=("VALUE", "LABEL"), help="add one button to --menu; stdout receives VALUE");
@@ -554,6 +575,8 @@ def main(argv=None):
                 button_height=args.button_height,
                 max_length=args.max_length,
                 confirm=args.confirm,
+                valid_values=args.valid_values,
+                validation_error=args.validation_error,
             );
             if result.status in (0, 3):
                 _write_value(result.value);

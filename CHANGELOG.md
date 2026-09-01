@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.7 - 2026-09-01
+
+- Added reusable field validation to the common input layer. `TextInput`, `CommandWindow` screen fields, `InputSpec`, `read_entry()` and `FormFieldSpec` can now validate a complete value while keeping focus on invalid input.
+- Added `--valid-values A,B,...` and `--validation-error TEXT` to `sumdialog --entry` and `suminput`; form mode adds `--form-valid-values NAME=A,B,...`, `--form-error NAME=TEXT` and `--form-case-sensitive NAME`.
+- Added declarative `.sdlg` validation properties: `field:NAME.valid_values`, `field:NAME.validation_error` and `field:NAME.case_sensitive`.
+- Added `PICTURE "@M value1,value2,..."` to the common input-mask engine. Choice masks filter keystrokes and validate the complete result; `@!` without a data mask remains a pass-through uppercase transform rather than creating a zero-length field.
+- Validation composes with `CONFIRM`: with confirmation ON an invalid field remains active; with confirmation OFF an invalid full field stays editable and subsequent keys overwrite the final logical character until the value becomes valid.
+- Message/question/warning/error dialogs now use semantic colors chosen from the active theme palette: cyan-like information, blue-like questions, yellow-like warnings and red-like errors. Text/title contrast is selected automatically, and form validation messages use the error style.
+- Regression suite: 198 tests passing, with one optional SumDoc compatibility test skipped when SumDoc is not installed in the isolated test environment.
+
 ## 0.7.6 - 2026-09-01
 
 - Exposed the common bounded-field confirmation policy through `sumdialog` and `suminput`. `--confirm` is ON by default; `--no-confirm` auto-submits a bounded standalone entry when its logical capacity is reached.

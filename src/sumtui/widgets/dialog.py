@@ -51,7 +51,7 @@ class Dialog(Widget):
     """;
     def __init__(self, child=None, title="Dialog", width=60, height=None, on_cancel=None,
                  padding=(1, 2), maximizable=False, maximize_key=Key.F11, content_style=None,
-                 theme=None, top=None, left=None, shadow=False, panel=True, color_scheme=None):
+                 title_style=None, theme=None, top=None, left=None, shadow=False, panel=True, color_scheme=None):
         super().__init__(theme=theme);
         self.child = child;
         self.title = str(title);
@@ -62,6 +62,7 @@ class Dialog(Widget):
         self.maximizable = bool(maximizable);
         self.maximize_key = str(maximize_key or Key.F11).lower();
         self.content_style = None if content_style is None else str(content_style);
+        self.title_style = None if title_style is None else str(title_style);
         self.maximized = False;
         self.top = None if top is None else max(0, int(top));
         self.left = None if left is None else max(0, int(left));
@@ -177,7 +178,7 @@ class Dialog(Widget):
         border_style = self.theme.style("border") if self.panel else self._scheme_style();
         return RichPanel(
             content,
-            title=Text(self.title, style=self.theme.style("title")) if self.title else None,
+            title=Text(self.title, style=self.theme.style(self.title_style or "title")) if self.title else None,
             title_align="center",
             border_style=border_style,
             style=self._scheme_style(),

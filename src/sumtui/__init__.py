@@ -22,7 +22,7 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.7.6";
+__version__ = "0.7.7";
 
 from .app import Application, FocusManager;
 from .events import Key, KeyEvent, MouseEvent, ResizeEvent, normalize_key_spec;
@@ -32,7 +32,7 @@ from .dialogs import DialogResult, FormFieldSpec, MenuItemSpec, ask_question, ch
 from .dialogspec import DialogSpec, load_dialog_spec, parse_dialog_spec;
 from .prompt import InputResult, InputSpec, read_input;
 from .syntax import EditorSyntaxHighlighter, ExtendedBasicLexer, GenericLogLexer, SumXLexer, SYNTAX_MODES, detect_mode, mode_label, normalize_mode, semantic_role;
-from .theme import BUILTIN_THEME_NAMES, C64_COLORS, DEFAULT_THEME, DOS_COLORS, MSX_COLORS, SPECTRUM_COLORS, THEME_EDIT_ROLES, THEMES, Theme, available_theme_names, load_theme_file, load_user_themes, make_theme, refresh_user_themes, save_user_theme, theme_from_dict, theme_to_dict, user_theme_dir;
+from .theme import BUILTIN_THEME_NAMES, C64_COLORS, DEFAULT_THEME, DOS_COLORS, MSX_COLORS, SPECTRUM_COLORS, THEME_EDIT_ROLES, THEMES, Theme, available_theme_names, load_theme_file, load_user_themes, make_theme, message_color_scheme, refresh_user_themes, save_user_theme, theme_from_dict, theme_to_dict, user_theme_dir;
 from .widgets import BrowseForm, Button, CheckBox, Choice, Column, ComboBox, CommandWindow, CommandWindowPane, ListViewPane, ScreenField, ContextMenu, Dialog, DirectoryDialog, FileDialog, FormField, FunctionAction, FunctionBar, GroupBox, HBox, HexView, Label, LayoutItem, ListView, MarkdownView, MarkdownViewPane, TableViewPane, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RadioButton, RadioGroup, ReadOnlyField, RecordForm, ScrollBar, Separator, Slider, Splitter, StatusBar, TableRow, TableView, TextInput, TextArea, TextEditor, TextView, TextViewPane, TreeNode, TreeView, VBox, Widget;
 
 __all__ = [
@@ -43,7 +43,7 @@ __all__ = [
     "KeyBindingAction", "KeyBindingManager", "format_key_spec",
     "EditorSyntaxHighlighter", "ExtendedBasicLexer", "GenericLogLexer", "SumXLexer", "SYNTAX_MODES",
     "detect_mode", "mode_label", "normalize_mode", "semantic_role",
-    "Theme", "make_theme", "THEMES", "DEFAULT_THEME", "BUILTIN_THEME_NAMES", "THEME_EDIT_ROLES",
+    "Theme", "make_theme", "message_color_scheme", "THEMES", "DEFAULT_THEME", "BUILTIN_THEME_NAMES", "THEME_EDIT_ROLES",
     "theme_to_dict", "theme_from_dict", "load_theme_file", "load_user_themes", "refresh_user_themes",
     "save_user_theme", "user_theme_dir", "available_theme_names",
     "SPECTRUM_COLORS", "DOS_COLORS", "C64_COLORS", "MSX_COLORS",

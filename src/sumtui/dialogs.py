@@ -33,6 +33,8 @@ from .app import Application;
 from .clipboard import clipboard;
 from .events import Key;
 from .prompt import ACCEPTED, CANCELLED, TIMED_OUT, TERMINAL_ERROR, InputResult, InputSpec, controlling_terminal, read_input;
+from .theme import message_color_scheme;
+from .validation import allowed_values_validator, normalize_allowed_values, run_validator;
 from .widgets import Button, CheckBox, Choice, Dialog, DirectoryDialog, FileDialog, HBox, Label, ListView, MarkdownView, ProgressBar, RadioGroup, ScrollBar, TextArea, TextInput, TextView, VBox;
 
 
@@ -134,8 +136,9 @@ def show_message(text, title="Message", kind="info", theme="DOS", width=None, he
             );
         else:
             buttons = HBox(Button(ok_label or "OK", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height), ratios=[1]);
-        body = VBox(Label(message), buttons, sizes=[None, None]);
-        root = Dialog(body, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True);
+        message_style = "message_{}".format(kind if kind in ("info", "question", "warning", "error") else "info");
+        body = VBox(Label(message, style=message_style), buttons, sizes=[None, None]);
+        root = Dialog(body, title=title, width=resolved_width, height=resolved_height, on_cancel=lambda: finish(CANCELLED), shadow=True, color_scheme=message_color_scheme(app.theme, kind), title_style=message_style);
         app.set_root(root);
         app.focus.set(buttons.children()[0]);
         _install_timeout(app, state, timeout);
@@ -163,7 +166,8 @@ def ask_question(text, title="Question", theme="DOS", width=None, height=None, t
 
 def read_entry(text="", title="Input", theme="DOS", width=None, height=1, picture="", overflow=False,
                hidden=False, mask=None, keys="", case_sensitive=False, default="", timeout=None,
-               button_width=None, button_height=1, max_length=None, confirm=True):
+               button_width=None, button_height=1, max_length=None, confirm=True, valid_values=(),
+               validation_error="Invalid value", validator=None):
     spec = InputSpec(
         prompt=text,
         width=width,
@@ -183,6 +187,9 @@ def read_entry(text="", title="Input", theme="DOS", width=None, height=1, pictur
         button_height=button_height,
         max_length=max_length,
         confirm=confirm,
+        valid_values=valid_values,
+        validation_error=validation_error,
+        validator=validator,
     ).normalize();
     result = read_input(spec);
     return DialogResult(result.value, result.status);
@@ -435,6 +442,10 @@ class FormFieldSpec:
     height: int = None;
     max_length: int = None;
     confirm: bool = True;
+    valid_values: tuple = ();
+    case_sensitive: bool = False;
+    validation_error: str = "Invalid value";
+    validator: object = None;
 
     def normalize(self):
         self.name = str(self.name or "");
@@ -446,6 +457,9 @@ class FormFieldSpec:
         self.height = None if self.height is None else max(1, int(self.height));
         self.max_length = None if self.max_length is None else max(0, int(self.max_length));
         self.confirm = bool(self.confirm);
+        self.valid_values = normalize_allowed_values(self.valid_values);
+        self.case_sensitive = bool(self.case_sensitive);
+        self.validation_error = str(self.validation_error or "Invalid value");
         return self;
 
 
@@ -474,7 +488,7 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
         console = Console(file=writer, force_terminal=True);
         app = Application("sumdialog", theme=theme, console=console, mouse=True);
         state = {"status": CANCELLED, "value": {}, "done": False};
-        status = Label("");
+        status = Label("", style="error");
         controls = {};
         focus_targets = {};
         rows = [];
@@ -500,16 +514,28 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
 
         def validate(values):
             for spec in specs:
-                if not spec.required:
-                    continue;
                 value = values.get(spec.name);
-                empty = (value is None) or (isinstance(value, str) and value.strip() == "") or (spec.kind == "checkbox" and not bool(value));
-                if empty:
-                    status.set_text("Required: {}".format(spec.label));
-                    target = focus_targets.get(spec.name);
-                    if target is not None:
-                        app.focus.set(target);
-                    return False;
+                if spec.required:
+                    empty = (value is None) or (isinstance(value, str) and value.strip() == "") or (spec.kind == "checkbox" and not bool(value));
+                    if empty:
+                        status.set_text("Required: {}".format(spec.label));
+                        target = focus_targets.get(spec.name);
+                        if target is not None:
+                            app.focus.set(target);
+                        return False;
+                validators = [];
+                if spec.validator is not None:
+                    validators.append(spec.validator);
+                if spec.valid_values:
+                    validators.append(allowed_values_validator(spec.valid_values, case_sensitive=spec.case_sensitive, message=spec.validation_error));
+                for validator in validators:
+                    result = run_validator(validator, value, spec.validation_error);
+                    if not result.valid:
+                        status.set_text(result.message or spec.validation_error);
+                        target = focus_targets.get(spec.name);
+                        if target is not None:
+                            app.focus.set(target);
+                        return False;
             status.set_text("");
             return True;
 
@@ -556,14 +582,36 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
             app.focus.set(picker.table);
             return True;
 
+        def field_validator(spec):
+            validators = [];
+            if spec.validator is not None:
+                validators.append(spec.validator);
+            if spec.valid_values:
+                validators.append(allowed_values_validator(spec.valid_values, case_sensitive=spec.case_sensitive, message=spec.validation_error));
+            if not validators:
+                return None;
+            def validate_value(value):
+                for validator in validators:
+                    result = run_validator(validator, value, spec.validation_error);
+                    if not result.valid:
+                        return result;
+                return True;
+            return validate_value;
+
+        def validation_failed(_value, message, control):
+            status.set_text(message or "Invalid value");
+            app.focus.set(control);
+            app.invalidate();
+            return True;
+
         for spec in specs:
             if spec.kind == "entry":
-                control = TextInput(value=str(spec.default or ""), width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm);
+                control = TextInput(value=str(spec.default or ""), width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm, validator=field_validator(spec), validation_error=spec.validation_error, on_validation_error=validation_failed);
                 row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
                 size = 1;
                 target = control;
             elif spec.kind == "password":
-                control = TextInput(value=str(spec.default or ""), password=True, width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm);
+                control = TextInput(value=str(spec.default or ""), password=True, width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm, validator=field_validator(spec), validation_error=spec.validation_error, on_validation_error=validation_failed);
                 row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
                 size = 1;
                 target = control;
@@ -599,7 +647,7 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
                 size = spec.height or min(7, max(3, len(spec.options) + 1));
                 target = control;
             elif spec.kind in ("file", "directory"):
-                control = TextInput(value=str(spec.default or ""), width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm);
+                control = TextInput(value=str(spec.default or ""), width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm, validator=field_validator(spec), validation_error=spec.validation_error, on_validation_error=validation_failed);
                 browse = Button("...", width=7);
                 browse.on_press = (lambda s=spec, c=control: open_picker(s, c, directory=(s.kind == "directory")));
                 field_box = HBox(control, browse, sizes=[None, 7]);

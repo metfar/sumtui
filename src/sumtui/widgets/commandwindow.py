@@ -28,6 +28,7 @@ from rich.style import Style;
 from rich.text import Text;
 
 from ..events import Key;
+from ..validation import run_validator;
 from .base import Widget;
 
 
@@ -51,6 +52,8 @@ class ScreenField:
     picture: str = "";
     overflow: bool = False;
     char_filter: object = None;
+    validator: object = None;
+    validation_error: str = "Invalid value";
 
 
 class CommandWindow(Widget):
@@ -87,6 +90,8 @@ class CommandWindow(Widget):
         self.viewport_height = 1;
         self.on_read_accept = None;
         self.on_read_cancel = None;
+        self.on_read_validation_error = None;
+        self._read_validation_blocked = set();
 
     def _role_style(self, role):
         """Return a Rich style, allowing embedded command surfaces to inherit their container background."""
@@ -119,9 +124,11 @@ class CommandWindow(Widget):
         self.read_y_offset = 0;
         self.on_read_accept = None;
         self.on_read_cancel = None;
+        self.on_read_validation_error = None;
+        self._read_validation_blocked = set();
         return self;
 
-    def define_field(self, name, row, column, width, value="", fixed=True, height=1, max_length=None, multiline=None, picture="", overflow=False, char_filter=None):
+    def define_field(self, name, row, column, width, value="", fixed=True, height=1, max_length=None, multiline=None, picture="", overflow=False, char_filter=None, validator=None, validation_error="Invalid value"):
         """Define or replace an absolute input field.
 
         ``width``/``height`` are presentation dimensions.  A longer logical
@@ -136,7 +143,7 @@ class CommandWindow(Widget):
             max_length = max(0, int(max_length));
         if multiline is None:
             multiline = height > 1;
-        field = ScreenField(str(name), int(row), int(column), width, str(value), bool(fixed), height, max_length, bool(multiline), str(picture or ""), bool(overflow), char_filter);
+        field = ScreenField(str(name), int(row), int(column), width, str(value), bool(fixed), height, max_length, bool(multiline), str(picture or ""), bool(overflow), char_filter, validator, str(validation_error) if validation_error is not None else "Invalid value");
         if field.row < 0 or field.column < 0:
             raise ValueError("row and column must be >= 0");
         if field.max_length is not None and len(field.value) > field.max_length:
@@ -148,7 +155,7 @@ class CommandWindow(Widget):
         self.fields.append(field);
         return field;
 
-    def begin_read(self, fields=None, on_accept=None, on_cancel=None, confirm=True):
+    def begin_read(self, fields=None, on_accept=None, on_cancel=None, confirm=True, on_validation_error=None):
         """Activate keyboard editing for the currently defined screen fields.
 
         ``confirm`` controls bounded-field behavior.  With confirmation enabled,
@@ -175,6 +182,8 @@ class CommandWindow(Widget):
         self.read_y_offset = 0;
         self.on_read_accept = on_accept;
         self.on_read_cancel = on_cancel;
+        self.on_read_validation_error = on_validation_error;
+        self._read_validation_blocked = set();
         return self.read_active;
 
     def read_values(self):
@@ -186,9 +195,28 @@ class CommandWindow(Widget):
         self.read_index = max(0, min(len(self.fields) - 1, self.read_index));
         return self.fields[self.read_index];
 
-    def _move_field(self, delta, wrap=True):
+    def _validate_field(self, index=None):
+        if not self.fields:
+            return True;
+        target_index = self.read_index if index is None else max(0, min(len(self.fields) - 1, int(index)));
+        field = self.fields[target_index];
+        result = run_validator(field.validator, field.value, field.validation_error);
+        if result.valid:
+            self._read_validation_blocked.discard(target_index);
+            return True;
+        self.read_index = target_index;
+        limit = self._field_limit(field);
+        self.read_cursor = len(field.value) if limit is None else min(limit, max(0, len(field.value.rstrip())));
+        self._read_validation_blocked.add(target_index);
+        if self.on_read_validation_error is not None:
+            self.on_read_validation_error(field, str(result.message or field.validation_error), self);
+        return False;
+
+    def _move_field(self, delta, wrap=True, validate=True):
         if not self.fields:
             return False;
+        if validate and not self._validate_field(self.read_index):
+            return True;
         new_index = self.read_index + int(delta);
         if wrap:
             new_index %= len(self.fields);
@@ -201,11 +229,17 @@ class CommandWindow(Widget):
         return True;
 
     def _finish_read(self, accepted):
+        if accepted:
+            for index in range(len(self.fields)):
+                if not self._validate_field(index):
+                    return True;
         values = self.read_values();
         self.read_active = False;
         callback = self.on_read_accept if accepted else self.on_read_cancel;
         self.on_read_accept = None;
         self.on_read_cancel = None;
+        self.on_read_validation_error = None;
+        self._read_validation_blocked = set();
         if callback is not None:
             callback(values, self);
         return True;
@@ -416,7 +450,7 @@ class CommandWindow(Widget):
                 logical_length = len(field.value);
                 target = self.read_cursor;
                 at_full_end = bool(limit is not None and limit > 0 and logical_length >= limit and self.read_cursor >= limit);
-                if at_full_end and self.read_confirm:
+                if at_full_end and (self.read_confirm or self.read_index in self._read_validation_blocked):
                     # A confirmed bounded field stays active at its logical end.
                     # Further typing continuously replaces the last logical cell:
                     # WIDTH 1 receiving Y, E, S therefore ends with S.
@@ -434,7 +468,7 @@ class CommandWindow(Widget):
                 if limit is not None and limit <= 0:
                     continue;
                 if limit is not None and logical_length >= limit and not replacing:
-                    if self.read_confirm and self.read_cursor >= limit and limit > 0:
+                    if (self.read_confirm or self.read_index in self._read_validation_blocked) and self.read_cursor >= limit and limit > 0:
                         target = limit - 1;
                         replacing = True;
                     else:
@@ -445,16 +479,18 @@ class CommandWindow(Widget):
                     field.value = field.value[:target] + char + field.value[target:];
                 if limit is not None:
                     field.value = field.value[:limit];
-                if at_full_end and self.read_confirm:
+                if at_full_end and (self.read_confirm or self.read_index in self._read_validation_blocked):
                     self.read_cursor = limit;
                 else:
                     self.read_cursor = min(len(field.value), target + 1);
                 changed = True;
                 if not self.read_confirm and limit is not None and len(field.value) >= limit and self.read_cursor >= limit:
+                    if not self._validate_field(self.read_index):
+                        continue;
                     if self.read_index >= len(self.fields) - 1:
                         self._finish_read(True);
                     else:
-                        self._move_field(1, wrap=False);
+                        self._move_field(1, wrap=False, validate=False);
             return changed;
         return False;
 

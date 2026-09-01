@@ -77,6 +77,8 @@ def _parser():
     parser.add_argument("--picture", default="", help="xBase-like character input mask, e.g. '(999) 999-9999' or '@! NNNNNNNN'");
     parser.add_argument("--overflow", action="store_true", help="allow input after the end of --picture");
     parser.add_argument("--max-length", type=int, default=None, help="logical input capacity; independent of visible --width");
+    parser.add_argument("--valid-values", default="", metavar="A,B,...", help="accept only one of these complete values; comma or | separated");
+    parser.add_argument("--validation-error", "--error", dest="validation_error", default="Invalid value", help="validation error shown when --valid-values rejects the value");
     confirm_group = parser.add_mutually_exclusive_group();
     confirm_group.add_argument("--confirm", dest="confirm", action="store_true", help="keep a full bounded field active until explicit confirmation (default)");
     confirm_group.add_argument("--no-confirm", dest="confirm", action="store_false", help="auto-submit when the logical capacity is reached");
@@ -109,6 +111,8 @@ def main(argv=None):
             title=args.title,
             max_length=args.max_length,
             confirm=args.confirm,
+            valid_values=args.valid_values,
+            validation_error=args.validation_error,
         ).normalize();
         result = read_input(spec);
     except (OSError, RuntimeError) as exc:

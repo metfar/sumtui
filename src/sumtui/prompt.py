@@ -34,6 +34,7 @@ from .app import Application;
 from .backends import create_input_backend;
 from .events import Key;
 from .inputmask import InputMask;
+from .validation import allowed_values_validator, normalize_allowed_values, run_validator;
 from .widgets import Button, Dialog, HBox, Label, TextArea, TextInput, VBox;
 
 
@@ -63,6 +64,9 @@ class InputSpec:
     button_height: int = 1;
     max_length: int = None;
     confirm: bool = True;
+    valid_values: tuple = ();
+    validation_error: str = "Invalid value";
+    validator: object = None;
 
     def normalize(self):
         self.prompt = str(self.prompt or "");
@@ -81,6 +85,8 @@ class InputSpec:
         self.button_height = max(1, int(self.button_height or 1));
         self.max_length = None if self.max_length is None else max(0, int(self.max_length));
         self.confirm = bool(self.confirm);
+        self.valid_values = normalize_allowed_values(self.valid_values);
+        self.validation_error = str(self.validation_error or "Invalid value");
         if self.height > 1 and (self.hidden or self.mask is not None):
             raise ValueError("hidden/masked input is currently single-line only");
         if self.height > 1 and self.picture:
@@ -147,6 +153,25 @@ def _choice_filter(spec):
     return filter_char;
 
 
+def _validator_for_spec(spec, picture=None):
+    validators = [];
+    if spec.validator is not None:
+        validators.append(spec.validator);
+    if spec.valid_values:
+        validators.append(allowed_values_validator(spec.valid_values, case_sensitive=spec.case_sensitive, message=spec.validation_error));
+    if picture is not None and picture.choices:
+        message = spec.validation_error if spec.validation_error != "Invalid value" else "Expected one of: {}".format(", ".join(picture.choices));
+        validators.append(allowed_values_validator(picture.choices, case_sensitive=spec.case_sensitive, message=message));
+    if not validators:
+        return None;
+    def validate(value):
+        for validator in validators:
+            result = run_validator(validator, value, spec.validation_error);
+            if not result.valid:
+                return result;
+        return True;
+    return validate;
+
 def _picture_callbacks(spec):
     if not spec.picture:
         return None, None, None, None, False;
@@ -161,11 +186,11 @@ def _picture_callbacks(spec):
     return picture, filter_char, display, cursor, picture.clear_on_edit;
 
 
-def _single_line_widget(spec, on_submit=None, on_change=None):
+def _single_line_widget(spec, on_submit=None, on_change=None, on_validation_error=None):
     picture, char_filter, display, cursor, clear_on_edit = _picture_callbacks(spec);
     if spec.keys:
         char_filter = _choice_filter(spec);
-    picture_maximum = None if picture is None or spec.overflow else picture.capacity;
+    picture_maximum = None if picture is None or spec.overflow or picture.capacity <= 0 else picture.capacity;
     if spec.keys:
         maximum = 1;
     elif spec.max_length is None:
@@ -188,6 +213,9 @@ def _single_line_widget(spec, on_submit=None, on_change=None):
         display_cursor=cursor,
         clear_on_first_edit=clear_on_edit,
         confirm_at_limit=spec.confirm,
+        validator=_validator_for_spec(spec, picture=picture),
+        validation_error=spec.validation_error,
+        on_validation_error=on_validation_error,
     );
     return widget, picture;
 
@@ -237,7 +265,7 @@ def read_inline(spec, reader=None, writer=None):
     if spec.height > 1:
         return read_dialog(spec, reader=reader, writer=writer);
     picture, _char_filter, _display, _cursor, _clear = _picture_callbacks(spec);
-    simple = not any((spec.hidden, spec.mask is not None, spec.keys, spec.picture, spec.timeout is not None, spec.max_length is not None));
+    simple = not any((spec.hidden, spec.mask is not None, spec.keys, spec.picture, spec.timeout is not None, spec.max_length is not None, spec.valid_values, spec.validator is not None));
     if simple:
         writer.write(str(spec.prompt));
         writer.flush();
@@ -272,6 +300,10 @@ def read_inline(spec, reader=None, writer=None):
                         writer.flush();
                         return InputResult("", CANCELLED);
                     if key == Key.ENTER:
+                        if not widget.validate():
+                            writer.write("\r\x1b[2K{}\n".format(widget.last_validation_message or spec.validation_error));
+                            _render_inline(writer, spec, widget);
+                            continue;
                         value = _final_value(spec, widget.value, picture=picture);
                         writer.write("\r\x1b[2K" + str(spec.prompt));
                         if not spec.hidden:
@@ -322,12 +354,17 @@ def read_dialog(spec, reader=None, writer=None):
     app = Application("suminput", theme=(spec.theme or "DOS"), console=console, mouse=True);
     state = {"result": InputResult("", CANCELLED), "done": False};
     deadline = None if spec.timeout is None else time.monotonic() + spec.timeout;
-    status = Label("");
+    status = Label("", style="error");
     picture = None;
 
     def finish(value="", status_code=ACCEPTED):
         nonlocal picture;
         if state["done"]:
+            return True;
+        if status_code == ACCEPTED and spec.height <= 1 and hasattr(entry, "validate") and not entry.validate():
+            status.set_text(entry.last_validation_message or spec.validation_error);
+            app.focus.set(entry);
+            app.invalidate();
             return True;
         try:
             final = _final_value(spec, value, picture=picture);
@@ -342,7 +379,11 @@ def read_dialog(spec, reader=None, writer=None):
         return finish("", CANCELLED);
 
     if spec.height <= 1:
-        entry, picture = _single_line_widget(spec, on_submit=lambda value: finish(value, ACCEPTED));
+        def validation_failed(_value, message, _entry):
+            status.set_text(message or spec.validation_error);
+            app.invalidate();
+            return True;
+        entry, picture = _single_line_widget(spec, on_submit=lambda value: finish(value, ACCEPTED), on_validation_error=validation_failed);
         if spec.keys:
             def changed(value):
                 if value:

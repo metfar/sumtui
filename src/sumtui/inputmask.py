@@ -27,7 +27,7 @@ import re;
 
 
 _EDITABLE = frozenset("ANX!9#YL");
-_FUNCTIONS = frozenset("!ZCX(EBRKGT");
+_FUNCTIONS = frozenset("!ZCX(EBRKGTM");
 
 
 def _accepts(token, char):
@@ -52,19 +52,26 @@ class InputMask:
     source: str = "";
     functions: frozenset = frozenset();
     mask: str = "";
+    choices: tuple = ();
 
     @classmethod
     def parse(cls, picture):
         source = str(picture or "").strip();
         rest = source;
         functions = [];
-        while rest.startswith("@"):
-            match = re.match(r"^@([!ZCX(EBRKGT])(?:\s+|$)", rest, flags=re.I);
+        choices = ();
+        while rest.startswith("@"): 
+            match = re.match(r"^@([!ZCX(EBRKGTM])(?:\s+|$)", rest, flags=re.I);
             if not match:
                 break;
-            functions.append(match.group(1).upper());
+            function = match.group(1).upper();
+            functions.append(function);
             rest = rest[match.end():].lstrip();
-        return cls(source, frozenset(functions), rest);
+            if function == "M":
+                choices = tuple(item.strip() for item in rest.replace("|", ",").split(",") if item.strip() != "");
+                rest = "";
+                break;
+        return cls(source, frozenset(functions), rest, choices);
 
     @property
     def uppercase(self):
@@ -80,10 +87,14 @@ class InputMask:
 
     @property
     def capacity(self):
+        if self.choices:
+            return max(1, max(len(item) for item in self.choices));
         return sum(1 for char in self.mask if char.upper() in _EDITABLE);
 
     @property
     def display_width(self):
+        if self.choices:
+            return self.capacity;
         return max(1, len(self.mask));
 
     @property
@@ -94,7 +105,15 @@ class InputMask:
         if not char:
             return None;
         position = max(0, int(position));
+        if self.choices:
+            for choice in self.choices:
+                if position < len(choice) and choice[position].casefold() == str(char)[0].casefold():
+                    chosen = choice[position];
+                    return chosen.upper() if self.uppercase else chosen;
+            return None;
         tokens = self.data_tokens;
+        if not tokens and not self.mask:
+            return char.upper() if self.uppercase else char;
         if position >= len(tokens):
             if not overflow:
                 return None;
@@ -108,6 +127,8 @@ class InputMask:
 
     def format(self, value, overflow=False, fill=" "):
         source = str(value or "");
+        if self.choices:
+            return source.upper() if self.uppercase else source;
         if self.uppercase:
             source = source.upper();
         if not self.mask:
@@ -134,6 +155,8 @@ class InputMask:
 
     def cursor_display_position(self, value, logical_position, overflow=False):
         logical_position = max(0, int(logical_position));
+        if self.choices:
+            return min(self.display_width, logical_position);
         count = 0;
         for index, token in enumerate(self.mask):
             if token.upper() not in _EDITABLE:
@@ -144,6 +167,14 @@ class InputMask:
         if overflow and logical_position > count:
             return len(self.mask) + (logical_position - count);
         return len(self.mask);
+
+    def valid_value(self, value, case_sensitive=False):
+        if not self.choices:
+            return True;
+        raw = str(value or "");
+        if case_sensitive:
+            return raw in self.choices;
+        return raw.casefold() in tuple(item.casefold() for item in self.choices);
 
     def result(self, value, overflow=False):
         raw = str(value or "");
