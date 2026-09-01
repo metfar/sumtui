@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.7.4
+Version: 0.7.6
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -17,15 +17,15 @@ Requires-Dist: pygments>=2.15
 Requires-Dist: markdown-it-py>=2.2
 Dynamic: license-file
 
-# sumTUI 0.7.1
+# sumTUI 0.7.6
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
 The project is a console-side sibling of SumGUI. It keeps the same general philosophy and the same family of themes while remaining independent from pygame.
 
-**Architecture note for 0.7.1:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
+**Architecture note:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
 
-`CommandWindow` READ forms support `Tab`/`Shift+Tab` navigation between absolute `ScreenField` inputs. Fixed-width field editing uses normal caret semantics: the caret can sit one cell beyond the field, so Backspace at end-of-field deletes the actual final character; deletion shifts remaining text left and pads the field at the right edge.
+`CommandWindow` READ forms support `Tab`/`Shift+Tab` navigation between absolute `ScreenField` inputs. Bounded fields distinguish viewport width from logical maximum length. With confirmation enabled, printable input at the logical end continuously overwrites the final logical character instead of being discarded; confirmation can be disabled for automatic field-to-field advance. Fixed-width deletion still shifts remaining text left and pads the right edge.
 
 ## Goals
 
@@ -454,7 +454,7 @@ python examples/demo_commandwindow.py
 
 `CommandWindow` can host editable fields at absolute row/column positions. `ScreenField.width` and `.height` are **viewport dimensions**, while `max_length` is an independent logical data limit. A narrow one-line field scrolls horizontally over a longer value; a field with `height > 1` uses a multiline, soft-wrapped viewport with vertical scrolling. `HEIGHT` therefore does not silently truncate data.
 
-`define_field()` and `begin_read()` provide the low-level screen-form layer used by sumX `@ ... GET` and `READ`. In multiline fields Enter creates a real newline. Tab advances to the next field and Tab on the final field accepts the READ; Ctrl+Enter remains an optional accept alias when a terminal can report it distinctly. `commit_screen_to_history()` archives the finished coordinate/GET layer as ordinary scrollable text and removes its live field styling.
+`define_field()` and `begin_read()` provide the low-level screen-form layer used by sumX `@ ... GET` and `READ`. `begin_read(confirm=True)` keeps a bounded field active at its logical end; additional characters overwrite the final logical cell. `confirm=False` advances automatically when the logical limit is filled and accepts on the last field. In multiline fields Enter creates a real newline. Tab advances to the next field and Tab on the final field accepts the READ; Ctrl+Enter remains an optional accept alias when a terminal can report it distinctly. `commit_screen_to_history()` archives the finished coordinate/GET layer as ordinary scrollable text and removes its live field styling.
 
 ## Data forms
 
@@ -583,10 +583,11 @@ name=$(suminput "What is your name? ")
 password=$(suminput --hidden "Password: ")
 pin=$(suminput --mask "***" --width 8 "PIN: ")
 phone=$(suminput --picture "(999) 999-9999" --width 14 "Phone: ")
+code=$(suminput --max-length 4 --width 12 "Code: ")
 notes=$(suminput --dialog --width 50 --height 6 "Notes")
 ```
 
-`--mask` repeats the supplied visual string once per entered character; the real value is never copied to the display.  `--hidden` uses no echo at all.  Secret input is not placed in editor/command history or the system clipboard by `suminput`.
+`--mask` repeats the supplied visual string once per entered character; the real value is never copied to the display.  `--hidden` uses no echo at all.  Secret input is not placed in editor/command history or the system clipboard by `suminput`. `--max-length N` sets the logical field capacity independently of `--width`. `--confirm` is the default: once a bounded field is full, further printable keys overwrite its final logical character until Enter/Tab/navigation confirms it. `--no-confirm` auto-submits when the logical capacity is reached.
 
 DOS/4DOS-style choice behavior is available without requiring a separate `choice` utility:
 
@@ -656,13 +657,16 @@ else
 fi
 ```
 
-Entry mode is the dialog form of `suminput`:
+Entry mode is the dialog form of `suminput`. Logical capacity is separate from visible geometry: `--width` controls the viewport, while `--max-length` limits the stored value. `--confirm` is enabled by default; at the logical end, each additional key replaces the final character until the user explicitly confirms. `--no-confirm` instead accepts automatically at the logical limit.
+
 
 ```bash
 name=$(sumdialog --entry --text "Name:")
 password=$(sumdialog --entry --hidden --text "Password:")
 phone=$(sumdialog --entry --picture "(999) 999-9999" --width 14 --text "Phone:")
 answer=$(sumdialog --entry --keys YN --default N --timeout N,10 --text "Continue?")
+last=$(sumdialog --entry --max-length 1 --confirm --text "One character:")
+auto=$(sumdialog --entry --max-length 4 --no-confirm --text "Four characters:")
 ```
 
 File, directory and list selection:
@@ -712,7 +716,7 @@ json    JSON object preserving booleans
 null    name\0value\0 pairs for Bash/process-substitution transport without eval
 ```
 
-The full personal-data example is `examples/sumdialog/21_forms_personal_data.sh`. Additional examples exercise every form component and each structured output style.
+The full personal-data example is `examples/sumdialog/21_forms_personal_data.sh`. Additional examples exercise every form component and each structured output style. Bounded form fields use the same policy: `--form-max-length NAME=N` sets logical capacity and `--form-no-confirm NAME` opts a field into auto-advance. Declarative `.sdlg` forms use `field:NAME.max_length=N` and `field:NAME.confirm=true|false`.
 
 ### Declarative `.sdlg` forms
 

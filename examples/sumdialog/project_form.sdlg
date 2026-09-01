@@ -4,6 +4,9 @@
 title="Project form"
 text="Project configuration"
 add.entry:project="Project"
+field:project.width=18
+field:project.max_length=32
+field:project.confirm=true
 add.password:secret="Secret"
 add.textarea:notes="Notes"
 add.checkbox:tests="Create tests"

@@ -61,6 +61,8 @@ class InputSpec:
     theme: object = None;
     button_width: int = None;
     button_height: int = 1;
+    max_length: int = None;
+    confirm: bool = True;
 
     def normalize(self):
         self.prompt = str(self.prompt or "");
@@ -77,6 +79,8 @@ class InputSpec:
         self.title = str(self.title or "Input");
         self.button_width = None if self.button_width is None else max(4, int(self.button_width));
         self.button_height = max(1, int(self.button_height or 1));
+        self.max_length = None if self.max_length is None else max(0, int(self.max_length));
+        self.confirm = bool(self.confirm);
         if self.height > 1 and (self.hidden or self.mask is not None):
             raise ValueError("hidden/masked input is currently single-line only");
         if self.height > 1 and self.picture:
@@ -161,7 +165,15 @@ def _single_line_widget(spec, on_submit=None, on_change=None):
     picture, char_filter, display, cursor, clear_on_edit = _picture_callbacks(spec);
     if spec.keys:
         char_filter = _choice_filter(spec);
-    maximum = 1 if spec.keys else (None if picture is None or spec.overflow else picture.capacity);
+    picture_maximum = None if picture is None or spec.overflow else picture.capacity;
+    if spec.keys:
+        maximum = 1;
+    elif spec.max_length is None:
+        maximum = picture_maximum;
+    elif picture_maximum is None:
+        maximum = spec.max_length;
+    else:
+        maximum = min(spec.max_length, picture_maximum);
     width = None if spec.width is None else spec.width + 2;
     widget = TextInput(
         value="",
@@ -175,6 +187,7 @@ def _single_line_widget(spec, on_submit=None, on_change=None):
         display_transform=display,
         display_cursor=cursor,
         clear_on_first_edit=clear_on_edit,
+        confirm_at_limit=spec.confirm,
     );
     return widget, picture;
 
@@ -224,7 +237,7 @@ def read_inline(spec, reader=None, writer=None):
     if spec.height > 1:
         return read_dialog(spec, reader=reader, writer=writer);
     picture, _char_filter, _display, _cursor, _clear = _picture_callbacks(spec);
-    simple = not any((spec.hidden, spec.mask is not None, spec.keys, spec.picture, spec.timeout is not None));
+    simple = not any((spec.hidden, spec.mask is not None, spec.keys, spec.picture, spec.timeout is not None, spec.max_length is not None));
     if simple:
         writer.write(str(spec.prompt));
         writer.flush();
@@ -233,7 +246,12 @@ def read_inline(spec, reader=None, writer=None):
             return InputResult("", CANCELLED);
         entered = entered.rstrip("\r\n");
         return InputResult(_final_value(spec, entered, picture=picture), ACCEPTED);
-    widget, picture = _single_line_widget(spec);
+    submitted = {"done": False, "value": ""};
+    def submit(value):
+        submitted["done"] = True;
+        submitted["value"] = str(value or "");
+        return True;
+    widget, picture = _single_line_widget(spec, on_submit=submit);
     deadline = None if spec.timeout is None else time.monotonic() + spec.timeout;
     previous_stdin = sys.stdin;
     sys.stdin = reader;
@@ -272,6 +290,19 @@ def read_inline(spec, reader=None, writer=None):
                         writer.write("\r\x1b[2K" + str(spec.prompt));
                         if not spec.hidden:
                             writer.write((spec.mask * len(widget.value)) if spec.mask is not None else value);
+                        writer.write("\n");
+                        writer.flush();
+                        return InputResult(value, ACCEPTED);
+                    if submitted["done"]:
+                        value = _final_value(spec, submitted["value"], picture=picture);
+                        writer.write("\r\x1b[2K" + str(spec.prompt));
+                        if not spec.hidden:
+                            if spec.mask is not None:
+                                writer.write(spec.mask * len(widget.value));
+                            elif picture is not None:
+                                writer.write(picture.format(widget.value, overflow=spec.overflow).rstrip());
+                            else:
+                                writer.write(widget.value);
                         writer.write("\n");
                         writer.flush();
                         return InputResult(value, ACCEPTED);

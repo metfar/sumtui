@@ -76,6 +76,11 @@ def _parser():
     parser.add_argument("--height", type=int, default=1, help="visible input height; values >1 create a multiline input area");
     parser.add_argument("--picture", default="", help="xBase-like character input mask, e.g. '(999) 999-9999' or '@! NNNNNNNN'");
     parser.add_argument("--overflow", action="store_true", help="allow input after the end of --picture");
+    parser.add_argument("--max-length", type=int, default=None, help="logical input capacity; independent of visible --width");
+    confirm_group = parser.add_mutually_exclusive_group();
+    confirm_group.add_argument("--confirm", dest="confirm", action="store_true", help="keep a full bounded field active until explicit confirmation (default)");
+    confirm_group.add_argument("--no-confirm", dest="confirm", action="store_false", help="auto-submit when the logical capacity is reached");
+    parser.set_defaults(confirm=True);
     parser.add_argument("--title", default="Input", help="dialog title");
     return parser;
 
@@ -102,6 +107,8 @@ def main(argv=None):
             timeout=timeout,
             dialog=args.dialog,
             title=args.title,
+            max_length=args.max_length,
+            confirm=args.confirm,
         ).normalize();
         result = read_input(spec);
     except (OSError, RuntimeError) as exc:

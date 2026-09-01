@@ -90,9 +90,10 @@ def button(text="Button", do=None, width=None, height=1, default=False, enabled=
     return Button(text, on_press=do, width=width, height=height, default=default, enabled=enabled, align=align, valign=valign, theme=app().theme);
 
 
-def textinput(value="", placeholder="", password=False, width=None, max_length=None, on_change=None, on_submit=None):
+def textinput(value="", placeholder="", password=False, width=None, max_length=None, on_change=None, on_submit=None, confirm_at_limit=True):
     return TextInput(value=value, placeholder=placeholder, password=password, width=width,
-                     max_length=max_length, on_change=on_change, on_submit=on_submit, theme=app().theme);
+                     max_length=max_length, on_change=on_change, on_submit=on_submit,
+                     confirm_at_limit=confirm_at_limit, theme=app().theme);
 
 
 def checkbox(text, checked=False, on_change=None, enabled=True):

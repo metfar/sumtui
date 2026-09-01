@@ -163,7 +163,7 @@ def ask_question(text, title="Question", theme="DOS", width=None, height=None, t
 
 def read_entry(text="", title="Input", theme="DOS", width=None, height=1, picture="", overflow=False,
                hidden=False, mask=None, keys="", case_sensitive=False, default="", timeout=None,
-               button_width=None, button_height=1):
+               button_width=None, button_height=1, max_length=None, confirm=True):
     spec = InputSpec(
         prompt=text,
         width=width,
@@ -181,6 +181,8 @@ def read_entry(text="", title="Input", theme="DOS", width=None, height=1, pictur
         theme=theme,
         button_width=button_width,
         button_height=button_height,
+        max_length=max_length,
+        confirm=confirm,
     ).normalize();
     result = read_input(spec);
     return DialogResult(result.value, result.status);
@@ -431,6 +433,8 @@ class FormFieldSpec:
     required: bool = False;
     width: int = None;
     height: int = None;
+    max_length: int = None;
+    confirm: bool = True;
 
     def normalize(self):
         self.name = str(self.name or "");
@@ -440,6 +444,8 @@ class FormFieldSpec:
         self.required = bool(self.required);
         self.width = None if self.width is None else max(3, int(self.width));
         self.height = None if self.height is None else max(1, int(self.height));
+        self.max_length = None if self.max_length is None else max(0, int(self.max_length));
+        self.confirm = bool(self.confirm);
         return self;
 
 
@@ -552,12 +558,12 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
 
         for spec in specs:
             if spec.kind == "entry":
-                control = TextInput(value=str(spec.default or ""), width=spec.width);
+                control = TextInput(value=str(spec.default or ""), width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm);
                 row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
                 size = 1;
                 target = control;
             elif spec.kind == "password":
-                control = TextInput(value=str(spec.default or ""), password=True, width=spec.width);
+                control = TextInput(value=str(spec.default or ""), password=True, width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm);
                 row = HBox(Label(spec.label + ":"), control, sizes=[label_width, None]);
                 size = 1;
                 target = control;
@@ -593,7 +599,7 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
                 size = spec.height or min(7, max(3, len(spec.options) + 1));
                 target = control;
             elif spec.kind in ("file", "directory"):
-                control = TextInput(value=str(spec.default or ""), width=spec.width);
+                control = TextInput(value=str(spec.default or ""), width=spec.width, max_length=spec.max_length, confirm_at_limit=spec.confirm);
                 browse = Button("...", width=7);
                 browse.on_press = (lambda s=spec, c=control: open_picker(s, c, directory=(s.kind == "directory")));
                 field_box = HBox(control, browse, sizes=[None, 7]);

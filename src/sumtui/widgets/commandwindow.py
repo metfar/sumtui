@@ -80,6 +80,7 @@ class CommandWindow(Widget):
         self.read_index = 0;
         self.read_cursor = 0;
         self.read_insert = False;
+        self.read_confirm = True;
         self.read_x_offset = 0;
         self.read_y_offset = 0;
         self.viewport_width = 1;
@@ -113,6 +114,7 @@ class CommandWindow(Widget):
         self.read_active = False;
         self.read_index = 0;
         self.read_cursor = 0;
+        self.read_confirm = True;
         self.read_x_offset = 0;
         self.read_y_offset = 0;
         self.on_read_accept = None;
@@ -146,8 +148,15 @@ class CommandWindow(Widget):
         self.fields.append(field);
         return field;
 
-    def begin_read(self, fields=None, on_accept=None, on_cancel=None):
-        """Activate keyboard editing for the currently defined screen fields."""
+    def begin_read(self, fields=None, on_accept=None, on_cancel=None, confirm=True):
+        """Activate keyboard editing for the currently defined screen fields.
+
+        ``confirm`` controls bounded-field behavior.  With confirmation enabled,
+        reaching the logical end keeps the field active and additional printable
+        keys overwrite the final logical character.  With confirmation disabled,
+        filling the logical width advances to the next field (or accepts the READ
+        on the final field), matching classic xBase ``SET CONFIRM OFF`` behavior.
+        """
         if fields is not None:
             self.fields = [];
             for item in fields:
@@ -161,6 +170,7 @@ class CommandWindow(Widget):
         self.read_index = 0;
         self.read_cursor = 0;
         self.read_insert = False;
+        self.read_confirm = bool(confirm);
         self.read_x_offset = 0;
         self.read_y_offset = 0;
         self.on_read_accept = on_accept;
@@ -398,32 +408,53 @@ class CommandWindow(Widget):
         text = getattr(event, "text", "");
         if text and not ctrl and not getattr(event, "alt", False):
             changed = False;
-            for char in str(text):
+            for source_char in str(text):
+                field = self._current_field();
+                if field is None or not self.read_active:
+                    break;
+                limit = self._field_limit(field);
+                logical_length = len(field.value);
+                target = self.read_cursor;
+                at_full_end = bool(limit is not None and limit > 0 and logical_length >= limit and self.read_cursor >= limit);
+                if at_full_end and self.read_confirm:
+                    # A confirmed bounded field stays active at its logical end.
+                    # Further typing continuously replaces the last logical cell:
+                    # WIDTH 1 receiving Y, E, S therefore ends with S.
+                    target = limit - 1;
+                char = source_char;
                 if field.char_filter is not None:
-                    filtered = field.char_filter(self.read_cursor, char);
+                    filtered = field.char_filter(target, char);
                     if filtered is None or filtered is False:
                         continue;
                     char = str(filtered);
                     if not char:
                         continue;
                     char = char[0];
-                limit = self._field_limit(field);
-                logical_length = len(field.value);
-                # READ starts in classic overwrite mode.  A bounded GET with
-                # explicit WIDTH/PICTURE is not marked ``fixed``, but an
-                # existing character must still be replaceable when the field
-                # is already at its logical limit.
-                replacing = (not self.read_insert and self.read_cursor < logical_length);
+                replacing = (target < logical_length and (not self.read_insert or at_full_end));
+                if limit is not None and limit <= 0:
+                    continue;
                 if limit is not None and logical_length >= limit and not replacing:
-                    break;
+                    if self.read_confirm and self.read_cursor >= limit and limit > 0:
+                        target = limit - 1;
+                        replacing = True;
+                    else:
+                        continue;
                 if replacing:
-                    field.value = field.value[:self.read_cursor] + char + field.value[self.read_cursor + 1:];
+                    field.value = field.value[:target] + char + field.value[target + 1:];
                 else:
-                    field.value = field.value[:self.read_cursor] + char + field.value[self.read_cursor:];
+                    field.value = field.value[:target] + char + field.value[target:];
                 if limit is not None:
                     field.value = field.value[:limit];
-                self.read_cursor = min(len(field.value), self.read_cursor + 1);
+                if at_full_end and self.read_confirm:
+                    self.read_cursor = limit;
+                else:
+                    self.read_cursor = min(len(field.value), target + 1);
                 changed = True;
+                if not self.read_confirm and limit is not None and len(field.value) >= limit and self.read_cursor >= limit:
+                    if self.read_index >= len(self.fields) - 1:
+                        self._finish_read(True);
+                    else:
+                        self._move_field(1, wrap=False);
             return changed;
         return False;
 

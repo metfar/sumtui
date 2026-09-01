@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.6 - 2026-09-01
+
+- Exposed the common bounded-field confirmation policy through `sumdialog` and `suminput`. `--confirm` is ON by default; `--no-confirm` auto-submits a bounded standalone entry when its logical capacity is reached.
+- Added `--max-length N` to `sumdialog --entry` and `suminput`, keeping logical field capacity independent of visible `--width`. With confirmation ON, further printable keys at the logical end overwrite the final logical character.
+- Extended `FormFieldSpec` with `max_length` and `confirm`, so `sumdialog --forms` uses the same common `TextInput` behavior for entry/password/file/directory fields. CLI forms support repeatable `--form-max-length NAME=N` and `--form-no-confirm NAME`.
+- Extended declarative `.sdlg` forms with `field:NAME.max_length=N` and `field:NAME.confirm=true|false`; normalized dumps include both properties.
+- Kept `CONFIRM ON` semantics as the system default because explicit confirmation is safer and more practical for sustained data entry; `CONFIRM OFF` remains an opt-in auto-advance mode.
+- Regression suite: 188 sumTUI tests passing with the separate sumIDE compatibility package available.
+
+## 0.7.5 - 2026-09-01
+
+- Unified bounded-field end-of-input behavior in the common widget layer. A field with a logical maximum now keeps accepting printable keys at its logical end by overwriting the final logical character rather than silently rejecting further input.
+- Added `CommandWindow.begin_read(..., confirm=...)`: confirmation ON keeps a bounded READ field active at its logical end; confirmation OFF auto-advances to the next field and accepts on the last field.
+- Added the equivalent `TextInput(confirm_at_limit=...)` policy so dialogs, forms and language frontends can share the same logical-limit semantics instead of reimplementing them.
+- Logical limits remain independent of viewport width; PICTURE/input filters receive the actual logical replacement position when the final character is being overwritten.
+
 ## 0.7.4 - 2026-09-01
 
 - Made Markdown document mapping an explicit always-available `sumedit` behavior: Markdown detection automatically relabels F2/menu mapping as a document outline; it is not a sumIDE-only option.

@@ -130,7 +130,7 @@ class TextInput(Widget):
     def __init__(self, value="", placeholder="", password=False, width=None, max_length=None,
                  on_change=None, on_submit=None, mask="", echo_mask=None, hidden=False,
                  char_filter=None, display_transform=None, display_cursor=None,
-                 clear_on_first_edit=False, theme=None):
+                 clear_on_first_edit=False, confirm_at_limit=True, theme=None):
         super().__init__(theme=theme);
         self.value = str(value);
         self.placeholder = str(placeholder);
@@ -142,6 +142,7 @@ class TextInput(Widget):
         self.display_transform = display_transform;
         self.display_cursor = display_cursor;
         self.clear_on_first_edit = bool(clear_on_first_edit);
+        self.confirm_at_limit = bool(confirm_at_limit);
         self._first_edit_pending = bool(clear_on_first_edit and self.value);
         self.width = None if width is None else max(3, int(width));
         self.max_length = None if max_length is None else max(0, int(max_length));
@@ -191,18 +192,46 @@ class TextInput(Widget):
             self.cursor = 0;
             self.view_offset = 0;
             self._first_edit_pending = False;
-        text = self._filtered_text(text);
-        if not text:
-            return False;
-        if self.max_length is not None:
-            available = self.max_length - len(self.value);
-            if available <= 0:
-                return False;
-            text = text[:available];
-        self.value = self.value[:self.cursor] + text + self.value[self.cursor:];
-        self.cursor += len(text);
-        self._changed();
-        return True;
+        changed = False;
+        for source_char in str(text):
+            limit = self.max_length;
+            if limit is not None and limit <= 0:
+                continue;
+            target = self.cursor;
+            full = bool(limit is not None and len(self.value) >= limit);
+            at_full_end = bool(full and self.cursor >= limit);
+            if at_full_end and self.confirm_at_limit:
+                target = limit - 1;
+            transformed = source_char;
+            if self.char_filter is not None:
+                transformed = self.char_filter(target, source_char);
+            if transformed is None or transformed is False:
+                continue;
+            transformed = str(transformed);
+            if transformed == "":
+                continue;
+            char = transformed[0];
+            if full:
+                if target < len(self.value):
+                    self.value = self.value[:target] + char + self.value[target + 1:];
+                    self.cursor = limit if at_full_end else min(limit, target + 1);
+                else:
+                    continue;
+            else:
+                self.value = self.value[:target] + char + self.value[target:];
+                if limit is not None:
+                    self.value = self.value[:limit];
+                self.cursor = min(len(self.value), target + 1);
+            changed = True;
+            if limit is not None and not self.confirm_at_limit and len(self.value) >= limit and self.cursor >= limit:
+                if self.on_submit is not None:
+                    self.on_submit(self.value);
+                elif self._focus_manager is not None:
+                    self._focus_manager.move(1);
+                break;
+        if changed:
+            self._changed();
+        return changed;
 
     def handle_event(self, event):
         if isinstance(event, MouseEvent):

@@ -199,6 +199,33 @@ class FormTests(unittest.TestCase):
         field.handle_event(KeyEvent(Key.BACKSPACE));
         self.assertEqual(field.value, "ac");
 
+    def test_bounded_text_input_overwrites_last_character_at_logical_end(self):
+        field = TextInput("N", max_length=1);
+        for char in "YES":
+            self.assertTrue(field.handle_event(KeyEvent(char.lower(), text=char)));
+        self.assertEqual(field.value, "S");
+        self.assertEqual(field.cursor, 1);
+
+    def test_bounded_text_input_can_auto_submit_at_logical_end(self):
+        submitted = [];
+        field = TextInput("", max_length=2, confirm_at_limit=False, on_submit=lambda value: submitted.append(value));
+        self.assertTrue(field.handle_event(KeyEvent("o", text="O")));
+        self.assertFalse(submitted);
+        self.assertTrue(field.handle_event(KeyEvent("k", text="K")));
+        self.assertEqual(field.value, "OK");
+        self.assertEqual(submitted, ["OK"]);
+
+    def test_input_spec_keeps_visual_width_separate_from_logical_capacity(self):
+        from sumtui.prompt import InputSpec, _single_line_widget;
+        spec = InputSpec(width=12, max_length=1, confirm=True).normalize();
+        field, _picture = _single_line_widget(spec);
+        self.assertEqual(field.width, 14);
+        self.assertEqual(field.max_length, 1);
+        self.assertTrue(field.confirm_at_limit);
+        for char in "YES":
+            field.handle_event(KeyEvent(char.lower(), text=char));
+        self.assertEqual(field.value, "S");
+
     def test_checkbox(self):
         box = CheckBox("Solid");
         self.assertTrue(box.handle_event(KeyEvent(Key.SPACE)));
@@ -462,6 +489,42 @@ class CommandWindowTests(unittest.TestCase):
         self.assertFalse(command.read_active);
         self.assertEqual(len(accepted), 1);
         self.assertIn("\n", accepted[0]["NOTES"]);
+
+    def test_confirmed_bounded_get_repeated_typing_overwrites_final_logical_character(self):
+        command = CommandWindow();
+        command.define_field("answer", 3, 2, 1, "N", fixed=False, max_length=1);
+        command.begin_read(confirm=True);
+        for char in "YES":
+            self.assertTrue(command.handle_event(KeyEvent(char.lower(), text=char)));
+        self.assertEqual(command.read_values()["answer"], "S");
+        self.assertEqual(command.read_cursor, 1);
+        self.assertTrue(command.read_active);
+
+    def test_confirmed_bounded_get_filters_against_last_logical_position(self):
+        positions = [];
+        command = CommandWindow();
+        command.define_field(
+            "answer", 3, 2, 1, "N", fixed=False, max_length=1,
+            char_filter=lambda position, char: positions.append(position) or char.upper(),
+        );
+        command.begin_read(confirm=True);
+        for char in "yes":
+            self.assertTrue(command.handle_event(KeyEvent(char, text=char)));
+        self.assertEqual(command.read_values()["answer"], "S");
+        self.assertEqual(positions, [0, 0, 0]);
+
+    def test_unconfirmed_bounded_get_auto_advances_and_accepts(self):
+        accepted = [];
+        command = CommandWindow();
+        command.define_field("first", 1, 1, 1, "", fixed=False, max_length=1);
+        command.define_field("second", 2, 1, 1, "", fixed=False, max_length=1);
+        command.begin_read(on_accept=lambda values, _widget: accepted.append(values), confirm=False);
+        self.assertTrue(command.handle_event(KeyEvent("y", text="Y")));
+        self.assertTrue(command.read_active);
+        self.assertEqual(command.read_index, 1);
+        self.assertTrue(command.handle_event(KeyEvent("n", text="N")));
+        self.assertFalse(command.read_active);
+        self.assertEqual(accepted, [{"first": "Y", "second": "N"}]);
 
     def test_command_commit_screen_archives_gets_as_plain_history(self):
         command = CommandWindow();
@@ -1393,6 +1456,32 @@ class SumDialogTests(unittest.TestCase):
         self.assertEqual(kwargs["theme"], "DOS");
         self.assertEqual(kwargs["width"], 20);
 
+    def test_sumdialog_entry_exposes_logical_limit_and_confirm_policy(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        output = io.StringIO();
+        with patch.object(dialog_tool, "read_entry", return_value=DialogResult("S", 0)) as mocked:
+            with redirect_stdout(output):
+                status = dialog_tool.main(["--entry", "--text", "Answer:", "--width", "12", "--max-length", "1", "--no-confirm"]);
+        self.assertEqual(status, 0);
+        self.assertEqual(output.getvalue(), "S\n");
+        kwargs = mocked.call_args.kwargs;
+        self.assertEqual(kwargs["width"], 12);
+        self.assertEqual(kwargs["max_length"], 1);
+        self.assertFalse(kwargs["confirm"]);
+
+    def test_sumdialog_entry_confirm_defaults_on(self):
+        from contextlib import redirect_stdout;
+        from unittest.mock import patch;
+        from sumtui.dialogs import DialogResult;
+        from sumtui.tools import dialog as dialog_tool;
+        with patch.object(dialog_tool, "read_entry", return_value=DialogResult("A", 0)) as mocked:
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(dialog_tool.main(["--entry", "--max-length", "1"]), 0);
+        self.assertTrue(mocked.call_args.kwargs["confirm"]);
+
     def test_sumdialog_question_exit_status(self):
         from unittest.mock import patch;
         from sumtui.dialogs import DialogResult;
@@ -1473,6 +1562,21 @@ class SumDialogTests(unittest.TestCase):
         payload = _serialize_form({"name": "Ada", "active": True}, specs, output="json");
         self.assertEqual(json.loads(payload), {"name": "Ada", "active": True});
 
+    def test_sumdialog_forms_support_logical_limits_and_confirm_policy(self):
+        from sumtui.tools import dialog as dialog_tool;
+        args = dialog_tool._parser().parse_args([
+            "--forms",
+            "--add-entry", "code", "Code",
+            "--add-entry", "name", "Name",
+            "--form-max-length", "code=4",
+            "--form-no-confirm", "code",
+        ]);
+        specs = dialog_tool._form_specs(args);
+        self.assertEqual(specs[0].max_length, 4);
+        self.assertFalse(specs[0].confirm);
+        self.assertIsNone(specs[1].max_length);
+        self.assertTrue(specs[1].confirm);
+
     def test_sumdialog_forms_rejects_unsafe_variable_names(self):
         from sumtui.tools import dialog as dialog_tool;
         args = dialog_tool._parser().parse_args(["--forms", "--add-entry", "bad;name", "Bad"]);
@@ -1494,6 +1598,22 @@ output=shell
         self.assertEqual([field.name for field in spec.fields], ["project", "language"]);
         self.assertTrue(spec.fields[0].required);
         self.assertEqual(spec.fields[1].options, ("Python", "Bash", "C", "R", "sumX"));
+
+    def test_sumdialog_declarative_form_field_limit_and_confirm(self):
+        from sumtui import parse_dialog_spec;
+        spec = parse_dialog_spec("""[form]
+add.entry:code="Code"
+field:code.width=12
+field:code.max_length=4
+field:code.confirm=false
+""", source="bounded.sdlg");
+        field = spec.fields[0];
+        self.assertEqual(field.width, 12);
+        self.assertEqual(field.max_length, 4);
+        self.assertFalse(field.confirm);
+        dumped = spec.to_dict()["fields"][0];
+        self.assertEqual(dumped["max_length"], 4);
+        self.assertFalse(dumped["confirm"]);
 
     def test_sumdialog_declarative_menu_parser_keeps_separator_order(self):
         from sumtui import parse_dialog_spec;

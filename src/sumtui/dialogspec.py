@@ -82,6 +82,8 @@ class DialogSpec:
                         "required": item.required,
                         "width": item.width,
                         "height": item.height,
+                        "max_length": item.max_length,
+                        "confirm": item.confirm,
                     }
                     for item in self.fields
                 ],
@@ -237,9 +239,9 @@ def parse_dialog_spec(text, source="<memory>"):
             continue;
 
         if section == "form" and key_lower.startswith("field:"):
-            match = re.fullmatch(r"field:([A-Za-z_][A-Za-z0-9_]*)\.(default|required|width|height)", key, re.IGNORECASE);
+            match = re.fullmatch(r"field:([A-Za-z_][A-Za-z0-9_]*)\.(default|required|width|height|max_length|confirm)", key, re.IGNORECASE);
             if match is None:
-                fail(line_number, "field property must use field:NAME.default|required|width|height");
+                fail(line_number, "field property must use field:NAME.default|required|width|height|max_length|confirm");
             name = match.group(1);
             prop = match.group(2).lower();
             if name not in form_by_name:
@@ -255,6 +257,10 @@ def parse_dialog_spec(text, source="<memory>"):
                     spec.width = _int_or_none(value, "field width");
                 elif prop == "height":
                     spec.height = _int_or_none(value, "field height");
+                elif prop == "max_length":
+                    spec.max_length = _int_or_none(value, "field max_length");
+                elif prop == "confirm":
+                    spec.confirm = _parse_bool(value);
             except ValueError as exc:
                 fail(line_number, str(exc));
             continue;

@@ -102,8 +102,10 @@ def _field_assignment_map(values, option_name):
 
 def _form_specs(args):
     defaults = _field_assignment_map(args.form_default, "--form-default");
+    max_lengths = _field_assignment_map(args.form_max_length, "--form-max-length");
+    no_confirm = set(str(name) for name in list(args.form_no_confirm or []));
     required = set(str(name) for name in list(args.required or []));
-    for name in required:
+    for name in required | no_confirm:
         if not _VAR_RE.fullmatch(name):
             raise ValueError("invalid form variable name: {}".format(name));
     specs = [];
@@ -126,13 +128,25 @@ def _form_specs(args):
             if not options:
                 raise ValueError("{} field {} requires at least one option".format(kind, name));
         default = defaults.get(name, "");
-        specs.append(FormFieldSpec(name=name, label=label, kind=kind, default=default, options=options, required=(name in required)));
+        max_length = None;
+        if name in max_lengths:
+            try:
+                max_length = max(0, int(max_lengths[name]));
+            except ValueError as exc:
+                raise ValueError("--form-max-length requires NAME=INTEGER") from exc;
+        specs.append(FormFieldSpec(name=name, label=label, kind=kind, default=default, options=options, required=(name in required), max_length=max_length, confirm=(name not in no_confirm)));
     unknown_defaults = sorted(set(defaults) - seen);
     unknown_required = sorted(required - seen);
+    unknown_max_lengths = sorted(set(max_lengths) - seen);
+    unknown_no_confirm = sorted(no_confirm - seen);
     if unknown_defaults:
         raise ValueError("--form-default references unknown field: {}".format(unknown_defaults[0]));
     if unknown_required:
         raise ValueError("--required references unknown field: {}".format(unknown_required[0]));
+    if unknown_max_lengths:
+        raise ValueError("--form-max-length references unknown field: {}".format(unknown_max_lengths[0]));
+    if unknown_no_confirm:
+        raise ValueError("--form-no-confirm references unknown field: {}".format(unknown_no_confirm[0]));
     return specs;
 
 
@@ -226,6 +240,11 @@ def _parser():
     parser.add_argument("--case-sensitive", action="store_true", help="case-sensitive --keys matching");
     parser.add_argument("--picture", default="", help="xBase-like PICTURE mask for --entry");
     parser.add_argument("--overflow", action="store_true", help="allow --entry input after PICTURE capacity");
+    parser.add_argument("--max-length", type=int, default=None, help="logical --entry capacity; independent of visible --width");
+    confirm_group = parser.add_mutually_exclusive_group();
+    confirm_group.add_argument("--confirm", dest="confirm", action="store_true", help="keep a full bounded --entry active until explicit confirmation (default)");
+    confirm_group.add_argument("--no-confirm", dest="confirm", action="store_false", help="auto-submit a bounded --entry when its logical capacity is reached");
+    parser.set_defaults(confirm=True);
     parser.add_argument("--path", default=".", help="initial path for file/directory selection");
     parser.add_argument("--filename", help="file shown by --text-info or --markdown");
     parser.add_argument("--selected", action="append", default=[], help="preselect checklist item; may be repeated");
@@ -245,6 +264,8 @@ def _parser():
     parser.add_argument("--add-directory", dest="form_fields", action=_AddFormField, kind="directory", nargs=2, metavar=("NAME", "LABEL"), help="add a directory selector field to --forms");
     parser.add_argument("--form-default", action="append", default=[], metavar="NAME=VALUE", help="set a default value for one --forms field; repeatable");
     parser.add_argument("--required", action="append", default=[], metavar="NAME", help="mark one --forms field as required; repeatable");
+    parser.add_argument("--form-max-length", action="append", default=[], metavar="NAME=N", help="set one form field logical capacity independently of its visible width; repeatable");
+    parser.add_argument("--form-no-confirm", action="append", default=[], metavar="NAME", help="auto-advance one bounded form field when its logical capacity is reached; repeatable");
     parser.add_argument("--output", choices=("shell", "values", "lines", "json", "null"), default="shell", help="--forms output format; default shell");
     parser.add_argument("--menu-button", dest="menu_entries", action=_AddMenuButton, nargs=2, metavar=("VALUE", "LABEL"), help="add one button to --menu; stdout receives VALUE");
     parser.add_argument("--menu-separator", dest="menu_entries", action=_AddMenuSeparator, nargs=0, help="add a full-width separator line to --menu");
@@ -531,6 +552,8 @@ def main(argv=None):
                 timeout=timeout,
                 button_width=args.button_width,
                 button_height=args.button_height,
+                max_length=args.max_length,
+                confirm=args.confirm,
             );
             if result.status in (0, 3):
                 _write_value(result.value);

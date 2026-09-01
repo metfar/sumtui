@@ -25,7 +25,7 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 | `02_warning.sh` | `--warning` |
 | `03_error.sh` | `--error` |
 | `04_question.sh` | `--question`, `--ok-label`, `--cancel-label`, exit status |
-| `05_entry.sh` | `--entry`, command substitution, default value |
+| `05_entry.sh` | `--entry`, command substitution, default value, logical `--max-length`, and default `--confirm` behavior |
 | `06_entry_secret.sh` | `--hidden`, `--mask` |
 | `07_entry_picture.sh` | `--picture`, `--width`, `--overflow` |
 | `08_entry_keys_timeout.sh` | `--keys`, `--case-sensitive`, `--default`, `--timeout` |
@@ -53,6 +53,8 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 | `project_form.sdlg` | declarative form containing entry/password/textarea/checkbox/combo/radio/list/file/directory fields |
 | `retro_menu.sdlg` | classic vertical button menu with Entrar/Listar/Buscar/Reporte/Salir |
 | `retro_menu_spacing.sdlg` | declarative `separator.blank`, `separator.blank=N`, and `separator.line="CHAR"` spacing/rules |
+
+`--entry --max-length N` sets logical capacity independently from visual `--width`. `--confirm` is ON by default; `--no-confirm` auto-submits at the limit. Forms can use `--form-max-length NAME=N` and `--form-no-confirm NAME`, while `.sdlg` files use `field:NAME.max_length` and `field:NAME.confirm`.
 
 `--forms --output shell` emits validated Bash variable names and values protected with POSIX single-quote escaping. For example, `This is John's house` is reconstructed exactly after `eval`, while text such as `$(command)` remains data. `--output null` is available when a script wants to avoid `eval` entirely.
 
