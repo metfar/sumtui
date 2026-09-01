@@ -35,7 +35,7 @@ from .groupbox import GroupBox;
 from .hexview import HexView;
 from .layout import HBox, LayoutItem, VBox;
 from .listview import ListView;
-from .markdownview import MarkdownView;
+from .markdownview import MarkdownView, fenced_code_blocks;
 from .menu import ContextMenu, Menu, MenuBar, MenuDesktop, MenuItem, Separator;
 from .progress import ProgressBar;
 from .scrollbar import ScrollBar;

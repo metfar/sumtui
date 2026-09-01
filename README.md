@@ -1,10 +1,10 @@
-# sumTUI 0.7.0
+# sumTUI 0.7.1
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
 The project is a console-side sibling of SumGUI. It keeps the same general philosophy and the same family of themes while remaining independent from pygame.
 
-**Architecture note for 0.7.0:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
+**Architecture note for 0.7.1:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
 
 `CommandWindow` READ forms support `Tab`/`Shift+Tab` navigation between absolute `ScreenField` inputs. Fixed-width field editing uses normal caret semantics: the caret can sit one cell beyond the field, so Backspace at end-of-field deletes the actual final character; deletion shifts remaining text left and pads the field at the right edge.
 
@@ -96,7 +96,7 @@ List them with:
 sumtui --themes
 ```
 
-## Widgets in 0.7.0
+## Widgets in 0.7.1
 
 ### Structure and layout
 
@@ -896,5 +896,8 @@ See `examples/demo_theme_serialization.py` and `examples/bash/theme_editor.sh`.
 ## Editor safety
 
 Before New/Open/Quit or closing a modified Code window can discard the current buffer, the common editor layer asks for **SAVE_AND_EXIT**, **FORGET_AND_EXIT**, or **CANCEL**. This behavior is shared by `sumedit` and the IDE frontends.
+
+
+`MarkdownView` also exposes fenced code blocks as plain source (`code_blocks` / `copy_code_block()`), so help systems can provide a direct **Copy Example** action without making rendered documentation editable. Common text/help dialogs expose **Copy** and `Ctrl+C`.
 
 <p align=center><b>- oOo -<b></p>

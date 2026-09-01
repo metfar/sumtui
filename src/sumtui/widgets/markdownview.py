@@ -31,6 +31,7 @@ from rich.style import Style;
 from rich.table import Table;
 from rich.text import Text;
 
+from ..clipboard import clipboard as default_clipboard;
 from ..events import Key;
 from ._viewport import horizontal_delta, line_cell_length, slice_segments, text_cell_length;
 from .base import Widget;
@@ -135,11 +136,45 @@ def _markdown_chunks(source):
         yield ("markdown", "\n".join(pending));
 
 
+def fenced_code_blocks(source):
+    """Return fenced Markdown code blocks as plain source strings.
+
+    The helper intentionally ignores language tags and returns only the exact
+    code payload.  Help browsers can therefore expose a safe Copy Example
+    action without making rendered Markdown editable.
+    """;
+    lines = str(source or "").splitlines();
+    blocks = [];
+    current = [];
+    fence_char = "";
+    fence_size = 0;
+    for raw in lines:
+        match = re.match(r"^\s{0,3}(`{3,}|~{3,})(.*)$", raw);
+        if match:
+            marker = match.group(1);
+            char = marker[0];
+            if not fence_char:
+                fence_char = char;
+                fence_size = len(marker);
+                current = [];
+                continue;
+            if char == fence_char and len(marker) >= fence_size:
+                blocks.append("\n".join(current));
+                current = [];
+                fence_char = "";
+                fence_size = 0;
+                continue;
+        if fence_char:
+            current.append(raw);
+    return blocks;
+
+
 class MarkdownView(Widget):
     focusable = True;
 
-    def __init__(self, markdown="", code_theme="vim", wrap=True, theme=None):
+    def __init__(self, markdown="", code_theme="vim", wrap=True, theme=None, clipboard=None):
         super().__init__(theme=theme);
+        self.clipboard = clipboard or default_clipboard;
         self.markdown = str(markdown);
         self.code_theme = str(code_theme or "vim");
         self.wrap = bool(wrap);
@@ -159,6 +194,23 @@ class MarkdownView(Widget):
         self.offset = 0;
         self.x_offset = 0;
         return self;
+
+    @property
+    def code_blocks(self):
+        return fenced_code_blocks(self.markdown);
+
+    def copy_text(self):
+        return self.clipboard.copy_text(self.markdown);
+
+    def copy_code_block(self, index=-1):
+        blocks = self.code_blocks;
+        if not blocks:
+            return "";
+        try:
+            text = blocks[int(index)];
+        except (IndexError, TypeError, ValueError):
+            return "";
+        return self.clipboard.copy_text(text);
 
     def _renderable(self, chunk):
         return Markdown(

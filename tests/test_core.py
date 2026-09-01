@@ -2195,3 +2195,15 @@ class CompareIntegrationTests(unittest.TestCase):
             self.assertEqual(captured["mode"], "parallel");
             self.assertEqual(len(captured["paths"]), 3);
             ide._r_session.close();
+
+
+def test_markdown_view_exposes_and_copies_fenced_code_blocks():
+    from sumtui.clipboard import ClipboardService;
+    from sumtui.widgets.markdownview import MarkdownView, fenced_code_blocks;
+    clip = ClipboardService();
+    source = "# Help\n\n```text\nPRINT expr\n```\n\n```xbase\nPRINT \"hello\"\n```\n";
+    assert fenced_code_blocks(source) == ["PRINT expr", 'PRINT "hello"'];
+    view = MarkdownView(source, clipboard=clip);
+    assert view.code_blocks[-1] == 'PRINT "hello"';
+    assert view.copy_code_block(-1) == 'PRINT "hello"';
+    assert clip.paste_text() == 'PRINT "hello"';

@@ -30,6 +30,7 @@ import time;
 from rich.console import Console;
 
 from .app import Application;
+from .clipboard import clipboard;
 from .events import Key;
 from .prompt import ACCEPTED, CANCELLED, TIMED_OUT, TERMINAL_ERROR, InputResult, InputSpec, controlling_terminal, read_input;
 from .widgets import Button, CheckBox, Choice, Dialog, DirectoryDialog, FileDialog, HBox, Label, ListView, MarkdownView, ProgressBar, RadioGroup, ScrollBar, TextArea, TextInput, TextView, VBox;
@@ -675,10 +676,18 @@ def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=Fal
             app.stop();
             return True;
         viewer = MarkdownView(text) if markdown else TextView(text);
-        buttons = HBox(Button("Close", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height), ratios=[1]);
+        def copy_text():
+            clipboard.copy_text(text);
+            return True;
+        buttons = HBox(
+            Button("Copy", on_press=copy_text, width=button_width, height=button_height),
+            Button("Close", on_press=lambda: finish(ACCEPTED), default=True, width=button_width, height=button_height),
+            ratios=[1, 1],
+        );
         body = VBox(viewer, buttons, sizes=[None, None]);
         root = Dialog(body, title=title, width=width, height=height, on_cancel=lambda: finish(CANCELLED), shadow=True);
         app.set_root(root);
+        app.bind("ctrl+c", copy_text);
         app.focus.set(viewer);
         _run_application(app, reader);
         return DialogResult("", state["status"]);

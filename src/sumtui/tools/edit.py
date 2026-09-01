@@ -33,6 +33,7 @@ from rich.text import Text;
 
 from .. import __version__;
 from ..app import Application;
+from ..clipboard import clipboard;
 from ..document import TextDocument;
 from ..events import Key;
 from ..keybindings import KeyBindingManager, format_key_spec;
@@ -1458,9 +1459,15 @@ class EditApp:
             self.app.pop_modal();
             self.app.focus.set(self.editor);
             self.app.invalidate();
-        body = VBox(view, Button("Close", on_press=close, default=True), sizes=[None, None]);
+        def copy_text(*_args):
+            clipboard.copy_text(text);
+            self._update_status("Help text copied");
+            self.app.invalidate();
+            return True;
+        buttons = HBox(Button("Copy", on_press=copy_text), Button("Close", on_press=close, default=True), ratios=[1, 1]);
+        body = VBox(view, buttons, sizes=[None, None]);
         dialog = Dialog(body, title=title, width=width, height=height, on_cancel=close, shadow=True);
-        self.app.push_modal(dialog);
+        self.app.push_modal(dialog, bindings={"ctrl+c": copy_text});
         self.app.focus.set(view);
         self.app.invalidate();
         return True;

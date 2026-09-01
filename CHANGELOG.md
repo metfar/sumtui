@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 - 2026-09-01
+
+- Added reusable fenced-code extraction/copy support to `MarkdownView`.
+- Common text/help dialogs now provide a Copy button and `Ctrl+C` clipboard action.
+- sumedit help/about dialogs use the same copyable-help convention.
+
 ## 0.7.0 - 2026-09-01
 
 - Established the post-split editor foundation for the current Sum ecosystem: `sumTUI` owns reusable TUI/editor primitives and the standalone `sumedit`; application-level IDE behavior lives in the independent `sumIDE` project.
