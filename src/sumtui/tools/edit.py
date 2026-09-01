@@ -26,6 +26,7 @@ import argparse;
 import json;
 import os;
 from pathlib import Path;
+from importlib.resources import files;
 import re;
 import sys;
 
@@ -1503,8 +1504,31 @@ class EditApp:
         return self.editor.select_all();
 
     def help(self):
-        shortcuts = "\n".join("  {:<24} {}".format(label, bindings or "(unassigned)") for _name, label, bindings, _context in self.keys.rows(contexts=["editor"]));
-        return self._show_text_dialog("sumTUI edit Help", _HELP_TEXT + "\nCurrent shortcuts\n" + shortcuts + "\n");
+        source = files("sumtui.tools").joinpath("edit_help.md").read_text(encoding="utf-8");
+        shortcuts = ["## Current shortcuts", ""];
+        shortcuts.extend(["- **{}** — {}".format(label, bindings or "(unassigned)") for _name, label, bindings, _context in self.keys.rows(contexts=["editor"])]);
+        markdown = source.rstrip() + "\n\n" + "\n".join(shortcuts) + "\n";
+        view = MarkdownView(markdown, theme=self.app.theme);
+        pane = MarkdownViewPane(view=view, theme=self.app.theme);
+
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+
+        def copy_text(*_args):
+            clipboard.copy_text(markdown);
+            self._update_status("Help text copied");
+            self.app.invalidate();
+            return True;
+
+        body = VBox(pane, HBox(Button("Copy", on_press=copy_text), Button("Close", on_press=close, default=True), ratios=[1, 1]), sizes=[None, None]);
+        dialog = Dialog(body, title="sumTUI edit Help", width=90, height=28, on_cancel=close, shadow=True, maximizable=True);
+        self.app.push_modal(dialog, bindings={"ctrl+c": copy_text});
+        self.app.focus.set(view);
+        self.app.invalidate();
+        return True;
 
     def about(self):
         text = """sumTUI edit

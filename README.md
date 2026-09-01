@@ -900,4 +900,19 @@ Before New/Open/Quit or closing a modified Code window can discard the current b
 
 `MarkdownView` also exposes fenced code blocks as plain source (`code_blocks` / `copy_code_block()`), so help systems can provide a direct **Copy Example** action without making rendered documentation editable. Common text/help dialogs expose **Copy** and `Ctrl+C`.
 
+## Editable help sources
+
+Help documentation in the Sum ecosystem is authored as Markdown. The canonical parser/serializer and the `markdown2helpdb` / `helpdb2markdown` commands now belong to **SumDoc**. The format uses H1 for the document title, H2 for categories, H3 for topics, and H4 sections such as Syntax, Notes, Functional example, See also, and Aliases.
+
+`sumTUI` deliberately keeps only the runtime side: it can load the versioned UTF-8 JSON `.helpdb` cache, expose topics to the help UI, render their Markdown, and copy fenced examples. This avoids making the document-conversion toolkit a mandatory dependency of the TUI toolkit.
+
+After editing a language's `help.md`, regenerate its runtime cache with SumDoc:
+
+```bash
+markdown2helpdb language-help.md language.helpdb
+helpdb2markdown language.helpdb language-help.md
+```
+
+`ListViewPane` and `TableViewPane` provide always-visible vertical scrollbars for long topic/table lists, matching the scrollable Markdown and text panes.
+
 <p align=center><b>- oOo -<b></p>

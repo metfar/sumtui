@@ -2207,3 +2207,56 @@ def test_markdown_view_exposes_and_copies_fenced_code_blocks():
     assert view.code_blocks[-1] == 'PRINT "hello"';
     assert view.copy_code_block(-1) == 'PRINT "hello"';
     assert clip.paste_text() == 'PRINT "hello"';
+
+
+def test_compiled_helpdb_runtime_model_and_aliases():
+    from sumtui.helpdb import HelpCorpus;
+    compiled = """{
+  "schema_version": 1,
+  "title": "Demo Help",
+  "intro": "Compiled runtime help.",
+  "topics": [
+    {
+      "name": "PRINT",
+      "category": "Console",
+      "summary": "Writes a value.",
+      "syntax": ["PRINT expression"],
+      "example": "PRINT 42",
+      "notes": [],
+      "see_also": ["INPUT"],
+      "aliases": ["?", "SAY"],
+      "language": "basic"
+    }
+  ]
+}
+""";
+    corpus = HelpCorpus.from_helpdb(compiled);
+    assert corpus.title == "Demo Help";
+    assert corpus.find_topic("?").name == "PRINT";
+    assert corpus.find_topic("SAY").example == "PRINT 42";
+    assert corpus.find_topic("PRINT").syntax == ("PRINT expression",);
+    assert "Functional example" in corpus.find_topic("PRINT").markdown();
+
+
+def test_sumtui_help_conversion_wrapper_delegates_to_sumdoc(tmp_path):
+    pytest = __import__("pytest");
+    try:
+        __import__("sumdoc.helpdb");
+    except ImportError:
+        pytest.skip("sumdoc is not installed in this isolated sumTUI test environment");
+    from sumtui.tools.helpconv import helpdb2markdown, markdown2helpdb;
+    source = tmp_path / "language.md";
+    db = tmp_path / "language.helpdb";
+    restored = tmp_path / "restored.md";
+    source.write_text("# Demo Help\n\n## General\n\n### HELLO\n\nGreets.\n\n#### Syntax\n\n```text\nHELLO\n```\n\n#### Functional example\n\n```text\nHELLO\n```\n", encoding="utf-8");
+    assert markdown2helpdb([str(source), str(db)]) == 0;
+    assert db.exists();
+    assert helpdb2markdown([str(db), str(restored)]) == 0;
+    assert "### HELLO" in restored.read_text(encoding="utf-8");
+
+def test_listview_pane_has_visible_vertical_scrollbar():
+    from sumtui import ListView, ListViewPane;
+    listing = ListView([(str(index), index) for index in range(20)], title="Topics");
+    pane = ListViewPane(listing);
+    assert pane.view is listing;
+    assert pane.vscroll.orientation == "vertical";

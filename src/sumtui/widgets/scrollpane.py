@@ -151,6 +151,16 @@ class MarkdownViewPane(VBox):
         self.row = HBox(self.view, self.vscroll, sizes=[None, 1], theme=theme);
         super().__init__(self.row, self.hscroll, sizes=[None, 1], theme=theme);
 
+    @property
+    def markdown(self):
+        return self.view.markdown;
+
+    def set_text(self, markdown):
+        return self.view.set_text(markdown);
+
+    def copy_code_block(self, index=-1):
+        return self.view.copy_code_block(index);
+
 
 class CommandWindowPane(VBox):
     """CommandWindow plus visible scrollback/horizontal scrollbars.""";
@@ -160,3 +170,35 @@ class CommandWindowPane(VBox):
         self.hscroll = _CommandHScroll(self.view, theme=theme);
         self.row = HBox(self.view, self.vscroll, sizes=[None, 1], theme=theme);
         super().__init__(self.row, self.hscroll, sizes=[None, 1], theme=theme);
+
+
+class _TableVScroll(ScrollBar):
+    def __init__(self, view, **kwargs):
+        self.view = view;
+        kwargs.setdefault("on_change", self._changed);
+        super().__init__(orientation="vertical", **kwargs);
+
+    def _changed(self, _bar, value):
+        if not self.view.rows:
+            return False;
+        self.view.select(max(0, min(len(self.view.rows) - 1, int(value))));
+        return True;
+
+    def __rich_console__(self, console, options):
+        self.page = max(1, int(self.view.page_size));
+        self.maximum = max(0, len(self.view.rows) - 1);
+        self.value = max(0, min(self.maximum, int(self.view.selected)));
+        yield from super().__rich_console__(console, options);
+
+
+class TableViewPane(HBox):
+    """Table/List view plus an always-visible vertical scrollbar.""";
+    def __init__(self, view, theme=None):
+        self.view = view;
+        self.vscroll = _TableVScroll(self.view, theme=theme);
+        super().__init__(self.view, self.vscroll, sizes=[None, 1], theme=theme);
+
+
+class ListViewPane(TableViewPane):
+    """ListView plus an always-visible vertical scrollbar.""";
+    pass;

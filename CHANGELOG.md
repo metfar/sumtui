@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.3 - 2026-09-01
+
+- Moved ownership of Markdown ↔ `.helpdb` parsing/serialization and command-line conversion to `sumdoc` 0.2.1.
+- Reduced `sumtui.helpdb` to the runtime data model and compiled-help reader needed by help viewers.
+- Kept lazy compatibility bridges for callers of the former conversion API without adding SumDoc as a mandatory sumTUI dependency.
+- Removed the `markdown2helpdb` and `helpdb2markdown` console entry points from sumTUI; the commands are now installed by SumDoc.
+- Preserved Markdown rendering, code-example copying, topic/list scrollbars, and the F2 topic-map UI unchanged.
+
+## 0.7.2 - 2026-09-01
+
+- Added reusable `ListViewPane` / `TableViewPane` vertical-scrollbar wrappers for long topic and table lists.
+- Added the common editable Markdown help corpus format in `sumtui.helpdb`.
+- Added `markdown2helpdb` and `helpdb2markdown` command-line converters. Markdown remains the canonical editable source; `.helpdb` is an optional generated JSON interchange/cache format.
+
+
 ## 0.7.1 - 2026-09-01
 
 - Added reusable fenced-code extraction/copy support to `MarkdownView`.
