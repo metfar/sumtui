@@ -31,6 +31,7 @@ import re;
 import sys;
 
 from rich.text import Text;
+from sumui import add_backend_arguments, backend_from_args;
 
 from .. import __version__;
 from ..app import Application;
@@ -48,7 +49,7 @@ from .edit_preferences import open_preferences;
 
 
 _EOL_MARKERS = {"\n": "↵", "\r\n": "⏎", "\r": "↩"};
-_HELP_TEXT = """sumTUI edit
+_HELP_TEXT = """sumedit
 
 Keyboard
   F1                  Help
@@ -110,7 +111,7 @@ Markdown highlighting includes headings, emphasis, links, inline HTML and fenced
 Markdown files also provide a rendered preview with bordered tables and integrated HTML/PDF export.
 Options contains Tab width, Theme, Line wrapping, Line breaking, Keyboard shortcuts and Save configuration.
 Edit contains whole-document Tabs -> Spaces and Spaces -> Tabs conversion using the current Tab width.
-Ralesk's MC is included as a Geany-derived Midnight Commander-like theme and is the fresh-install sumedit default.
+ZX is the fresh-install sumedit default; alternate themes remain selectable from Options.
 Line wrapping is visual only: -1 means automatic to the current editor width, 0 disables wrapping, and positive values set a maximum visual width. 78 is the legacy 80-column-window preset (80 minus two border cells).
 Line breaking is separate and modifies text when enabled; 0 keeps automatic hard breaking off.
 Keyboard shortcuts can be changed, extended, removed or restored to defaults.
@@ -211,9 +212,9 @@ class EditApp:
         self.force_binary = bool(force_binary);
         self.config_path = Path(config_path).expanduser() if config_path is not None else _default_config_path();
         self.config = _load_config(self.config_path);
-        selected_theme = theme or self.config.get("theme") or "Ralesk's MC";
+        selected_theme = theme or self.config.get("theme") or "ZX";
         self.document = self._load_document(path);
-        self.app = Application(title="sumTUI edit", theme=selected_theme, capture_control_keys=True, mouse=True);
+        self.app = Application(title="sumedit", theme=selected_theme, capture_control_keys=True, mouse=True);
         self.search_query = "";
         self.replace_text = "";
         self.search_case_sensitive = False;
@@ -1527,17 +1528,17 @@ class EditApp:
             return True;
 
         body = VBox(pane, HBox(Button("Copy", on_press=copy_text), Button("Close", on_press=close, default=True), ratios=[1, 1]), sizes=[None, None]);
-        dialog = Dialog(body, title="sumTUI edit Help", width=90, height=28, on_cancel=close, shadow=True, maximizable=True);
+        dialog = Dialog(body, title="sumedit Help", width=90, height=28, on_cancel=close, shadow=True, maximizable=True);
         self.app.push_modal(dialog, bindings={"ctrl+c": copy_text});
         self.app.focus.set(view);
         self.app.invalidate();
         return True;
 
     def about(self):
-        text = """sumTUI edit
+        text = """sumedit
 Version {}
 
-A lightweight Unicode-aware plain-text editor built with sumTUI.
+A lightweight Unicode-aware plain-text editor built with the Sum UI application model.
 
 Features include selection, clipboard, undo/redo, search/replace, EOL and encoding awareness, hidden-character visualization, semantic syntax highlighting, soft line wrapping, optional hard line breaking, configurable tab width, themes and keyboard shortcuts.
 
@@ -1546,7 +1547,7 @@ Markdown is edited as source text. Rendered document preview / sumDOC integratio
 License: GNU GPL v2 or later
 Copyright 2018- William Martinez Bas <metfar@gmail.com>
 """.format(__version__);
-        return self._show_text_dialog("About sumTUI edit", text, width=70, height=16);
+        return self._show_text_dialog("About sumedit", text, width=70, height=16);
 
     def _quit_now(self):
         self.app.stop();
@@ -1555,12 +1556,12 @@ Copyright 2018- William Martinez Bas <metfar@gmail.com>
     def quit(self):
         return self._confirm_unsaved(self._quit_now);
 
-    def run(self):
+    def run(self, backend="tui"):
         workspace = self._workspace();
         if workspace is not None:
             workspace.load_layout();
         try:
-            return self.app.run();
+            return self.app.run(backend=backend);
         finally:
             if workspace is not None:
                 workspace.save_layout();
@@ -1577,29 +1578,25 @@ def install_edit_alias(directory=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="sumedit", description="Lightweight plain-text editor built with sumTUI");
+    parser = argparse.ArgumentParser(prog="sumedit", description="Lightweight plain-text editor built with the Sum UI application model");
     parser.add_argument("file", nargs="?", help="text file to edit");
-    parser.add_argument("--theme", default=None, help="sumTUI theme (overrides saved editor configuration; default: saved theme or DOS)");
+    parser.add_argument("--theme", default=None, help="Sum theme (overrides saved editor configuration)");
     parser.add_argument("--force", action="store_true", help="open binary-looking files as text");
-    parser.add_argument("--gui", action="store_true", help="open the file in the optional sumGUI/Pygame editor instead of the terminal frontend");
-    parser.add_argument("--install-alias", action="store_true", help="install ~/bin/edit wrapper using safe \"$@\" argument forwarding");
+    add_backend_arguments(parser);
+    parser.add_argument("--install-alias", action="store_true", help='install ~/bin/edit wrapper using safe "$@" argument forwarding');
     args = parser.parse_args(argv);
     if args.install_alias:
         return install_edit_alias();
-    if args.gui:
-        try:
-            from .edit_gui import run_gui_editor;
-            return int(run_gui_editor(args.file, force_binary=args.force, theme=args.theme) or 0);
-        except Exception as exc:
-            print("sumedit --gui: {}".format(exc), file=sys.stderr);
-            return 1;
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        print("sumedit requires an interactive terminal", file=sys.stderr);
+    backend = backend_from_args(args);
+    if backend == "tui" and (not sys.stdin.isatty() or not sys.stdout.isatty()):
+        print("sumedit TUI mode requires an interactive terminal; use --gui for the graphical backend", file=sys.stderr);
         return 2;
     try:
-        return EditApp(args.file, theme=args.theme, force_binary=args.force).run();
+        application = EditApp(args.file, theme=args.theme, force_binary=args.force);
+        return application.run(backend=backend);
     except Exception as exc:
-        print("sumedit: {}".format(exc), file=sys.stderr);
+        label = "sumedit --gui" if backend == "gui" else "sumedit";
+        print("{}: {}".format(label, exc), file=sys.stderr);
         return 1;
 
 

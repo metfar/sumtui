@@ -73,7 +73,7 @@ class ThemePreview(Widget):
 class ThemeEditorApp:
     def __init__(self, theme=None):
         refresh_user_themes();
-        selected = theme if theme in THEMES else ("Ralesk's MC" if "Ralesk's MC" in THEMES else next(iter(THEMES)));
+        selected = theme if theme in THEMES else ("ZX" if "ZX" in THEMES else next(iter(THEMES)));
         self.app = Application("sumTUI Theme Editor", theme=selected, capture_control_keys=True, mouse=True);
         self.current_name = selected;
         self.status = StatusBar("");
@@ -296,7 +296,7 @@ class ThemeEditorApp:
                 continue;
         old = self.current_name;
         refresh_user_themes();
-        self.current_name = "Ralesk's MC" if "Ralesk's MC" in THEMES else next(iter(THEMES));
+        self.current_name = "ZX" if "ZX" in THEMES else next(iter(THEMES));
         self.app.set_theme(THEMES[self.current_name]);
         self._reload_theme_list();
         self._reload_roles();
@@ -307,7 +307,7 @@ class ThemeEditorApp:
     def reload_themes(self):
         refresh_user_themes();
         if self.current_name not in THEMES:
-            self.current_name = "Ralesk's MC" if "Ralesk's MC" in THEMES else next(iter(THEMES));
+            self.current_name = "ZX" if "ZX" in THEMES else next(iter(THEMES));
         self.app.set_theme(THEMES[self.current_name]);
         self._reload_theme_list();
         self._reload_roles();

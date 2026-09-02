@@ -25,7 +25,7 @@
 from sumtui import make_theme, theme_from_dict, theme_to_dict;
 
 
-theme = make_theme("Ralesk's MC").copy(name="Teaching MC");
+theme = make_theme("ZX").copy(name="Teaching ZX");
 data = theme_to_dict(theme);
 restored = theme_from_dict(data);
 print(restored.name);

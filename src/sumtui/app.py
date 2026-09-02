@@ -31,6 +31,7 @@ from .backends import create_input_backend;
 from .events import Key, KeyEvent, MouseEvent, ResizeEvent, normalize_key_spec;
 from .theme import DEFAULT_THEME, make_theme;
 from .overlay import ModalOverlay;
+from sumui import normalize_backend_name;
 
 
 class FocusManager:
@@ -126,6 +127,7 @@ class Application:
         self._run_thread_ident = None;
         self._active_backend = None;
         self._active_live = None;
+        self._active_gui_backend = None;
         self._external_lock = threading.Lock();
         self._external_requests = [];
         if root is not None:
@@ -276,6 +278,11 @@ class Application:
     def invalidate(self):
         if self.live is not None and self.root is not None:
             self.live.update(self._renderable(), refresh=True);
+        gui_backend = getattr(self, "_active_gui_backend", None);
+        if gui_backend is not None:
+            request_redraw = getattr(gui_backend, "request_redraw", None);
+            if request_redraw is not None:
+                request_redraw();
         return None;
 
     def dispatch(self, event):
@@ -320,7 +327,14 @@ class Application:
             return ResizeEvent(size.width, size.height);
         return None;
 
-    def run(self):
+    def run(self, backend="tui"):
+        backend_name = normalize_backend_name(backend);
+        if backend_name == "gui":
+            try:
+                from sumgui.application_backend import run_application;
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeError("GUI backend requires sumGUI/Pygame; install the graphical extra") from exc;
+            return run_application(self);
         if self.root is None:
             raise RuntimeError("Application has no root widget");
         if not self.console.is_terminal:

@@ -32,7 +32,7 @@ from sumtui import ask_question, read_entry, show_message;
 
 
 def main():
-    theme = "Ralesk's MC";
+    theme = "ZX";
     show_message("sumdialog services are available from Python too.", title="sumTUI", theme=theme, button_width=18, button_height=3);
     if not ask_question("Enter a small example value?", title="Question", theme=theme, button_width=18, button_height=3).accepted:
         return 0;

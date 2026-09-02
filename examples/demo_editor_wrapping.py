@@ -30,7 +30,7 @@ TEXT = """This is one logical line. With line_wrapping=-1 it follows the visible
 
 def main():
     editor = TextEditor(TEXT, line_numbers=True, line_wrapping=-1);
-    app = Application(root=Panel(editor, title="Automatic line wrapping", content_style="viewer"), title="sumTUI wrapping demo", theme="DOS", capture_control_keys=True);
+    app = Application(root=Panel(editor, title="Automatic line wrapping", content_style="viewer"), title="sumTUI wrapping demo", theme="ZX", capture_control_keys=True);
     app.focus.set(editor);
     return app.run();
 

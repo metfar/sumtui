@@ -46,7 +46,6 @@ Shift+Up/Down and Shift+PageUp/PageDown extend the current selection while movin
 
 POSIX applications may opt in to SGR mouse reporting with `Application(..., mouse=True)`. `sumedit`, `sumdialog`, `suminput`, and `sumtheme` enable it while they own the terminal and disable it again on exit. Mouse events are normalized as `MouseEvent` objects: left-click can focus controls, editor clicks place the caret, drag extends a text selection, the wheel scrolls supported views, and scrollbars accept track clicks and thumb dragging. Keyboard operation remains complete when the terminal does not provide mouse reporting.
 
-The Ralesk's MC theme uses the original Geany scheme's green line-number margin (`#393`) with dark-blue (`#114`) line numbers, matching the classic MC-like source view.
 
 ```python
 from sumtui import TextEditor;
@@ -84,11 +83,10 @@ The callback is intentionally responsible for launching the external program; su
 - XBASE
 - C64
 - MSX
-- Ralesk's MC
 - Dark
 - Light
 
-The SumGUI theme families are mirrored or closely followed here; `RAR` is an additional DOS-derived theme intended for classic archive/Commander-style interfaces. `Ralesk's MC` adapts the GPLv2+ Geany colourscheme by Henrik Pauli into sumTUI semantic roles (Midnight Commander-like dark-blue background, yellow keywords/operators, green strings, brown comments, cyan numbers). It is the fresh-install default for `sumedit`, while saved user configuration continues to take precedence.
+The SumGUI theme families are mirrored or closely followed here; `RAR` is an additional DOS-derived theme intended for classic archive/Commander-style interfaces. Fresh installations use `ZX` by default.
 
 List them with:
 
@@ -516,7 +514,7 @@ Markdown remains directly editable as source: headings, emphasis, links, inline 
 
 On POSIX terminals, `sumedit` temporarily captures control keys rather than letting the terminal driver convert them to process-control signals. This is what makes **Ctrl+C = Copy**, **Ctrl+Z = Undo**, **Ctrl+Y = Redo**, and **Ctrl+S = Save** reliable inside the editor. The implementation disables `ISIG` and XON/XOFF only while the application owns the terminal and restores the original termios settings in a `finally`-equivalent context on exit. Other sumTUI applications keep the traditional signal behavior unless they explicitly request `Application(capture_control_keys=True)`.
 
-`Options` contains nested `Tab -> 2/4/8`, `Theme -> ...`, `Line wrapping -> ...`, and `Line breaking -> ...` menus plus `Keyboard shortcuts...`. `Theme -> Ralesk's MC` reproduces the comfortable Geany/MC-inspired palette supplied with the project; on a fresh configuration it is selected by default.  The shortcut editor works with named actions rather than hard-coded keys: select an action, then Change, Add, or Remove one of its shortcuts, or restore all Defaults.  The next real terminal key combination is captured, conflicts in the same editor context are reported before reassignment, and actions may keep more than one spelling (for example `Ctrl+C` and `Ctrl+Insert` for Copy).  Menus and the bottom function bar are regenerated from the active bindings, so their shortcut hints stay accurate after customization.
+`Options` contains nested `Tab -> 2/4/8`, `Theme -> ...`, `Line wrapping -> ...`, and `Line breaking -> ...` menus plus `Keyboard shortcuts...`. `Theme -> ZX` selects the fresh-install default Spectrum-derived palette.  The shortcut editor works with named actions rather than hard-coded keys: select an action, then Change, Add, or Remove one of its shortcuts, or restore all Defaults.  The next real terminal key combination is captured, conflicts in the same editor context are reported before reassignment, and actions may keep more than one spelling (for example `Ctrl+C` and `Ctrl+Insert` for Copy).  Menus and the bottom function bar are regenerated from the active bindings, so their shortcut hints stay accurate after customization.
 
 `line_wrapping` is presentation-only and follows a compact Spectrum-style convention: `-1` means **Auto** (the default, wrap at the current visible editor width), `0` means **Off**, and any positive value is a fixed maximum visual width.  Presets include **78**, **80**, **100**, and **120** columns.  The 78-column preset is intentionally retained for legacy 80-column layouts: one border cell on each side of an 80-column window leaves 78 useful text columns.  Soft wrapping never inserts an EOL, never marks the file modified, resets horizontal scrolling, and uses `↪` in the line-number gutter for visual continuation rows.
 
@@ -530,7 +528,7 @@ To install the short `edit` wrapper under your own `$HOME/bin` without touching 
 sumedit --install-alias
 ```
 
-The wrapper deliberately uses `exec python3 -m sumtui.tools.edit "$@"` so quoting and argument boundaries are preserved. To force the Geany-inspired palette for one invocation, use `sumedit --theme "Ralesk's MC" FILE`; `examples/edit/edit_ralesk.sh` demonstrates the same from Bash.
+The wrapper deliberately uses `exec python3 -m sumtui.tools.edit "$@"` so quoting and argument boundaries are preserved. Use `sumedit --theme NAME FILE` for a one-session theme override.
 
 A runnable Python example for hidden-character rendering is included as:
 
@@ -538,7 +536,6 @@ A runnable Python example for hidden-character rendering is included as:
 python examples/demo_editor_hidden_chars.py
 python examples/demo_editor_syntax.py
 python examples/demo_editor_wrapping.py
-python examples/demo_ralesk_theme.py
 ```
 
 Python and Bash examples also cover the reusable key-binding registry and a temporary custom `sumedit` keyboard profile without touching the user's real configuration:
@@ -661,7 +658,7 @@ File, directory and list selection:
 file=$(sumdialog --file-selection --title "Open")
 dir=$(sumdialog --directory-selection --title "Directory")
 language=$(sumdialog --list --text "Language" Python BASIC C R sumX)
-theme=$(sumdialog --radiolist --default "Ralesk's MC" "Ralesk's MC" DOS XBASE Light)
+theme=$(sumdialog --radiolist --default ZX ZX DOS XBASE Light)
 features=$(sumdialog --checklist --separator '|' --selected Python Python BASIC SQL Bash)
 ```
 
@@ -799,7 +796,7 @@ The command-line equivalents are `--menu-blank [ROWS]`, `--menu-separator`, and 
 
 ```bash
 sumdialog --demo
-sumdialog --demo --theme "Ralesk's MC"
+sumdialog --demo --theme ZX
 ```
 
 Text viewers accept a filename or piped stdin:
@@ -826,7 +823,7 @@ The reusable Python API is also public:
 ```python
 from sumtui import FormFieldSpec, MenuItemSpec, ask_question, choose_menu, read_entry, read_form, show_message;
 
-show_message("Ready", title="Example", theme="Ralesk's MC");
+show_message("Ready", title="Example", theme="ZX");
 if ask_question("Name the result?").accepted:
     result = read_entry("Name:", title="Result");
     print(result.value);
@@ -884,7 +881,7 @@ sumTUI intentionally exposes small reusable capabilities as tools when the imple
 
 ```bash
 sumtheme
-sumtheme --theme "Ralesk's MC"
+sumtheme --theme ZX
 sumtheme --list
 sumtheme --dir
 ```
@@ -894,7 +891,7 @@ User themes are stored as JSON under `$XDG_CONFIG_HOME/sumtui/themes` (or `~/.co
 ```python
 from sumtui import make_theme, save_user_theme, theme_to_dict;
 
-theme = make_theme("Ralesk's MC").copy(name="Teaching MC");
+theme = make_theme("ZX").copy(name="Teaching ZX");
 path = save_user_theme(theme);
 embedded = theme_to_dict(theme);
 ```
@@ -938,5 +935,16 @@ view = ChartView(chart, renderer="auto");
 ```
 
 Available terminal renderers are `ascii`, `unicode`, `braille` and `auto`. `auto` uses Unicode for bar/pie charts and Braille for line/scatter plots.
+
+## One `sumedit`, two presentations
+
+`sumedit` is one application. Terminal presentation remains the default and keeps keyboard and mouse support; graphical presentation is selected only at startup:
+
+```bash
+sumedit program.py
+sumedit --gui program.py
+```
+
+Both commands construct the same `EditApp`, with the same document, menus, status/function bars, syntax highlighter, keybindings, dialogs, configuration, theme, focus rules and editing behavior. `Application.run(backend=...)` chooses how that application is displayed. The legacy `sumtui.tools.edit_gui` module is only a compatibility launcher and contains no second editor implementation.
 
 <p align=center><b>- oOo -<b></p>

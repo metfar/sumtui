@@ -35,7 +35,7 @@ from sumtui import Application, FunctionBar, Panel, TextEditor, VBox;
 
 def main():
     text = "spaces here\tTAB\x00NUL\nsecond line\n";
-    app = Application(title="Hidden characters", theme="DOS");
+    app = Application(title="Hidden characters", theme="ZX");
     editor = TextEditor(text, line_numbers=True);
     editor.show_spaces = True;
     editor.show_tabs = True;

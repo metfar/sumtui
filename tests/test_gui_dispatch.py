@@ -16,11 +16,31 @@ import types;
 from sumtui.tools import edit;
 
 
-def test_sumedit_gui_dispatches_before_terminal_requirement(monkeypatch):
+def test_sumedit_gui_dispatches_same_application_to_gui_backend(monkeypatch):
     calls = [];
-    module = types.ModuleType("sumtui.tools.edit_gui");
-    module.run_gui_editor = lambda path=None, force_binary=False, theme=None: calls.append((path, force_binary, theme)) or 0;
-    monkeypatch.setitem(sys.modules, "sumtui.tools.edit_gui", module);
+    class FakeEditApp:
+        def __init__(self, path=None, theme=None, force_binary=False):
+            calls.append(("init", path, force_binary, theme));
+        def run(self, backend="tui"):
+            calls.append(("run", backend));
+            return 0;
+    monkeypatch.setattr(edit, "EditApp", FakeEditApp);
     rc = edit.main(["--gui", "--force", "--theme", "dark", "example.py"]);
     assert rc == 0;
-    assert calls == [("example.py", True, "dark")];
+    assert calls == [("init", "example.py", True, "dark"), ("run", "gui")];
+
+
+def test_application_gui_backend_receives_same_application_instance(monkeypatch):
+    from sumtui.app import Application;
+    from sumtui.widgets import Label;
+
+    received = [];
+    package = types.ModuleType("sumgui");
+    package.__path__ = [];
+    backend = types.ModuleType("sumgui.application_backend");
+    backend.run_application = lambda application: received.append(application) or 37;
+    monkeypatch.setitem(sys.modules, "sumgui", package);
+    monkeypatch.setitem(sys.modules, "sumgui.application_backend", backend);
+    application = Application(root=Label("same application"));
+    assert application.run(backend="gui") == 37;
+    assert received == [application];

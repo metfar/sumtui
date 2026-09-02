@@ -247,7 +247,7 @@ class Theme:
         return self.color("text");
 
 
-def make_theme(name="dark"):
+def make_theme(name="ZX"):
     key = str(name).lower();
     table = globals().get("THEMES", {});
     for theme_name, theme in table.items():
@@ -269,47 +269,11 @@ def make_theme(name="dark"):
         return Theme("C64", (64, 49, 141), (112, 94, 181), (170, 255, 238), (255, 255, 255), (187, 187, 187), (238, 238, 119), (0, 0, 170), (64, 49, 141), (255, 119, 119), (238, 238, 119), (170, 255, 238), (64, 49, 141), (238, 238, 119), tuple(C64_COLORS));
     if key == "msx":
         return Theme("MSX", (0, 0, 0), (33, 33, 96), (66, 235, 245), (255, 255, 255), (204, 204, 204), (94, 220, 120), (84, 85, 237), (0, 0, 0), (252, 85, 84), (255, 255, 255), (84, 85, 237), (255, 255, 255), (94, 220, 120), tuple(MSX_COLORS));
-    if key in ("mc", "ralesk", "ralesk mc", "ralesk's mc", "ralesks mc"):
-        # Adapted from Henrik Pauli's GPLv2+ Geany colorscheme "Ralesk's MC"
-        # (Midnight Commander-like scheme).  Semantic roles are mapped rather
-        # than copying Geany's lexer-specific configuration.
-        overrides = (
-            ("editor_gutter", "#111144 on #339933"),
-            ("editor_space", "#3636a3"),
-            ("editor_whitespace", "#3636a3"),
-            ("editor_tab", "#3636a3"),
-            ("editor_eol", "bold #c0c0c0"),
-            ("editor_control", "bold #ff9999"),
-            ("syntax_keyword", "bold #f4d432"),
-            ("syntax_function", "#d3d7cf"),
-            ("syntax_builtin", "#d3d7cf"),
-            ("syntax_variable", "#c0c0c0"),
-            ("syntax_type", "bold #ffffff"),
-            ("syntax_string", "#33aa33"),
-            ("syntax_number", "#3fcfcf"),
-            ("syntax_comment", "italic #996600"),
-            ("syntax_operator", "bold #ffff00"),
-            ("syntax_constant", "bold #ffff00"),
-            ("syntax_heading", "bold underline #f4d432"),
-            ("syntax_strong", "bold #c0c0c0"),
-            ("syntax_emphasis", "italic #c0c0c0"),
-            ("syntax_deleted", "strike #808080"),
-            ("syntax_tag", "bold #ffffff"),
-            ("syntax_markup", "#f4d432"),
-            ("syntax_attribute", "bold #f4d432"),
-            ("syntax_label", "bold #c0c0c0"),
-            ("syntax_error", "bold #ffffff on #ff0000"),
-        );
-        return Theme(name="Ralesk's MC", bg=(17, 17, 68), panel=(17, 17, 68), line=(51, 102, 153),
-                     text=(192, 192, 192), muted=(128, 128, 128), button=(244, 212, 50),
-                     button_alt=(51, 102, 153), button_text=(0, 0, 0), error=(255, 0, 0),
-                     cursor=(204, 51, 255), selection_bg=(51, 102, 153), selection_text=(0, 0, 0),
-                     title=(244, 212, 50), palette=tuple(DOS_COLORS), viewer_bg=(17, 17, 68),
-                     viewer_text=(192, 192, 192), command_bg=(17, 17, 68), command_text=(192, 192, 192),
-                     command_prompt=(244, 212, 50), style_overrides=overrides);
     if key == "light":
         return Theme("Light", (245, 245, 245), (255, 255, 255), (80, 80, 80), (20, 20, 20), (90, 90, 90), (70, 130, 220), (220, 220, 220), (255, 255, 255), (200, 40, 40), (0, 90, 180), (70, 130, 220), (255, 255, 255), (0, 90, 180), tuple(SPECTRUM_COLORS));
-    return Theme("Dark", (10, 30, 32), (28, 48, 54), (55, 75, 85), (235, 245, 250), (130, 150, 155), (140, 220, 40), (60, 100, 120), (10, 25, 30), (255, 100, 100), (255, 255, 0), (60, 100, 120), (255, 255, 255), (255, 255, 0), tuple(SPECTRUM_COLORS));
+    if key == "dark":
+        return Theme("Dark", (10, 30, 32), (28, 48, 54), (55, 75, 85), (235, 245, 250), (130, 150, 155), (140, 220, 40), (60, 100, 120), (10, 25, 30), (255, 100, 100), (255, 255, 0), (60, 100, 120), (255, 255, 255), (255, 255, 0), tuple(SPECTRUM_COLORS));
+    return Theme("ZX", (0, 0, 0), (0, 0, 90), (0, 255, 255), (255, 255, 255), (0, 205, 205), (255, 255, 0), (0, 0, 205), (0, 0, 0), (255, 80, 80), (255, 255, 0), (0, 0, 205), (255, 255, 255), (255, 255, 0), tuple(SPECTRUM_COLORS));
 
 
 THEMES = {
@@ -321,7 +285,6 @@ THEMES = {
     "XBASE": make_theme("XBASE"),
     "C64": make_theme("C64"),
     "MSX": make_theme("MSX"),
-    "Ralesk's MC": make_theme("Ralesk's MC"),
     "Dark": make_theme("Dark"),
     "Light": make_theme("Light"),
 };
@@ -489,7 +452,7 @@ def refresh_user_themes(path=None):
 
 
 def available_theme_names():
-    preferred = ("Ralesk's MC", "Dark", "Light", "DOS", "RAR", "DBASE", "FOXPRO", "XBASE", "C64", "MSX", "ZX");
+    preferred = ("ZX", "DOS", "RAR", "DBASE", "FOXPRO", "XBASE", "C64", "MSX", "Dark", "Light");
     names = [name for name in preferred if name in THEMES];
     names.extend(name for name in THEMES if name not in names);
     return tuple(names);
@@ -500,4 +463,4 @@ try:
 except Exception:
     pass;
 
-DEFAULT_THEME = THEMES["Dark"];
+DEFAULT_THEME = THEMES["ZX"];

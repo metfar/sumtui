@@ -63,7 +63,7 @@ View menu checkboxes can be toggled with Space. Syntax highlighting is auto-dete
 
 Markdown files provide rendered preview with bordered tables and integrated HTML/PDF export. Options contains Tab width, Theme, Line wrapping, Line breaking, Keyboard shortcuts and Save configuration. Edit contains whole-document Tabs → Spaces and Spaces → Tabs conversion using the current Tab width.
 
-Ralesk's MC is included as a Geany-derived Midnight Commander-like theme and is the fresh-install sumedit default.
+ZX is the fresh-install sumedit default; alternate themes remain selectable from Options.
 
 Line wrapping is visual only: `-1` means automatic to the current editor width, `0` disables wrapping, and positive values set a maximum visual width. `78` is the legacy 80-column-window preset. Line breaking is separate and modifies text when enabled; `0` keeps automatic hard breaking off.
 

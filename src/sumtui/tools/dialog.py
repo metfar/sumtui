@@ -241,7 +241,7 @@ def _parser():
     parser.add_argument("items", nargs="*", help="items used by list modes, or one declarative .sdlg file when no mode is given");
     parser.add_argument("--title", default=None, help="dialog title");
     parser.add_argument("--text", default="", help="message, prompt, or list description");
-    parser.add_argument("--theme", default="DOS", help="sumTUI theme name");
+    parser.add_argument("--theme", default="ZX", help="sumTUI theme name");
     parser.add_argument("--width", type=int, default=None, help="dialog or entry width");
     parser.add_argument("--height", type=int, default=None, help="dialog height; --entry uses it as input height");
     parser.add_argument("--timeout", metavar="[DEFAULT,]SECONDS", help="timeout in seconds; entry also accepts DEFAULT,SECONDS");
@@ -378,7 +378,7 @@ def _retro_demo_menu(theme):
     return choose_menu(items, title="MENU", text="=====", theme=theme, width=44);
 
 
-def _run_demo(theme="DOS"):
+def _run_demo(theme="ZX"):
     launcher = [
         MenuItemSpec("info", "Info"),
         MenuItemSpec("warning", "Warning"),

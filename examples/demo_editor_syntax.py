@@ -46,7 +46,7 @@ fi
 
 def main():
     editor = TextEditor(MARKDOWN, line_numbers=True, syntax_highlighting=True, syntax_language="markdown", syntax_filename="README.md");
-    app = Application(root=Panel(editor, title="Markdown source", content_style="viewer"), title="sumTUI syntax demo", theme="DOS", capture_control_keys=True);
+    app = Application(root=Panel(editor, title="Markdown source", content_style="viewer"), title="sumTUI syntax demo", theme="ZX", capture_control_keys=True);
     app.focus.set(editor);
     return app.run();
 

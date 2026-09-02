@@ -69,14 +69,11 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(theme.style("message_warning"), "bold #000000");
         self.assertEqual(theme.style("message_error"), "bold #ffffff");
 
-    def test_ralesk_mc_theme_uses_geany_semantic_palette(self):
-        theme = make_theme("ralesk");
-        self.assertEqual(theme.name, "Ralesk's MC");
-        self.assertEqual(theme.style("viewer"), "#c0c0c0 on #111144");
-        self.assertEqual(theme.style("syntax_keyword"), "bold #f4d432");
-        self.assertEqual(theme.style("syntax_string"), "#33aa33");
-        self.assertEqual(theme.style("syntax_comment"), "italic #996600");
-        self.assertEqual(theme.style("editor_gutter"), "#111144 on #339933");
+    def test_zx_is_default_theme(self):
+        from sumtui import DEFAULT_THEME;
+        self.assertEqual(DEFAULT_THEME.name, "ZX");
+        self.assertEqual(make_theme().name, "ZX");
+        self.assertEqual(make_theme("not-a-theme").name, "ZX");
 
     def test_editor_hidden_character_roles_are_distinct(self):
         theme = make_theme("DOS");
@@ -753,7 +750,7 @@ class EditorToolTests(unittest.TestCase):
         console = Console(width=100, height=30, record=True, force_terminal=False, file=io.StringIO());
         console.print(editor.app._renderable(), height=30);
         output = console.export_text();
-        self.assertIn("About sumTUI edit", output);
+        self.assertIn("About sumedit", output);
         self.assertIn("GNU GPL v2 or later", output);
 
     def test_sumedit_search_find_previous_replace_and_replace_all(self):
@@ -1390,7 +1387,7 @@ class EditorWrappingTests(unittest.TestCase):
 
     def test_sumedit_wrapping_defaults_auto_and_has_legacy_78_preset(self):
         editor = EditApp();
-        self.assertEqual(editor.app.theme.name, "Ralesk's MC");
+        self.assertEqual(editor.app.theme.name, "ZX");
         self.assertEqual(editor.editor.line_wrapping, -1);
         self.assertEqual(editor.editor.line_breaking, 0);
         options = editor.menu.menus[4];
@@ -1427,17 +1424,17 @@ class ThemeEditorTests(unittest.TestCase):
     def test_user_theme_roundtrip_and_registration(self):
         from sumtui import THEMES, load_theme_file, make_theme, save_user_theme;
         with tempfile.TemporaryDirectory() as tempdir:
-            custom = make_theme("Ralesk's MC").copy(name="Teaching MC", style_overrides=(("syntax_keyword", "bold #abcdef"),));
+            custom = make_theme("ZX").copy(name="Teaching ZX", style_overrides=(("syntax_keyword", "bold #abcdef"),));
             path = save_user_theme(custom, path=tempdir);
             loaded = load_theme_file(path);
-            self.assertEqual(loaded.name, "Teaching MC");
+            self.assertEqual(loaded.name, "Teaching ZX");
             self.assertEqual(loaded.style("syntax_keyword"), "bold #abcdef");
-            THEMES.pop("Teaching MC", None);
+            THEMES.pop("Teaching ZX", None);
 
     def test_theme_preview_tool_lists_roles(self):
         from sumtui.tools.themeedit import ThemeEditorApp;
-        app = ThemeEditorApp(theme="Ralesk's MC");
-        self.assertEqual(app.current_name, "Ralesk's MC");
+        app = ThemeEditorApp(theme="ZX");
+        self.assertEqual(app.current_name, "ZX");
         self.assertIn("syntax_keyword", [row.value for row in app.role_list.rows]);
         self.assertIn("editor_gutter", [row.value for row in app.role_list.rows]);
 
@@ -1681,8 +1678,8 @@ output=shell
         from unittest.mock import patch;
         from sumtui.tools import dialog as dialog_tool;
         with patch.object(dialog_tool, "_run_demo", return_value=0) as mocked:
-            self.assertEqual(dialog_tool.main(["--demo", "--theme", "Ralesk's MC"]), 0);
-        mocked.assert_called_once_with("Ralesk's MC");
+            self.assertEqual(dialog_tool.main(["--demo", "--theme", "ZX"]), 0);
+        mocked.assert_called_once_with("ZX");
 
     def test_sumdialog_bash_examples_are_syntax_valid(self):
         root = Path(__file__).resolve().parents[1];

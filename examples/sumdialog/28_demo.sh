@@ -1,4 +1,4 @@
 #!/bin/bash
 set -u
 
-exec sumdialog --demo --theme "Ralesk's MC"
+exec sumdialog --demo --theme ZX

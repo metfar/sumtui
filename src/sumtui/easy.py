@@ -30,13 +30,13 @@ from .widgets import ChartView, CommandWindow, Button, CheckBox, Choice, Column,
 _app = None;
 
 
-def screen(title="sumTUI", theme="Dark"):
+def screen(title="sumTUI", theme="ZX"):
     global _app;
     _app = Application(title=title, theme=theme);
     return _app;
 
 
-def window(title="sumTUI", theme="Dark"):
+def window(title="sumTUI", theme="ZX"):
     return screen(title=title, theme=theme);
 
 

@@ -109,7 +109,7 @@ def _install_timeout(app, state, timeout, default_status=TIMED_OUT):
     return tick;
 
 
-def show_message(text, title="Message", kind="info", theme="DOS", width=None, height=None,
+def show_message(text, title="Message", kind="info", theme="ZX", width=None, height=None,
                  timeout=None, ok_label="OK", cancel_label="Cancel", question=False,
                  button_width=None, button_height=1):
     kind = str(kind or "info").strip().lower();
@@ -146,7 +146,7 @@ def show_message(text, title="Message", kind="info", theme="DOS", width=None, he
         return DialogResult("", state["status"]);
 
 
-def ask_question(text, title="Question", theme="DOS", width=None, height=None, timeout=None,
+def ask_question(text, title="Question", theme="ZX", width=None, height=None, timeout=None,
                  yes_label="Yes", no_label="No", button_width=None, button_height=1):
     return show_message(
         text=text,
@@ -164,7 +164,7 @@ def ask_question(text, title="Question", theme="DOS", width=None, height=None, t
     );
 
 
-def read_entry(text="", title="Input", theme="DOS", width=None, height=1, picture="", overflow=False,
+def read_entry(text="", title="Input", theme="ZX", width=None, height=1, picture="", overflow=False,
                hidden=False, mask=None, keys="", case_sensitive=False, default="", timeout=None,
                button_width=None, button_height=1, max_length=None, confirm=True, valid_values=(),
                validation_error="Invalid value", validator=None):
@@ -195,7 +195,7 @@ def read_entry(text="", title="Input", theme="DOS", width=None, height=1, pictur
     return DialogResult(result.value, result.status);
 
 
-def choose_file(path=".", title="Open file", theme="DOS", width=76, height=24, directory=False, button_width=None, button_height=1):
+def choose_file(path=".", title="Open file", theme="ZX", width=76, height=24, directory=False, button_width=None, button_height=1):
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
@@ -221,7 +221,7 @@ def choose_file(path=".", title="Open file", theme="DOS", width=76, height=24, d
         return DialogResult(state["value"], state["status"]);
 
 
-def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18, default=None, timeout=None, button_width=None, button_height=1):
+def choose_list(items, title="Select", text="", theme="ZX", width=60, height=18, default=None, timeout=None, button_width=None, button_height=1):
     values = [str(item) for item in list(items or [])];
     with controlling_terminal() as terminal:
         reader, writer = terminal;
@@ -256,7 +256,7 @@ def choose_list(items, title="Select", text="", theme="DOS", width=60, height=18
         return DialogResult(state["value"], state["status"]);
 
 
-def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=None, default=None, timeout=None, button_width=None, button_height=1):
+def choose_radio(items, title="Select", text="", theme="ZX", width=60, height=None, default=None, timeout=None, button_width=None, button_height=1):
     values = [str(item) for item in list(items or [])];
     selected = default if default in values else (values[0] if values else "");
     with controlling_terminal() as terminal:
@@ -288,7 +288,7 @@ def choose_radio(items, title="Select", text="", theme="DOS", width=60, height=N
         return DialogResult(state["value"], state["status"]);
 
 
-def choose_checklist(items, title="Select", text="", theme="DOS", width=60, height=None, selected=None,
+def choose_checklist(items, title="Select", text="", theme="ZX", width=60, height=None, selected=None,
                      separator="\n", timeout=None, button_width=None, button_height=1):
     values = [str(item) for item in list(items or [])];
     selected_values = set(str(item) for item in list(selected or []));
@@ -350,7 +350,7 @@ class MenuItemSpec:
         return self;
 
 
-def choose_menu(items, title="MENU", text="", theme="DOS", width=48, height=None, timeout=None, button_width=None, button_height=1):
+def choose_menu(items, title="MENU", text="", theme="ZX", width=48, height=None, timeout=None, button_width=None, button_height=1):
     specs = [];
     for item in list(items or []):
         if item is None:
@@ -469,7 +469,7 @@ def _form_bool(value):
     return str(value or "").strip().lower() in ("1", "true", "yes", "y", "on", "checked");
 
 
-def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
+def read_form(fields, title="Form", text="", theme="ZX", width=72, height=None,
               ok_label="OK", cancel_label="Cancel", timeout=None, button_width=None, button_height=1):
     specs = [];
     for item in list(fields or []):
@@ -695,7 +695,7 @@ def read_form(fields, title="Form", text="", theme="DOS", width=72, height=None,
         return DialogResult(state["value"], state["status"]);
 
 
-def show_progress_demo(title="Progress", text="Working...", theme="DOS", width=60, duration=1.5):
+def show_progress_demo(title="Progress", text="Working...", theme="ZX", width=60, duration=1.5):
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);
@@ -716,7 +716,7 @@ def show_progress_demo(title="Progress", text="Working...", theme="DOS", width=6
         _run_application(app, reader);
         return DialogResult("", ACCEPTED);
 
-def show_text(text, title="Text", theme="DOS", width=80, height=24, markdown=False, button_width=None, button_height=1):
+def show_text(text, title="Text", theme="ZX", width=80, height=24, markdown=False, button_width=None, button_height=1):
     with controlling_terminal() as terminal:
         reader, writer = terminal;
         console = Console(file=writer, force_terminal=True);

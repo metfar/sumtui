@@ -26,7 +26,7 @@ from sumtui import Application, FunctionBar, Menu, MenuBar, MenuDesktop, MenuIte
 
 
 def main():
-    app = Application("MenuDesktop demo", theme="DOS");
+    app = Application("MenuDesktop demo", theme="ZX");
     editor = TextEditor("# F9 opens the menu\nPRINT \"Hello\"\n", line_numbers=True);
     menu = None;
 

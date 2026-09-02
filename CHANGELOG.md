@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0a6 - 2026-09-02
+- ZX is now the fresh-install default theme across Application, sumedit, sumdialog and easy-mode helpers.
+- Removed the retired third-party-derived editor colour scheme and its dedicated demos/documentation.
+- Existing saved configurations that name a no-longer-installed theme fall back safely to ZX.
+- Theme editor and example launchers now start on ZX.
+
+## 0.8.0a5 - 2026-09-02
+
+- Reworked `sumedit --gui`: it no longer launches a second simplified editor implementation. `sumedit` constructs one `EditApp` and selects the presentation backend only when the application starts.
+- `Application.run(backend="gui")` hands the same live application/widget tree, focus model, commands, dialogs, editor, syntax highlighter, keybindings and theme to the installed sumGUI backend.
+- Terminal mode remains the default and retains its existing keyboard **and mouse** support, including click, drag selection, wheel and scrollbar handling.
+- The old `edit_gui` module is now only a compatibility launcher around the same `EditApp`; application behavior is no longer duplicated there.
+- Updated the common UI baseline to sumUI 0.1.0a4 and the optional graphical backend to sumGUI 0.2.0a6.
+
 ## 0.8.0a4 - 2026-09-02
 
 - Added `sumedit --gui [FILE]`, an optional Pygame/sumGUI frontend over the same `TextDocument` used by the terminal editor; plain `sumedit` remains terminal-first.
@@ -274,16 +288,11 @@
 - Fixed shifted vertical/page selection on a broader range of real terminals. POSIX input now reads the active terminfo capabilities (`kri`, `kind`, `kPRV`, `kNXT`, shifted Home/End/Left/Right) and feeds those sequences into the decoder, while retaining xterm and rxvt/urxvt fallback encodings.
 - Added explicit rxvt/urxvt shifted cursor-key fallbacks (`CSI a/b/c/d`) plus shifted Home/End variants; existing xterm `CSI 1;2...` and shifted PageUp/PageDown sequences remain supported.
 - `TextEditor` selection semantics are unchanged: Shift+Up/Down extends by visual/logical row and Shift+PageUp/PageDown extends by one page while preserving the original anchor. The fix is in the terminal-to-KeyEvent path.
-- Added the `editor_gutter` semantic theme role. Ralesk's MC now reproduces its original Geany `margin_line_number=#114;#393`: dark-blue line numbers on a green gutter.
-- Updated README/help and regression tests for terminal-specific shifted-key decoding and Ralesk's MC gutter styling.
 
 ## 0.5.9
 
 - Added reliable terminal decoding for modified Home/End sequences, including xterm-style `Ctrl+Home`, `Ctrl+End`, `Shift+Home/End`, and legacy tilde variants. `TextEditor` already treated Ctrl+Home/End as document-edge navigation; the actual terminal input path now delivers those modifiers correctly.
 - Confirmed and regression-tested selection extension with `Shift+Up`, `Shift+Down`, `Shift+PageUp`, and `Shift+PageDown`, including page-sized movement while keeping the original selection anchor.
-- Added **Ralesk's MC** as a built-in sumTUI theme, adapted from Henrik Pauli's GPLv2+ Geany `mc.conf` colourscheme. Semantic roles preserve the familiar MC-like dark-blue background, yellow keywords/operators, green strings, brown comments, cyan numbers, white types, and blue selection.
-- `sumedit` now uses Ralesk's MC as the default theme for a fresh configuration; existing saved theme preferences still win. The theme remains selectable alongside DOS, RAR, Dark, Light, and the other existing palettes.
-- Updated editor help and README documentation for document-edge navigation, vertical/page selection, and the Ralesk's MC theme.
 
 ## 0.5.8
 

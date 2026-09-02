@@ -48,7 +48,7 @@ The dialog UI uses the controlling terminal. Returned values go to stdout, diagn
 | `25_forms_null.sh` | NUL-delimited name/value transport without `eval` |
 | `26_declarative_form.sh` | executes `project_form.sdlg` directly through `#!/usr/bin/env sumdialog`; also shows the `cat form.sdlg | sumdialog` equivalent |
 | `27_retro_menu.sh` | executes `retro_menu.sdlg` and branches on the selected retro button value |
-| `28_demo.sh` | launches `sumdialog --demo` with the Ralesk's MC theme |
+| `28_demo.sh` | launches `sumdialog --demo` with the ZX theme |
 | `29_retro_menu_separators.sh` | retro menu using blank spacing and a configurable full-width separator rule |
 | `30_entry_validation.sh` | complete-value validation with `--valid-values`, custom validation error text, and the compact `PICTURE "@M ..."` choice mask |
 | `project_form.sdlg` | declarative form containing entry/password/textarea/checkbox/combo/radio/list/file/directory fields |

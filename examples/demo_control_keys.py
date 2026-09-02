@@ -27,7 +27,7 @@ from sumtui import Application, FunctionBar, Panel, StatusBar, TextEditor, VBox;
 editor = TextEditor("Select text and use Ctrl+C. Type something and use Ctrl+Z.\n", line_numbers=True);
 status = StatusBar("Ctrl+C = Copy   Ctrl+Z = Undo   Ctrl+Y = Redo   F10 = Exit");
 bar = FunctionBar([("f10", "Exit", lambda: app.stop())]);
-app = Application(title="Captured control-key demo", theme="DOS", capture_control_keys=True);
+app = Application(title="Captured control-key demo", theme="ZX", capture_control_keys=True);
 app.unbind("ctrl+c");
 app.set_root(VBox(Panel(editor, title="Editor"), status, bar, sizes=[None, 1, 1]));
 bar.install(app);

@@ -36,7 +36,7 @@ from rich.console import Console;
 import sumtui.easy as st;
 
 
-def build(theme="DOS"):
+def build(theme="ZX"):
     st.screen("sumTUI first demo", theme=theme);
     status = st.statusbar("READY.");
     table = st.table([
@@ -59,7 +59,7 @@ def build(theme="DOS"):
 
 def main():
     parser = argparse.ArgumentParser();
-    parser.add_argument("--theme", default="DOS");
+    parser.add_argument("--theme", default="ZX");
     parser.add_argument("--snapshot", action="store_true");
     args = parser.parse_args();
     app = build(args.theme);
