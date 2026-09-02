@@ -335,7 +335,5 @@ class ChartView(Widget):
         height = options.height or options.max_height or self.height;
         lines = render_chart_lines(self.spec, width=width, height=height, renderer=self.renderer);
         style = self.theme.style("viewer");
-        for index, line in enumerate(lines):
+        for line in lines:
             yield Text(line, style=style, no_wrap=True, overflow="crop");
-            if index + 1 < len(lines):
-                yield Text("\n");

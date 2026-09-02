@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.8.0a2
+Version: 0.8.0a3
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later

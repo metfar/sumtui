@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0a3 - 2026-09-02
+
+- Tightened text-chart presentation for the shared `ChartSpec`: Rich rendering no longer inserts an extra blank row between every rendered chart line.
+- This makes `sumchart --backend=tui` output compact enough for shell pipelines, SSH sessions and future sumPY/sumR reports.
+
 ## 0.8.0a1
 
 - Add the backend-neutral `sumui` dependency and expose `ChartSpec`, `ChartSeries`, `AxisSpec` and `GraphicsMode`.
