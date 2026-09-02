@@ -22,7 +22,7 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.8.0a3";
+__version__ = "0.8.0a4";
 
 from .app import Application, FocusManager;
 from .contracts import TUI_BACKEND, backend_capabilities, dialog_spec_to_common, field_spec_to_common, input_spec_to_common;

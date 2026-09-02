@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0a4 - 2026-09-02
+
+- Added `sumedit --gui [FILE]`, an optional Pygame/sumGUI frontend over the same `TextDocument` used by the terminal editor; plain `sumedit` remains terminal-first.
+- The GUI editor keeps encoding/EOL-aware loading and saving, selection/clipboard-capable `TextArea`, scrollbars, basic undo/redo, Open/Save/Save As/Reload, and common keyboard shortcuts.
+- Added the optional `gui` extra (`sumgui>=0.2.0a4`) without making Pygame a dependency of normal sumTUI installations.
+
 ## 0.8.0a3 - 2026-09-02
 
 - Tightened text-chart presentation for the shared `ChartSpec`: Rich rendering no longer inserts an extra blank row between every rendered chart line.

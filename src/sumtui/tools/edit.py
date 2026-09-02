@@ -1581,10 +1581,18 @@ def main(argv=None):
     parser.add_argument("file", nargs="?", help="text file to edit");
     parser.add_argument("--theme", default=None, help="sumTUI theme (overrides saved editor configuration; default: saved theme or DOS)");
     parser.add_argument("--force", action="store_true", help="open binary-looking files as text");
+    parser.add_argument("--gui", action="store_true", help="open the file in the optional sumGUI/Pygame editor instead of the terminal frontend");
     parser.add_argument("--install-alias", action="store_true", help="install ~/bin/edit wrapper using safe \"$@\" argument forwarding");
     args = parser.parse_args(argv);
     if args.install_alias:
         return install_edit_alias();
+    if args.gui:
+        try:
+            from .edit_gui import run_gui_editor;
+            return int(run_gui_editor(args.file, force_binary=args.force, theme=args.theme) or 0);
+        except Exception as exc:
+            print("sumedit --gui: {}".format(exc), file=sys.stderr);
+            return 1;
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print("sumedit requires an interactive terminal", file=sys.stderr);
         return 2;
