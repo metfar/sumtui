@@ -77,16 +77,12 @@ The callback is intentionally responsible for launching the external program; su
 
 - ZX
 - DOS
-- RAR
-- DBASE
-- FOXPRO
 - XBASE
 - C64
-- MSX
 - Dark
 - Light
 
-The SumGUI theme families are mirrored or closely followed here; `RAR` is an additional DOS-derived theme intended for classic archive/Commander-style interfaces. Fresh installations use `ZX` by default.
+The built-in themes share the same semantic roles across TUI and GUI. Fresh installations use `ZX` by default.
 
 List them with:
 
@@ -355,7 +351,7 @@ The easy layer remains available:
 ```python
 import sumtui.easy as st;
 
-st.screen("Example", theme="RAR");
+st.screen("Example", theme="ZX");
 status = st.statusbar("READY.");
 files = st.table(["Name", "Size"]);
 st.root(st.vbox(st.panel(files, title="Files"), status, sizes=[None, 1]));
@@ -650,7 +646,7 @@ answer=$(sumdialog --entry --max-length 1 --valid-values S,N --validation-error 
 answer2=$(sumdialog --entry --picture "@M S,N" --text "Continue? [S/N]")
 ```
 
-Message dialogs also carry semantic colors from the active theme palette: information uses a cyan-like color, questions blue, warnings yellow and errors red. The nearest available palette color is selected, so DOS/XBASE/FOXPRO as well as alternate retro themes preserve the same meaning without hard-coding one palette.
+Message dialogs also carry semantic colors from the active theme palette: information uses a cyan-like color, questions blue, warnings yellow and errors red. The nearest available palette color is selected, so DOS/XBASE as well as alternate themes preserve the same meaning without hard-coding one palette.
 
 File, directory and list selection:
 

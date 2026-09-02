@@ -44,3 +44,18 @@ def test_application_gui_backend_receives_same_application_instance(monkeypatch)
     application = Application(root=Label("same application"));
     assert application.run(backend="gui") == 37;
     assert received == [application];
+
+
+def test_application_png_export_delegates_to_active_gui_backend(tmp_path):
+    from sumtui.app import Application;
+    from sumtui.widgets import Label;
+    calls = [];
+    class Backend:
+        def save_png(self, filename):
+            calls.append(str(filename));
+            return str(filename);
+    application = Application(root=Label("export"));
+    application._active_gui_backend = Backend();
+    target = tmp_path / "window.png";
+    assert application.export_png(target) == str(target);
+    assert calls == [str(target)];

@@ -544,6 +544,7 @@ class EditApp:
                 MenuItem("Save As...", self.save_as_dialog),
                 Separator(),
                 MenuItem("Compare with...", self.compare_with_dialog),
+                MenuItem("Export graphical window as PNG...", self.export_gui_png_dialog),
                 *(
                     [Separator(), MenuItem("Export Markdown as HTML...", self.export_markdown_html), MenuItem("Export Markdown as PDF...", self.export_markdown_pdf)]
                     if markdown else []
@@ -789,6 +790,37 @@ class EditApp:
         body = VBox(listing, HBox(Button("Go", on_press=activate, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[None, None]);
         self.app.push_modal(Dialog(body, title=dialog_title, width=68, height=min(24, max(10, len(symbols) + 7)), on_cancel=close, shadow=True));
         self.app.focus.set(listing);
+        self.app.invalidate();
+        return True;
+
+    def _gui_png_default_export_path(self):
+        if self.document.path is not None:
+            return self.document.path.with_suffix(".png");
+        return Path.cwd() / "sum-window.png";
+
+    def export_gui_png_dialog(self):
+        if getattr(self.app, "_active_gui_backend", None) is None:
+            return self._update_status("PNG window export is available when running with --gui");
+        entry = TextInput(str(self._gui_png_default_export_path()));
+        def close(*_args):
+            self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+        def accepted(*_args):
+            target = Path(entry.value).expanduser();
+            try:
+                self.app.export_png(target);
+                close();
+                self._update_status("Exported PNG {}".format(target));
+                return True;
+            except Exception as exc:
+                close();
+                self._update_status("PNG export error: {}".format(exc));
+                return False;
+        body = VBox(entry, HBox(Button("Export", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, None]);
+        self.app.push_modal(Dialog(body, title="Export graphical window as PNG", width=76, height=7, on_cancel=close, shadow=True));
+        self.app.focus.set(entry);
         self.app.invalidate();
         return True;
 

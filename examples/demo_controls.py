@@ -40,7 +40,7 @@ def field(label, control, label_width=18):
     return HBox(Label(label), control, sizes=[label_width, None]);
 
 
-def build(theme="RAR"):
+def build(theme="DOS"):
     app = Application(title="sumTUI controls demo", theme=theme);
     status = TextView("Use Tab/Shift+Tab to move focus. Slider: arrows/Home/End.");
     name = TextInput("archive.rar", placeholder="archive name", width=34);
@@ -93,7 +93,7 @@ def build(theme="RAR"):
 
 def main():
     parser = argparse.ArgumentParser(description="sumTUI form controls demo");
-    parser.add_argument("--theme", default="RAR");
+    parser.add_argument("--theme", default="DOS");
     parser.add_argument("--snapshot", action="store_true");
     args = parser.parse_args();
     app = build(args.theme);

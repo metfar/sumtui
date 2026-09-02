@@ -41,7 +41,7 @@ from sumtui import Application, Button, CheckBox, Choice, Column, Dialog, Functi
 
 
 class RarBrowserDemo:
-    def __init__(self, path=".", theme="RAR"):
+    def __init__(self, path=".", theme="DOS"):
         self.path = Path(path).expanduser().resolve();
         self.app = Application(title="sumTUI RAR-style browser", theme=theme);
         self.status = StatusBar("Ready");
@@ -68,7 +68,7 @@ class RarBrowserDemo:
         self.app.set_root(self.root);
         self.functions.install(self.app);
         self.app.bind("backspace", self.go_up);
-        self.themes = ["RAR", "DOS", "ZX", "C64", "MSX", "Dark", "Light"];
+        self.themes = ["DOS", "ZX", "XBASE", "C64", "Dark", "Light"];
         self.theme_index = self.themes.index(self.app.theme.name) if self.app.theme.name in self.themes else 0;
         self.refresh();
 
@@ -329,7 +329,7 @@ def format_size(size):
 def main():
     parser = argparse.ArgumentParser(description="sumTUI RAR-DOS-style filesystem browser demo");
     parser.add_argument("path", nargs="?", default=".");
-    parser.add_argument("--theme", default="RAR");
+    parser.add_argument("--theme", default="DOS");
     parser.add_argument("--snapshot", action="store_true");
     parser.add_argument("--snapshot-add", action="store_true");
     args = parser.parse_args();

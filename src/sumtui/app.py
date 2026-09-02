@@ -275,6 +275,12 @@ class Application:
                 request["done"].set();
         return True;
 
+    def export_png(self, filename):
+        gui_backend = getattr(self, "_active_gui_backend", None);
+        if gui_backend is None or not hasattr(gui_backend, "save_png"):
+            raise RuntimeError("PNG application export requires the --gui backend");
+        return gui_backend.save_png(filename);
+
     def invalidate(self):
         if self.live is not None and self.root is not None:
             self.live.update(self._renderable(), refresh=True);

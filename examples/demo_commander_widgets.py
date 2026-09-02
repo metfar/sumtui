@@ -49,7 +49,7 @@ def _panel(title):
     return Panel(table, title=title), table;
 
 
-def build(theme="RAR"):
+def build(theme="DOS"):
     app = Application(title="sumCommander widget shell", theme=theme);
     status = StatusBar("Hint: Tab changes the current panel. F9 opens menus. F10 quits.");
     left, left_table = _panel("Left: ~/dev/py");
@@ -95,7 +95,7 @@ def build(theme="RAR"):
 
 def main():
     parser = argparse.ArgumentParser(description="sumTUI Commander widget integration demo");
-    parser.add_argument("--theme", default="RAR");
+    parser.add_argument("--theme", default="DOS");
     parser.add_argument("--snapshot", action="store_true");
     args = parser.parse_args();
     app = build(args.theme);

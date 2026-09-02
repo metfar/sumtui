@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.8.0a6 - 2026-09-02
+## 0.8.0a8 - 2026-09-02
+- Added common graphical-window PNG export to `Application`; the File menu in the shared editor/IDE shell exposes **Export graphical window as PNG...** when using the GUI backend.
+- Updated coordinated contracts to sumUI 0.1.0a7 and optional graphical rendering to sumGUI 0.2.0a9.
+
+## 0.8.0a7 - 2026-09-02
 - ZX is now the fresh-install default theme across Application, sumedit, sumdialog and easy-mode helpers.
 - Removed the retired third-party-derived editor colour scheme and its dedicated demos/documentation.
 - Existing saved configurations that name a no-longer-installed theme fall back safely to ZX.

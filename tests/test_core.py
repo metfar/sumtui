@@ -51,12 +51,12 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(make_theme("ZX").name, "ZX");
         self.assertEqual(make_theme("DOS").name, "DOS");
         self.assertEqual(make_theme("C64").name, "C64");
-        self.assertEqual(make_theme("MSX").name, "MSX");
+        self.assertEqual(make_theme("MSX").name, "ZX");
         self.assertEqual(make_theme("Dark").name, "Dark");
         self.assertEqual(make_theme("Light").name, "Light");
 
     def test_rar_theme(self):
-        self.assertEqual(make_theme("rar").name, "RAR");
+        self.assertEqual(make_theme("rar").name, "ZX");
 
     def test_message_color_schemes_use_nearest_semantic_dos_colors(self):
         theme = make_theme("XBASE");
@@ -250,7 +250,7 @@ class FormTests(unittest.TestCase):
     def test_radio_group_arrow_navigation_moves_selection_and_focus(self):
         group = RadioGroup([("One", 1), ("Two", 2), ("Three", 3)], value=1);
         root = VBox(group, Button("OK"));
-        app = Application(root=root, theme="RAR");
+        app = Application(root=root, theme="DOS");
         self.assertIs(app.focus.current, group.buttons[0]);
         self.assertTrue(app.dispatch(KeyEvent(Key.DOWN)));
         self.assertEqual(group.value, 2);
@@ -267,7 +267,7 @@ class FormTests(unittest.TestCase):
         second = CheckBox("Two", checked=False);
         third = CheckBox("Three", checked=True);
         root = VBox(first, second, third, Button("OK"));
-        app = Application(root=root, theme="RAR");
+        app = Application(root=root, theme="DOS");
         self.assertIs(app.focus.current, first);
         self.assertTrue(app.dispatch(KeyEvent(Key.DOWN)));
         self.assertIs(app.focus.current, second);
@@ -659,7 +659,7 @@ class ApplicationTests(unittest.TestCase):
         first = TextInput("one");
         second = TextInput("two");
         root = VBox(first, second);
-        app = Application(root=root, theme="RAR", console=console);
+        app = Application(root=root, theme="DOS", console=console);
         self.assertIs(app.focus.current, first);
         app.dispatch(KeyEvent(Key.TAB));
         self.assertIs(app.focus.current, second);
@@ -677,7 +677,7 @@ class ApplicationTests(unittest.TestCase):
         field = TextInput("archive.rar");
         ok = Button("OK");
         cancel = Button("Cancel");
-        app = Application(root=VBox(field, HBox(ok, cancel)), theme="RAR", console=console);
+        app = Application(root=VBox(field, HBox(ok, cancel)), theme="DOS", console=console);
         self.assertIs(app.focus.current, field);
         app.dispatch(KeyEvent(Key.TAB));
         self.assertIs(app.focus.current, ok);
@@ -700,7 +700,7 @@ class ApplicationTests(unittest.TestCase):
             Slider(0, 100, 40, step=5),
             HBox(Button("OK"), Button("Cancel")),
         );
-        app = Application(root=root, theme="RAR", console=console);
+        app = Application(root=root, theme="DOS", console=console);
         console.print(app.root);
         output = console.export_text();
         self.assertIn("archive.rar", output);
@@ -1080,7 +1080,7 @@ class CommanderWidgetTests(unittest.TestCase):
 
     def test_modal_overlay_keeps_base(self):
         console = Console(width=60, height=16, record=True, force_terminal=False, file=io.StringIO());
-        app = Application(root=TextView("BASE CONTENT"), theme="RAR", console=console);
+        app = Application(root=TextView("BASE CONTENT"), theme="DOS", console=console);
         app.push_modal(Dialog(TextView("MODAL CONTENT"), title="Dialog", width=30, height=7));
         console.print(app._renderable());
         output = console.export_text();
@@ -1094,7 +1094,7 @@ class CommanderWidgetTests(unittest.TestCase):
 
     def test_dialog_f11_maximize_restore(self):
         console = Console(width=60, height=16, record=True, force_terminal=False, file=io.StringIO());
-        app = Application(root=TextView("BASE"), theme="RAR", console=console);
+        app = Application(root=TextView("BASE"), theme="DOS", console=console);
         field = TextInput("focused");
         dialog = Dialog(field, title="Viewer", width=30, height=7, maximizable=True);
         app.push_modal(dialog);
@@ -2521,3 +2521,35 @@ class ChartTests(unittest.TestCase):
         from sumtui import ChartSpec, ChartView;
         view = ChartView(ChartSpec.bar(["A"], [1]));
         self.assertEqual(view.spec.kind, "bar");
+
+
+def test_textview_selection_copy_keyboard_and_mouse():
+    from sumtui.clipboard import clipboard;
+    from sumtui.events import Key, KeyEvent, MouseEvent;
+    from sumtui.widgets import TextView;
+    view = TextView("alpha\nbeta");
+    view.page_size = 2;
+    view.page_width = 20;
+    assert view.handle_event(KeyEvent("a", ctrl=True));
+    assert view.selected_text == "alpha\nbeta";
+    assert view.handle_event(KeyEvent("c", ctrl=True));
+    assert clipboard.paste_text() == "alpha\nbeta";
+    view.clear_selection();
+    assert view.handle_event(MouseEvent(0, 0, button="left", action="press"));
+    assert view.handle_event(MouseEvent(3, 0, button="none", action="drag"));
+    assert view.handle_event(MouseEvent(3, 0, button="left", action="release"));
+    assert view.selected_text == "alp";
+
+
+def test_calendar_time_datetime_views_use_common_models():
+    from datetime import date, time, datetime;
+    from sumtui import CalendarView, DateTimeView, KeyEvent, TimeView;
+    calendar = CalendarView(date(2026, 9, 2));
+    assert calendar.handle_event(KeyEvent("right"));
+    assert calendar.value == date(2026, 9, 3);
+    clock = TimeView(time(12, 0, 0));
+    assert clock.handle_event(KeyEvent("right"));
+    assert clock.value == time(12, 0, 1);
+    stamp = DateTimeView(datetime(2026, 9, 2, 12, 0, 0));
+    assert stamp.handle_event(KeyEvent("up"));
+    assert stamp.value.date() == date(2026, 9, 3);

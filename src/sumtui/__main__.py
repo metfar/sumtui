@@ -38,8 +38,8 @@ def self_test():
     failures = [];
     try:
         assert make_theme("dos").name == "DOS";
-        assert make_theme("rar").name == "RAR";
-        assert set(("ZX", "DOS", "RAR", "DBASE", "FOXPRO", "XBASE", "C64", "MSX", "Dark", "Light")).issubset(THEMES);
+        assert make_theme("rar").name == "ZX";
+        assert set(("ZX", "DOS", "XBASE", "C64", "Dark", "Light")).issubset(THEMES);
     except Exception as exc:
         failures.append("themes: {}".format(exc));
     try:

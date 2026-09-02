@@ -38,7 +38,7 @@ from rich.console import Console;
 from sumtui import Application, BrowseForm, Button, CheckBox, Choice, Column, ContextMenu, Dialog, DirectoryDialog, FileDialog, FormField, FunctionBar, GroupBox, HBox, HexView, Label, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuItem, Panel, ProgressBar, RadioButton, RadioGroup, RecordForm, ScrollBar, Separator, Slider, Splitter, StatusBar, TableView, TextInput, TextView, TreeNode, TreeView, VBox;
 
 
-def _app(title, widget, theme="RAR", height=None):
+def _app(title, widget, theme="DOS", height=None):
     app = Application(title=title, theme=theme);
     if height is not None:
         widget = Panel(widget, title=title);
@@ -47,7 +47,7 @@ def _app(title, widget, theme="RAR", height=None):
     return app;
 
 
-def build(name, theme="RAR"):
+def build(name, theme="DOS"):
     name = str(name).lower();
     if name == "label":
         return _app("Label", VBox(Label("Normal label"), Label("Title label", style="title")), theme);
@@ -146,7 +146,7 @@ def build(name, theme="RAR"):
 
 def run(name):
     parser = argparse.ArgumentParser(description="sumTUI {} demo".format(name));
-    parser.add_argument("--theme", default="RAR");
+    parser.add_argument("--theme", default="DOS");
     parser.add_argument("--snapshot", action="store_true");
     args = parser.parse_args();
     app = build(name, args.theme);

@@ -46,13 +46,6 @@ C64_COLORS = [
     (119, 119, 119), (170, 255, 102), (0, 136, 255), (187, 187, 187),
 ];
 
-MSX_COLORS = [
-    (0, 0, 0), (0, 0, 0), (33, 200, 66), (94, 220, 120),
-    (84, 85, 237), (125, 118, 252), (212, 82, 77), (66, 235, 245),
-    (252, 85, 84), (255, 121, 120), (212, 193, 84), (230, 206, 128),
-    (33, 176, 59), (201, 91, 186), (204, 204, 204), (255, 255, 255),
-];
-
 DOS_COLORS = [
     (0, 0, 0), (0, 0, 170), (0, 170, 0), (0, 170, 170),
     (170, 0, 0), (170, 0, 170), (170, 85, 0), (170, 170, 170),
@@ -257,18 +250,10 @@ def make_theme(name="ZX"):
         return Theme("ZX", (0, 0, 0), (0, 0, 90), (0, 255, 255), (255, 255, 255), (0, 205, 205), (255, 255, 0), (0, 0, 205), (0, 0, 0), (255, 80, 80), (255, 255, 0), (0, 0, 205), (255, 255, 255), (255, 255, 0), tuple(SPECTRUM_COLORS));
     if key in ("dos", "pc", "turbo"):
         return Theme("DOS", (0, 0, 0), (0, 0, 170), (170, 170, 170), (255, 255, 255), (170, 170, 170), (170, 170, 170), (0, 0, 170), (0, 0, 0), (255, 85, 85), (255, 255, 85), (0, 170, 170), (0, 0, 0), (255, 255, 85), tuple(DOS_COLORS));
-    if key in ("rar", "rar-dos", "rar2"):
-        return Theme("RAR", (0, 0, 170), (0, 0, 170), (170, 170, 170), (255, 255, 255), (170, 170, 170), (0, 170, 170), (0, 0, 170), (0, 0, 0), (255, 85, 85), (255, 255, 85), (0, 170, 170), (0, 0, 0), (255, 255, 85), tuple(DOS_COLORS));
-    if key in ("dbase", "dbase3", "dbaseiii"):
-        return Theme(name="DBASE", bg=(0, 0, 170), panel=(0, 0, 170), line=(170, 170, 170), text=(255, 255, 85), muted=(170, 170, 170), button=(170, 170, 170), button_alt=(0, 170, 170), button_text=(0, 0, 0), error=(255, 85, 85), cursor=(255, 255, 255), selection_bg=(170, 0, 0), selection_text=(255, 255, 255), title=(255, 255, 85), palette=tuple(DOS_COLORS));
-    if key in ("fox", "foxpro"):
-        return Theme(name="FOXPRO", bg=(0, 0, 170), panel=(0, 170, 170), line=(255, 255, 255), text=(0, 0, 0), muted=(85, 85, 85), button=(170, 170, 170), button_alt=(170, 0, 170), button_text=(0, 0, 0), error=(255, 255, 85), cursor=(255, 255, 255), selection_bg=(0, 0, 170), selection_text=(255, 255, 255), title=(255, 255, 85), palette=tuple(DOS_COLORS));
     if key in ("xbase", "sumx"):
         return Theme(name="XBASE", bg=(0, 0, 170), panel=(0, 170, 170), line=(170, 170, 170), text=(0, 0, 0), muted=(85, 85, 85), button=(170, 170, 170), button_alt=(0, 0, 170), button_text=(0, 0, 0), error=(255, 85, 85), cursor=(255, 255, 85), selection_bg=(0, 0, 170), selection_text=(255, 255, 255), title=(255, 255, 85), palette=tuple(DOS_COLORS));
     if key in ("c64", "commodore"):
         return Theme("C64", (64, 49, 141), (112, 94, 181), (170, 255, 238), (255, 255, 255), (187, 187, 187), (238, 238, 119), (0, 0, 170), (64, 49, 141), (255, 119, 119), (238, 238, 119), (170, 255, 238), (64, 49, 141), (238, 238, 119), tuple(C64_COLORS));
-    if key == "msx":
-        return Theme("MSX", (0, 0, 0), (33, 33, 96), (66, 235, 245), (255, 255, 255), (204, 204, 204), (94, 220, 120), (84, 85, 237), (0, 0, 0), (252, 85, 84), (255, 255, 255), (84, 85, 237), (255, 255, 255), (94, 220, 120), tuple(MSX_COLORS));
     if key == "light":
         return Theme("Light", (245, 245, 245), (255, 255, 255), (80, 80, 80), (20, 20, 20), (90, 90, 90), (70, 130, 220), (220, 220, 220), (255, 255, 255), (200, 40, 40), (0, 90, 180), (70, 130, 220), (255, 255, 255), (0, 90, 180), tuple(SPECTRUM_COLORS));
     if key == "dark":
@@ -279,12 +264,8 @@ def make_theme(name="ZX"):
 THEMES = {
     "ZX": make_theme("ZX"),
     "DOS": make_theme("DOS"),
-    "RAR": make_theme("RAR"),
-    "DBASE": make_theme("DBASE"),
-    "FOXPRO": make_theme("FOXPRO"),
     "XBASE": make_theme("XBASE"),
     "C64": make_theme("C64"),
-    "MSX": make_theme("MSX"),
     "Dark": make_theme("Dark"),
     "Light": make_theme("Light"),
 };
@@ -325,7 +306,7 @@ def message_color_scheme(theme=None, kind="info"):
 
     Dialog COLOR SCHEME values are palette indexes.  Choosing the nearest
     palette color keeps information/question/warning/error dialogs recognizable
-    across DOS, Spectrum, C64, MSX and user themes instead of hard-coding DOS
+    across DOS, Spectrum, C64 and user themes instead of hard-coding DOS
     indexes that mean something different in another palette.
     """;
     selected = make_theme(theme) if isinstance(theme, str) else (theme or DEFAULT_THEME);
@@ -452,7 +433,7 @@ def refresh_user_themes(path=None):
 
 
 def available_theme_names():
-    preferred = ("ZX", "DOS", "RAR", "DBASE", "FOXPRO", "XBASE", "C64", "MSX", "Dark", "Light");
+    preferred = ("ZX", "DOS", "XBASE", "C64", "Dark", "Light");
     names = [name for name in preferred if name in THEMES];
     names.extend(name for name in THEMES if name not in names);
     return tuple(names);
