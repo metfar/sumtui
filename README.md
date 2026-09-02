@@ -925,4 +925,18 @@ helpdb2markdown language.helpdb language-help.md
 
 `ListViewPane` and `TableViewPane` provide always-visible vertical scrollbars for long topic/table lists, matching the scrollable Markdown and text panes.
 
+
+## Portable charts
+
+`ChartView` renders the backend-neutral `sumui.ChartSpec` directly in a terminal. The same specification is consumable by sumGUI, so Python, R and the future Sum language frontends do not need different chart APIs for text and graphical environments.
+
+```python
+from sumtui import ChartSpec, ChartView;
+
+chart = ChartSpec.bar(["A", "B", "C"], [25, 50, 35], title="Results");
+view = ChartView(chart, renderer="auto");
+```
+
+Available terminal renderers are `ascii`, `unicode`, `braille` and `auto`. `auto` uses Unicode for bar/pie charts and Braille for line/scatter plots.
+
 <p align=center><b>- oOo -<b></p>

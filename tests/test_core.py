@@ -2494,3 +2494,33 @@ def test_prompt_pure_picture_function_does_not_create_zero_length_field():
     assert field.max_length == 1;
     assert field.handle_event(KeyEvent("s", text="s"));
     assert field.value == "S";
+
+
+class ChartTests(unittest.TestCase):
+    def test_ascii_bar_chart(self):
+        from sumtui import ChartSpec, render_chart_lines;
+        spec = ChartSpec.bar(["A", "B"], [2, 4], title="Bars");
+        text = "\n".join(render_chart_lines(spec, width=32, height=6, renderer="ascii"));
+        self.assertIn("Bars", text);
+        self.assertIn("A", text);
+        self.assertIn("#", text);
+
+    def test_ascii_pie_chart_has_legend_and_circle(self):
+        from sumtui import ChartSpec, render_chart_lines;
+        spec = ChartSpec.pie(["S", "N"], [3, 1], title="Answers");
+        text = "\n".join(render_chart_lines(spec, width=44, height=12, renderer="ascii"));
+        self.assertIn("Answers", text);
+        self.assertIn("S", text);
+        self.assertIn("%", text);
+        self.assertIn("#", text);
+
+    def test_braille_line_chart_uses_braille_cells(self):
+        from sumtui import ChartSpec, render_chart_lines;
+        spec = ChartSpec.line([(0, 0), (1, 1), (2, 0)], title="Line");
+        text = "\n".join(render_chart_lines(spec, width=30, height=8, renderer="braille"));
+        self.assertTrue(any(0x2800 <= ord(char) <= 0x28FF and ord(char) != 0x2800 for char in text));
+
+    def test_chart_view_accepts_shared_spec(self):
+        from sumtui import ChartSpec, ChartView;
+        view = ChartView(ChartSpec.bar(["A"], [1]));
+        self.assertEqual(view.spec.kind, "bar");

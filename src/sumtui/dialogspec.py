@@ -345,3 +345,40 @@ def parse_dialog_spec(text, source="<memory>"):
 def load_dialog_spec(path):
     target = Path(path).expanduser();
     return parse_dialog_spec(target.read_text(encoding="utf-8", errors="replace"), source=str(target));
+
+# r10: the declarative .sdlg grammar is owned by sumUI so TUI and GUI
+# consume the same format.  Keep the historical local dataclasses as a
+# compatibility façade for existing sumTUI callers.
+from sumui import load_dialog_spec as _load_common_dialog_spec, parse_dialog_spec as _parse_common_dialog_spec;
+
+
+def _dialog_spec_from_common(common, source="<memory>"):
+    fields = [];
+    for item in common.fields:
+        fields.append(FormFieldSpec(
+            name=item.name, label=item.label, kind=item.kind, default=item.default, options=tuple(item.options),
+            required=item.required, width=item.width, height=item.height, max_length=item.max_length,
+            confirm=item.confirm, valid_values=tuple(item.valid_values), case_sensitive=item.case_sensitive,
+            validation_error=item.validation_error,
+        ).normalize());
+    menu_items = [];
+    for item in common.menu_items:
+        menu_items.append(MenuItemSpec(
+            value=item.value, label=item.label, separator=item.separator, separator_style=item.separator_style,
+            separator_char=item.separator_char, separator_height=item.separator_height,
+        ).normalize());
+    return DialogSpec(
+        kind=common.kind, title=common.title, text=common.text, theme=common.theme, width=common.width,
+        height=common.height, timeout=common.timeout, output=common.output, separator=common.separator,
+        ok_label=common.ok_label, cancel_label=common.cancel_label, button_width=common.button_width,
+        button_height=common.button_height, fields=fields, menu_items=menu_items, source=str(source),
+    );
+
+
+def parse_dialog_spec(text, source="<memory>"):
+    return _dialog_spec_from_common(_parse_common_dialog_spec(text, source=source), source=source);
+
+
+def load_dialog_spec(path):
+    target = Path(path).expanduser();
+    return _dialog_spec_from_common(_load_common_dialog_spec(target), source=str(target));

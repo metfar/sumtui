@@ -24,7 +24,8 @@
 #warnings.filterwarnings("ignore", category=UserWarning);
 from .app import Application;
 from .theme import make_theme;
-from .widgets import CommandWindow, Button, CheckBox, Choice, Column, ContextMenu, Dialog, DirectoryDialog, FileDialog, FunctionBar, GroupBox, HBox, HexView, Label, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuItem, Panel, ProgressBar, RadioButton, RadioGroup, ScrollBar, Separator, Slider, Splitter, StatusBar, TableView, TextInput, TextView, TreeNode, TreeView, VBox;
+from .validation import allowed_values_validator;
+from .widgets import ChartView, CommandWindow, Button, CheckBox, Choice, Column, ContextMenu, Dialog, DirectoryDialog, FileDialog, FunctionBar, GroupBox, HBox, HexView, Label, ListView, MarkdownView, SyntaxView, Menu, MenuBar, MenuItem, Panel, ProgressBar, RadioButton, RadioGroup, ScrollBar, Separator, Slider, Splitter, StatusBar, TableView, TextInput, TextView, TreeNode, TreeView, VBox;
 
 _app = None;
 
@@ -90,7 +91,19 @@ def button(text="Button", do=None, width=None, height=1, default=False, enabled=
     return Button(text, on_press=do, width=width, height=height, default=default, enabled=enabled, align=align, valign=valign, theme=app().theme);
 
 
-def textinput(value="", placeholder="", password=False, width=None, max_length=None, on_change=None, on_submit=None, confirm_at_limit=True, validator=None, validation_error="Invalid value", on_validation_error=None):
+def textinput(value="", placeholder="", password=False, width=None, max_length=None, on_change=None, on_submit=None, confirm_at_limit=True, validator=None, validation_error="Invalid value", on_validation_error=None, spec=None):
+    if spec is not None:
+        from sumui import FieldSpec;
+        field = spec if isinstance(spec, FieldSpec) else FieldSpec.from_dict(spec);
+        value = str(field.default if field.default is not None else "");
+        placeholder = field.placeholder or placeholder;
+        width = field.width if field.width is not None else width;
+        max_length = field.max_length;
+        confirm_at_limit = field.confirm;
+        validation_error = field.validation_error;
+        password = password or field.hidden or field.kind == "password";
+        if validator is None and field.valid_values:
+            validator = allowed_values_validator(field.valid_values, case_sensitive=field.case_sensitive, message=field.validation_error);
     return TextInput(value=value, placeholder=placeholder, password=password, width=width,
                      max_length=max_length, on_change=on_change, on_submit=on_submit,
                      confirm_at_limit=confirm_at_limit, validator=validator,
@@ -135,6 +148,10 @@ def scrollbar(value=0, maximum=100, page=10, orientation="vertical", interactive
 
 def textview(text="", on_activate=None):
     return TextView(text=text, on_activate=on_activate, theme=app().theme);
+
+
+def chart(spec, renderer="auto", width=None, height=12):
+    return ChartView(spec, renderer=renderer, width=width, height=height, theme=app().theme);
 
 
 def markdownview(text="", code_theme="vim"):

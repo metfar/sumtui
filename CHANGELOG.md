@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0a1
+
+- Add the backend-neutral `sumui` dependency and expose `ChartSpec`, `ChartSeries`, `AxisSpec` and `GraphicsMode`.
+- Add `ChartView` for terminal charts.
+- Add ASCII/Unicode horizontal bar and pie renderers.
+- Add ASCII/Unicode grid plots and a high-resolution Braille renderer for line/scatter charts.
+- Keep chart data independent of pandas/NumPy while allowing adapters through `sumui`.
+- Establish the same chart specification consumed by sumGUI.
+
 ## 0.7.7 - 2026-09-01
 
 - Added reusable field validation to the common input layer. `TextInput`, `CommandWindow` screen fields, `InputSpec`, `read_entry()` and `FormFieldSpec` can now validate a complete value while keeping focus on invalid input.
