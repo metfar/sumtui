@@ -299,8 +299,10 @@ def render_chart_lines(spec, width=60, height=12, renderer="auto"):
     width = max(8, int(width));
     height = None if height is None else max(3, int(height));
     mode = _mode_for(spec, renderer);
-    if spec.kind == "bar":
+    if spec.kind in ("bar", "bar3d"):
         lines = _render_bar(spec, width, height, mode);
+        if spec.kind == "bar3d" and lines:
+            lines[0] = ("[3D] " + lines[0])[:width];
     elif spec.kind == "pie":
         lines = _render_pie(spec, width, height, mode);
     elif mode == "braille":

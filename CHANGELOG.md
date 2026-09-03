@@ -1,3 +1,7 @@
+# r20 coordinated release
+
+- Aligned with SUM r20 architecture and package versions.
+
 # Changelog
 
 ## 0.8.0a9 - 2026-09-02

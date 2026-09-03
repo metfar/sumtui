@@ -1970,17 +1970,17 @@ class ScriptIDETests(unittest.TestCase):
             ide.app.running = False;
             ide._r_session.close();
 
-    def test_sumide_detects_r_extension_and_reports_missing_rscript_cleanly(self):
+    def test_sumide_detects_r_extension_and_uses_sumr_by_default(self):
         from sumtui.tools.ide import ScriptIDE;
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "demo.R";
             path.write_text('print("hello")\n', encoding="utf-8");
             ide = ScriptIDE(path);
             self.assertEqual(ide.language, "r");
-            if shutil.which("Rscript") is None:
+            if shutil.which("sumR") is None and shutil.which("sumr") is None:
                 ide.app.running = False;
                 ide.run_program();
-                self.assertIn("Rscript was not found", ide.output_view.text);
+                self.assertIn("sumR was not found", ide.output_view.text);
             ide._r_session.close();
 
 class ExternalTerminalBridgeTests(unittest.TestCase):
