@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.8.0a8
+Version: 0.8.0a9
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -12,12 +12,12 @@ Classifier: Topic :: Software Development :: User Interfaces
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: sumui>=0.1.0a7
+Requires-Dist: sumui>=0.1.0a8
 Requires-Dist: rich>=13.0
 Requires-Dist: pygments>=2.15
 Requires-Dist: markdown-it-py>=2.2
 Provides-Extra: gui
-Requires-Dist: sumgui>=0.2.0a9; extra == "gui"
+Requires-Dist: sumgui>=0.2.0a10; extra == "gui"
 Dynamic: license-file
 
 # sumTUI 0.7.6
@@ -964,5 +964,9 @@ sumedit --gui program.py
 ```
 
 Both commands construct the same `EditApp`, with the same document, menus, status/function bars, syntax highlighter, keybindings, dialogs, configuration, theme, focus rules and editing behavior. `Application.run(backend=...)` chooses how that application is displayed. The legacy `sumtui.tools.edit_gui` module is only a compatibility launcher and contains no second editor implementation.
+
+## conio compatibility
+
+`sumtui.conio.install()` selects the terminal implementation of the shared `sumui.conio` API. This preserves keyboard, cursor, color and window semantics on the TUI backend while allowing the same application code to select a graphical conio backend under sumGUI.
 
 <p align=center><b>- oOo -<b></p>

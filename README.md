@@ -943,4 +943,8 @@ sumedit --gui program.py
 
 Both commands construct the same `EditApp`, with the same document, menus, status/function bars, syntax highlighter, keybindings, dialogs, configuration, theme, focus rules and editing behavior. `Application.run(backend=...)` chooses how that application is displayed. The legacy `sumtui.tools.edit_gui` module is only a compatibility launcher and contains no second editor implementation.
 
+## conio compatibility
+
+`sumtui.conio.install()` selects the terminal implementation of the shared `sumui.conio` API. This preserves keyboard, cursor, color and window semantics on the TUI backend while allowing the same application code to select a graphical conio backend under sumGUI.
+
 <p align=center><b>- oOo -<b></p>

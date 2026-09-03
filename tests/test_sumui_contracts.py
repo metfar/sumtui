@@ -35,3 +35,16 @@ def test_dialog_spec_is_serializable_for_other_backends():
     assert isinstance(common, CommonDialogSpec);
     restored = CommonDialogSpec.from_json(common.to_json());
     assert restored.fields[0].name == "answer";
+
+
+def test_sumtui_installs_terminal_conio_backend():
+    import io;
+    from sumui import conio;
+    from sumtui.conio import install;
+    out = io.StringIO();
+    backend = install(stdin=io.StringIO("K"), stdout=out);
+    assert conio.backend() is backend;
+    conio.gotoxy(3, 2);
+    conio.cputs("X");
+    assert conio.wherex() == 4;
+    assert "\x1b[2;3H" in out.getvalue();

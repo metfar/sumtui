@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0a9 - 2026-09-02
+
+- Added the terminal installer for the common conio-compatible API.
+- Coordinated with sumUI r17 display/typography contracts.
+
 ## 0.8.0a8 - 2026-09-02
 - Added common graphical-window PNG export to `Application`; the File menu in the shared editor/IDE shell exposes **Export graphical window as PNG...** when using the GUI backend.
 - Updated coordinated contracts to sumUI 0.1.0a7 and optional graphical rendering to sumGUI 0.2.0a9.
