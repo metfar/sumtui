@@ -22,7 +22,7 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.8.0a11";
+__version__ = "0.8.0a12";
 
 from .app import Application, FocusManager;
 from .contracts import TUI_BACKEND, backend_capabilities, dialog_spec_to_common, field_spec_to_common, input_spec_to_common;
@@ -32,6 +32,7 @@ from .keybindings import KeyBindingAction, KeyBindingManager, format_key_spec;
 from .dialogs import DialogResult, FormFieldSpec, MenuItemSpec, ask_question, choose_checklist, choose_file, choose_list, choose_menu, choose_radio, read_entry, read_form, show_message, show_progress_demo, show_text;
 from .dialogspec import DialogSpec, load_dialog_spec, parse_dialog_spec;
 from .prompt import InputResult, InputSpec, read_input;
+from .textscreen import TerminalTextScreen;
 from .syntax import EditorSyntaxHighlighter, ExtendedBasicLexer, GenericLogLexer, SumXLexer, SYNTAX_MODES, detect_mode, mode_label, normalize_mode, semantic_role;
 from sumui import AxisSpec, ChartSeries, ChartSpec, GraphicsMode, modern_mode, spectrum_mode;
 from .theme import BUILTIN_THEME_NAMES, C64_COLORS, DEFAULT_THEME, DOS_COLORS, SPECTRUM_COLORS, THEME_EDIT_ROLES, THEMES, Theme, available_theme_names, load_theme_file, load_user_themes, make_theme, message_color_scheme, refresh_user_themes, save_user_theme, theme_from_dict, theme_to_dict, user_theme_dir;
@@ -41,7 +42,7 @@ __all__ = [
     "__version__", "Application", "FocusManager", "TUI_BACKEND", "backend_capabilities", "dialog_spec_to_common", "field_spec_to_common", "input_spec_to_common",
     "AxisSpec", "ChartSeries", "ChartSpec", "GraphicsMode", "modern_mode", "spectrum_mode",
     "Key", "KeyEvent", "MouseEvent", "ResizeEvent", "normalize_key_spec",
-    "InputMask", "parse_input_mask", "InputSpec", "InputResult", "read_input",
+    "InputMask", "parse_input_mask", "InputSpec", "InputResult", "read_input", "TerminalTextScreen",
     "DialogResult", "FormFieldSpec", "MenuItemSpec", "DialogSpec", "show_message", "ask_question", "read_entry", "read_form", "choose_file", "choose_list", "choose_menu", "choose_radio", "choose_checklist", "show_text", "show_progress_demo", "parse_dialog_spec", "load_dialog_spec",
     "KeyBindingAction", "KeyBindingManager", "format_key_spec",
     "EditorSyntaxHighlighter", "ExtendedBasicLexer", "GenericLogLexer", "SumXLexer", "SYNTAX_MODES",

@@ -27,6 +27,8 @@ from dataclasses import dataclass;
 from rich.style import Style;
 from rich.text import Text;
 
+from sumui import CursorState, coerce_cursor_state;
+
 from ..events import Key;
 from ..validation import run_validator;
 from .base import Widget;
@@ -92,6 +94,7 @@ class CommandWindow(Widget):
         self.on_read_cancel = None;
         self.on_read_validation_error = None;
         self._read_validation_blocked = set();
+        self.cursor_state = None;
 
     def _role_style(self, role):
         """Return a Rich style, allowing embedded command surfaces to inherit their container background."""
@@ -105,6 +108,13 @@ class CommandWindow(Widget):
     def set_prompt(self, prompt):
         self.prompt = str(prompt);
         return self;
+
+    def set_cursor_state(self, state):
+        self.cursor_state = coerce_cursor_state(state);
+        return self.cursor_state;
+
+    def get_cursor_state(self):
+        return self.cursor_state if self.cursor_state is not None else CursorState.BLOCK;
 
     def clear(self):
         self.output = [];
@@ -703,9 +713,12 @@ class CommandWindow(Widget):
         base = self._role_style("command");
         out = Text(self.prompt, style=self._role_style("command_prompt"));
         padded = visible.ljust(inner);
-        if self.focused and 0 <= cursor < inner:
+        if self.focused and 0 <= cursor < inner and self.cursor_state != CursorState.HIDDEN:
             out.append(padded[:cursor], style=base);
-            out.append(padded[cursor:cursor + 1] or " ", style=self._role_style("cursor_cell"));
+            if self.cursor_state == CursorState.NORMAL:
+                out.append("_", style=self._role_style("cursor_cell"));
+            else:
+                out.append(padded[cursor:cursor + 1] or " ", style=self._role_style("cursor_cell"));
             out.append(padded[cursor + 1:], style=base);
         else:
             out.append(padded, style=base);
@@ -774,7 +787,8 @@ class CommandWindow(Widget):
                     else:
                         caret = max(0, min(field.width - 1, caret));
                     column = field.column + caret - self.x_offset;
-                    if 0 <= row < content_height and 0 <= column < width:
+                    if 0 <= row < content_height and 0 <= column < width and self.cursor_state != CursorState.HIDDEN:
+                        if self.cursor_state == CursorState.NORMAL: chars[row][column] = "_";
                         roles[row][column] = "cursor_cell";
                 continue;
             visual = self._visual_field_lines(field);
@@ -802,7 +816,8 @@ class CommandWindow(Widget):
             if active and y_offset <= cursor_row < y_offset + field.height:
                 row = field.row + (cursor_row - y_offset);
                 column = field.column + max(0, min(field.width - 1, cursor_col)) - self.x_offset;
-                if 0 <= row < content_height and 0 <= column < width:
+                if 0 <= row < content_height and 0 <= column < width and self.cursor_state != CursorState.HIDDEN:
+                    if self.cursor_state == CursorState.NORMAL: chars[row][column] = "_";
                     roles[row][column] = "cursor_cell";
 
         out = Text();

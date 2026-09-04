@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sumtui"
-version = "0.8.0a11"
+version = "0.8.0a12"
 description = "A tiny, portable and retro-flavored TUI toolkit for Python and Rich."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "GPL-2.0-or-later" }
 authors = [{ name = "William Martinez Bas", email = "metfar@gmail.com" }]
-dependencies = ["sumui>=0.1.0a11", "rich>=13.0", "pygments>=2.15", "markdown-it-py>=2.2"]
+dependencies = ["sumui>=0.1.0a12", "rich>=13.0", "pygments>=2.15", "markdown-it-py>=2.2"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-gui = ["sumgui>=0.2.0a11"]
+gui = ["sumgui>=0.2.0a15"]
 
 [project.scripts]
 sumtui = "sumtui.__main__:main"
