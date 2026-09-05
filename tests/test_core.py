@@ -2553,3 +2553,26 @@ def test_calendar_time_datetime_views_use_common_models():
     stamp = DateTimeView(datetime(2026, 9, 2, 12, 0, 0));
     assert stamp.handle_event(KeyEvent("up"));
     assert stamp.value.date() == date(2026, 9, 3);
+
+
+def test_r211_alt_f3_decodes_esc_prefixed_function_key_sequence():
+    decoder = AnsiDecoder();
+    event = decoder.feed(b"\x1b\x1bOR")[0];
+    self_name = event.name;
+    assert self_name == "alt+f3";
+
+
+def test_r211_edit_close_window_defaults_to_alt_f3_and_ctrl_f4():
+    editor = EditApp();
+    assert editor.keys.bindings_for("window.close") == ("alt+f3", "ctrl+f4");
+
+
+def test_r211_alt_f3_closes_standalone_editor_through_quit(monkeypatch):
+    editor = EditApp();
+    called = [];
+    monkeypatch.setattr(editor, "quit", lambda: called.append(True) or True);
+    # Refresh the callback because key actions keep the original bound method.
+    editor.keys.set_callback("window.close", editor.close_workspace_window);
+    editor._install_keybindings();
+    assert editor.app.dispatch(KeyEvent(Key.F3, alt=True)) is True;
+    assert called == [True];

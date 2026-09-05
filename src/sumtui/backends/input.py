@@ -156,6 +156,16 @@ class AnsiDecoder:
             self.buffer = self.buffer[len(ANSI_SHIFT_TAB):];
             self.escape_since = None;
             return KeyEvent(Key.TAB, shift=True);
+        # Some terminal emulators encode Alt+function-key by prefixing the
+        # function key's normal escape sequence with one additional ESC.
+        # Example: F3 = ESC O R, Alt+F3 = ESC ESC O R.  Decode that form before
+        # the generic Alt+printable fallback consumes the second ESC.
+        for sequence, key in sorted(ANSI_KEYS.items(), key=lambda item: len(item[0]), reverse=True):
+            alt_sequence = b"\x1b" + sequence;
+            if self.buffer.startswith(alt_sequence):
+                self.buffer = self.buffer[len(alt_sequence):];
+                self.escape_since = None;
+                return KeyEvent(key, alt=True);
         modified_sequences = dict(ANSI_MOD_KEYS);
         modified_sequences.update(self.extra_sequences);
         for sequence, spec in sorted(modified_sequences.items(), key=lambda item: len(item[0]), reverse=True):

@@ -5,6 +5,7 @@
 - **F1** — Help.
 - **F2 / Alt+P** — Functions / classes / main map.
 - **F3** — Find next.
+- **Alt+F3** — Close the current workspace window; in standalone sumedit, close the editor.
 - **F6 / Ctrl+Tab** — Next window/work area.
 - **F11 / Alt+Enter** — Maximize/restore workspace window.
 - **Alt+M** — Move active window; arrows move, Enter accepts, Esc cancels.
@@ -68,3 +69,5 @@ ZX is the fresh-install sumedit default; alternate themes remain selectable from
 Line wrapping is visual only: `-1` means automatic to the current editor width, `0` disables wrapping, and positive values set a maximum visual width. `78` is the legacy 80-column-window preset. Line breaking is separate and modifies text when enabled; `0` keeps automatic hard breaking off.
 
 Keyboard shortcuts can be changed, extended, removed or restored to defaults.
+
+<p align=center><b>- oOo -</b></p>

@@ -303,6 +303,20 @@ class Application:
             return False;
         if not isinstance(event, KeyEvent):
             return False;
+        if event.matches("alt+f3"):
+            # Alt+F3 is the SUM-wide "close current window" gesture.  A
+            # modal dialog is the current window, so let its normal Escape
+            # cancellation path run first; otherwise dispatch the registered
+            # workspace/editor close action before a focused widget can eat it.
+            if self.modal_depth:
+                if self.root is not None and self.root.handle_event(KeyEvent(Key.ESCAPE)):
+                    return True;
+                self.pop_modal();
+                return True;
+            callback = self.bindings.get("alt+f3");
+            if callback is not None:
+                callback();
+                return True;
         capture = getattr(self.root, "capture_event", None) if self.root is not None else None;
         if capture is not None and capture(event):
             return True;

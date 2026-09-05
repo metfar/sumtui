@@ -303,7 +303,7 @@ class EditApp:
             ("search.replace", "Search & Replace", ["ctrl+h"], self.replace_dialog),
             ("search.goto_line", "Go to Line", ["ctrl+g"], self.goto_line_dialog),
             ("window.next", "Next Window", ["f6", "ctrl+tab"], self.switch_window),
-            ("window.close", "Close Window", ["ctrl+f4"], self.close_workspace_window),
+            ("window.close", "Close Window", ["alt+f3", "ctrl+f4"], self.close_workspace_window),
             ("window.maximize", "Maximize / Restore Window", ["f11", "alt+enter"], self.toggle_workspace_maximize),
             ("window.move", "Move Window", ["alt+m"], self.begin_workspace_move),
             ("window.resize", "Resize Window", ["alt+z"], self.begin_workspace_resize),
@@ -399,7 +399,10 @@ class EditApp:
     def close_workspace_window(self, window=None):
         workspace = self._workspace();
         if workspace is None:
-            return False;
+            # Standalone sumedit has one top-level document rather than a
+            # Workspace.  The common Close Window shortcut therefore closes
+            # the application, preserving the normal unsaved-changes prompt.
+            return self.quit();
         target = window or workspace.active_window;
         if target is None:
             return False;
