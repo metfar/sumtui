@@ -1,3 +1,7 @@
+# 0.8.0a13
+
+- Added a backward-compatible `KeyEvent.action` lifecycle field so graphical frontends can distinguish press from release.
+
 # r20 coordinated release
 
 - Aligned with SUM r20 architecture and package versions.

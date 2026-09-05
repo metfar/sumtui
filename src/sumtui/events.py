@@ -62,6 +62,7 @@ class KeyEvent:
     ctrl: bool = False;
     alt: bool = False;
     shift: bool = False;
+    action: str = "press";
 
     @property
     def name(self):
