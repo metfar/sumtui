@@ -179,6 +179,10 @@ class AnsiDecoder:
                 self.buffer = self.buffer[len(sequence):];
                 self.escape_since = None;
                 return KeyEvent(key);
+        kitty = self._consume_kitty_key();
+        if kitty is not None:
+            self.escape_since = None;
+            return kitty;
         modified = self._consume_xterm_modified_key();
         if modified is not None:
             self.escape_since = None;
@@ -214,6 +218,40 @@ class AnsiDecoder:
             self.escape_since = None;
             return KeyEvent(Key.ESCAPE);
         return None;
+
+    def _consume_kitty_key(self):
+        """Decode Kitty progressive keyboard press/repeat/release CSI-u events.""";
+        match = re.match(br"^\x1b\[([0-9:]+)(?:;([0-9]+)(?::([123]))?)?(?:;([0-9:]*))?u", self.buffer);
+        if match is None: return None;
+        key_field, modifiers_field, event_field, text_field = match.groups();
+        try:
+            key_code = int(key_field.split(b":", 1)[0]);
+            modifiers = int(modifiers_field or b"1");
+            event_type = int(event_field or b"1");
+        except (TypeError, ValueError):
+            return None;
+        self.buffer = self.buffer[match.end():];
+        modifier_bits = max(0, modifiers - 1);
+        shift = bool(modifier_bits & 1);
+        alt = bool(modifier_bits & 2);
+        ctrl = bool(modifier_bits & 4);
+        action = {1: "press", 2: "repeat", 3: "release"}.get(event_type, "press");
+        text = "";
+        if text_field:
+            try: text = "".join(chr(int(item)) for item in text_field.split(b":") if item);
+            except (TypeError, ValueError, OverflowError): text = "";
+        if key_code == 27: return KeyEvent(Key.ESCAPE, ctrl=ctrl, alt=alt, shift=shift, action=action);
+        if key_code == 13: return KeyEvent(Key.ENTER, text="\r" if text else "", ctrl=ctrl, alt=alt, shift=shift, action=action);
+        if key_code == 9: return KeyEvent(Key.TAB, text="\t" if text else "", ctrl=ctrl, alt=alt, shift=shift, action=action);
+        if key_code == 127: return KeyEvent(Key.BACKSPACE, ctrl=ctrl, alt=alt, shift=shift, action=action);
+        if key_code == 32: return KeyEvent(Key.SPACE, text=text or " ", ctrl=ctrl, alt=alt, shift=shift, action=action);
+        if not text and 32 <= key_code <= 0x10ffff and not 0xe000 <= key_code <= 0xf8ff:
+            try: text = chr(key_code);
+            except (ValueError, OverflowError): text = "";
+        if text:
+            key = text.lower() if len(text) == 1 else text;
+            return KeyEvent(key, text=text if action != "release" else text, ctrl=ctrl, alt=alt, shift=shift, action=action);
+        return KeyEvent("unknown", ctrl=ctrl, alt=alt, shift=shift, action=action);
 
     def _consume_xterm_modified_key(self):
         match = re.match(br"^\x1b\[(\d+);([2-8])~", self.buffer);
@@ -373,6 +411,8 @@ class PosixInput:
         self.capture_control_keys = bool(capture_control_keys);
         self.mouse = bool(mouse);
         self.mouse_fd = None;
+        self.control_fd = None;
+        self.keyboard_reporting = False;
 
     def __enter__(self):
         import termios;
@@ -385,12 +425,17 @@ class PosixInput:
             key, ctrl, alt, shift = spec;
             self.decoder.add_sequence(sequence, key, ctrl=ctrl, alt=alt, shift=shift);
         tty.setcbreak(self.fd);
-        if self.mouse:
-            try:
-                self.mouse_fd = os.open("/dev/tty", os.O_WRONLY | getattr(os, "O_NOCTTY", 0));
-                os.write(self.mouse_fd, b"\x1b[?1000h\x1b[?1002h\x1b[?1006h");
-            except OSError:
-                self.mouse_fd = None;
+        try:
+            self.control_fd = os.open("/dev/tty", os.O_WRONLY | getattr(os, "O_NOCTTY", 0));
+            os.write(self.control_fd, b"\x1b[>27u\x1b[=27u");
+            self.keyboard_reporting = True;
+            if self.mouse:
+                os.write(self.control_fd, b"\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+                self.mouse_fd = self.control_fd;
+        except OSError:
+            self.control_fd = None;
+            self.mouse_fd = None;
+            self.keyboard_reporting = False;
         if self.capture_control_keys:
             current = termios.tcgetattr(self.fd);
             current[0] &= ~getattr(termios, "IXON", 0);
@@ -400,12 +445,17 @@ class PosixInput:
         return self;
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.mouse_fd is not None:
+        if self.control_fd is not None:
             try:
-                os.write(self.mouse_fd, b"\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+                if self.mouse:
+                    os.write(self.control_fd, b"\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+                if self.keyboard_reporting:
+                    os.write(self.control_fd, b"\x1b[=0u\x1b[<u");
             finally:
-                os.close(self.mouse_fd);
+                os.close(self.control_fd);
+                self.control_fd = None;
                 self.mouse_fd = None;
+                self.keyboard_reporting = False;
         if self.fd is not None and self.saved is not None:
             import termios;
             termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved);

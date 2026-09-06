@@ -121,6 +121,15 @@ class EventTests(unittest.TestCase):
         self.assertEqual(event.key, Key.F9);
         self.assertTrue(event.alt);
 
+    def test_kitty_progressive_keyboard_press_repeat_release(self):
+        decoder = AnsiDecoder();
+        press = decoder.feed(b"\x1b[122;1:1;122u")[0];
+        repeat = decoder.feed(b"\x1b[122;1:2;122u")[0];
+        release = decoder.feed(b"\x1b[122;1:3u")[0];
+        self.assertEqual((press.key, press.text, press.action), ("z", "z", "press"));
+        self.assertEqual((repeat.key, repeat.text, repeat.action), ("z", "z", "repeat"));
+        self.assertEqual((release.key, release.action), ("z", "release"));
+
     def test_rxvt_shift_cursor_and_page_sequences(self):
         decoder = AnsiDecoder();
         for sequence, expected in ((b"\x1b[a", Key.UP), (b"\x1b[b", Key.DOWN), (b"\x1b[c", Key.RIGHT), (b"\x1b[d", Key.LEFT), (b"\x1b[5$", Key.PAGE_UP), (b"\x1b[6$", Key.PAGE_DOWN)):

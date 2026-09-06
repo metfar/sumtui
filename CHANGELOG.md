@@ -1,3 +1,4 @@
+- Added Kitty progressive keyboard negotiation and CSI-u decoding with press/repeat/release actions so text frontends can propagate exact key release where the terminal supports it.
 # 0.8.0a15
 
 - Added multi-document sumedit buffers with clickable tabs, independent editor state, Ctrl+Tab switching, and Ctrl+W close.
