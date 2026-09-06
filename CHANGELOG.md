@@ -1,3 +1,7 @@
+# 0.8.0a15
+
+- Added multi-document sumedit buffers with clickable tabs, independent editor state, Ctrl+Tab switching, and Ctrl+W close.
+
 # 0.8.0a13
 
 - Added a backward-compatible `KeyEvent.action` lifecycle field so graphical frontends can distinguish press from release.

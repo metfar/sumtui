@@ -37,7 +37,7 @@ from .. import __version__;
 from ..app import Application;
 from ..clipboard import clipboard;
 from ..document import TextDocument;
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from ..keybindings import KeyBindingManager, format_key_spec;
 from ..syntax import SYNTAX_MODES, normalize_mode;
 from ..symbols import build_symbol_map, detect_language, symbol_index_for_line;
@@ -74,7 +74,9 @@ Keyboard
   Ctrl+X / Shift+Del  Cut
   Ctrl+V / Shift+Ins  Paste
   Ctrl+S              Save
-  Ctrl+O              Open
+  Ctrl+O              Open another document
+  Ctrl+W              Close current document
+  Ctrl+Tab            Next open document
   Ctrl+Q              Exit
   Ctrl+Z / Ctrl+Y     Undo / Redo
   Ctrl+A              Select all
@@ -207,13 +209,59 @@ class _EditorHScroll(ScrollBar):
         yield from super().__rich_console__(console, options);
 
 
+class _DocumentTabs(Widget):
+    """One-line clickable document selector shared by TUI and GUI backends.""";
+    def __init__(self, owner, theme=None):
+        super().__init__(theme=theme);
+        self.owner = owner;
+        self._ranges = [];
+
+    def handle_event(self, event):
+        if not isinstance(event, MouseEvent) or event.button != "left" or event.action != "press":
+            return False;
+        for left, right, index in self._ranges:
+            if left <= int(event.x) < right:
+                return bool(self.owner.activate_document(index));
+        return False;
+
+    def __rich_console__(self, console, options):
+        width = max(1, int(options.max_width));
+        output = Text();
+        self._ranges = [];
+        cursor = 0;
+        buffers = list(getattr(self.owner, "_buffers", []));
+        active = int(getattr(self.owner, "_active_buffer_index", 0));
+        for index, buffer in enumerate(buffers):
+            document = buffer["document"];
+            editor = buffer["editor"];
+            name = document.path.name if document.path is not None else "Untitled";
+            marker = "*" if editor.modified else "";
+            label = " {}{} ".format(name, marker);
+            if cursor + len(label) > width and cursor > 0:
+                break;
+            shown = label[:max(0, width - cursor)];
+            style = self.theme.style("menu_title_active" if index == active else "menu_title");
+            output.append(shown, style=style);
+            self._ranges.append((cursor, cursor + len(shown), index));
+            cursor += len(shown);
+            if cursor >= width:
+                break;
+        if cursor < width:
+            output.append(" " * (width - cursor), style=self.theme.style("menu_bar"));
+        yield output;
+
+
 class EditApp:
     def __init__(self, path=None, theme=None, force_binary=False, config_path=None):
         self.force_binary = bool(force_binary);
         self.config_path = Path(config_path).expanduser() if config_path is not None else _default_config_path();
         self.config = _load_config(self.config_path);
         selected_theme = theme or self.config.get("theme") or "ZX";
-        self.document = self._load_document(path);
+        if isinstance(path, (list, tuple)):
+            self._startup_paths = [item for item in path if item is not None];
+        else:
+            self._startup_paths = [] if path is None else [path];
+        self.document = self._load_document(self._startup_paths[0] if self._startup_paths else None);
         self.app = Application(title="sumedit", theme=selected_theme, capture_control_keys=True, mouse=True);
         self.search_query = "";
         self.replace_text = "";
@@ -277,9 +325,15 @@ class EditApp:
         editor_box = VBox(HBox(self.editor, self.vscroll, sizes=[None, 1]), self.hscroll, sizes=[None, 1]);
         title = self.document.path.name if self.document.path is not None else "Untitled";
         self.panel = Panel(editor_box, title=title, content_style="viewer");
-        body = VBox(self.panel, self.status, self.bar, sizes=[None, 1, 1]);
+        self._buffers = [{"document": self.document, "editor": self.editor, "vscroll": self.vscroll, "hscroll": self.hscroll, "box": editor_box}];
+        self._active_buffer_index = 0;
+        self.tabs = _DocumentTabs(self);
+        body = VBox(self.tabs, self.panel, self.status, self.bar, sizes=[1, None, 1, 1]);
         self.desktop = MenuDesktop(self.menu, body);
         self.app.set_root(self.desktop);
+        for extra_path in self._startup_paths[1:]:
+            try: self._append_document(self._load_document(extra_path), activate=False);
+            except Exception: pass;
         self.app.focus.set(self.editor);
         self._update_status();
 
@@ -289,6 +343,7 @@ class EditApp:
             ("file.new", "New", ["ctrl+n"], self.new_file),
             ("file.open", "Open", ["ctrl+o"], self.open_dialog),
             ("file.save", "Save", ["ctrl+s"], self.save),
+            ("file.close", "Close Document", ["ctrl+w"], self.close_document),
             ("code.symbols", "Program map / outline", ["f2", "alt+p"], self.symbol_map_dialog),
             ("app.exit", "Exit", ["f10", "ctrl+q"], self.quit),
             ("editor.undo", "Undo", ["ctrl+z"], self.editor_undo),
@@ -363,6 +418,8 @@ class EditApp:
                 self._update_status("Window: {}".format(active.title if active is not None else "none"));
                 self.app.invalidate();
             return bool(changed);
+        if len(getattr(self, "_buffers", [])) > 1:
+            return self.activate_document((self._active_buffer_index + 1) % len(self._buffers));
         targets = [item for item in self.window_targets() if item is not None];
         if not targets:
             return False;
@@ -489,14 +546,114 @@ class EditApp:
             return TextDocument.empty(target);
         return TextDocument.load(target, force_binary=self.force_binary);
 
-    def _sync_document_markers(self):
-        if self.document.eol == "CRLF":
-            self.editor.line_end_marker = "⏎";
-        elif self.document.eol == "CR":
-            self.editor.line_end_marker = "↩";
+    @staticmethod
+    def _same_document_path(left, right):
+        if left is None or right is None:
+            return False;
+        try: return Path(left).expanduser().resolve() == Path(right).expanduser().resolve();
+        except (OSError, RuntimeError, ValueError): return Path(left).expanduser() == Path(right).expanduser();
+
+    def _set_markers_for(self, document, editor):
+        if document.eol == "CRLF":
+            editor.line_end_marker = "⏎";
+        elif document.eol == "CR":
+            editor.line_end_marker = "↩";
         else:
-            self.editor.line_end_marker = "↵";
-        self.editor.line_end_markers = [_EOL_MARKERS.get(value, "↵") for value in (self.document.line_endings or [])];
+            editor.line_end_marker = "↵";
+        editor.line_end_markers = [_EOL_MARKERS.get(value, "↵") for value in (document.line_endings or [])];
+        return editor;
+
+    def _editor_for_document(self, document):
+        try: tab_size = max(1, int(self.config.get("tab_size", 4)));
+        except (TypeError, ValueError): tab_size = 4;
+        try: indent_size = max(1, int(self.config.get("indent_size", tab_size)));
+        except (TypeError, ValueError): indent_size = tab_size;
+        try: soft_tab_size = max(1, int(self.config.get("soft_tab_size", indent_size)));
+        except (TypeError, ValueError): soft_tab_size = indent_size;
+        expand_tabs = bool(self.config.get("expand_tabs", True));
+        shift_round = bool(self.config.get("shift_round", False));
+        modeline = {};
+        if bool(self.config.get("read_vim_modelines", True)):
+            modeline = scan_vim_modelines(document.text, self.config.get("modeline_lines", 5));
+            tab_size = int(modeline.get("tabstop", tab_size));
+            indent_size = int(modeline.get("shiftwidth", indent_size));
+            soft_tab_size = int(modeline.get("softtabstop", soft_tab_size));
+            expand_tabs = bool(modeline.get("expandtab", expand_tabs));
+            shift_round = bool(modeline.get("shiftround", shift_round));
+        syntax_mode = normalize_mode(modeline.get("syntax", self.config.get("syntax_mode", "auto")));
+        try: line_wrapping = int(self.config.get("line_wrapping", -1));
+        except (TypeError, ValueError): line_wrapping = -1;
+        try: line_breaking = max(0, int(self.config.get("line_breaking", 0)));
+        except (TypeError, ValueError): line_breaking = 0;
+        editor = TextEditor(
+            document.text, tab_size=tab_size, line_numbers=True, on_change=self._editor_changed, on_cursor=self._cursor_changed, command_shortcuts=False,
+            syntax_highlighting=bool(self.config.get("syntax_highlighting", True)), syntax_language=syntax_mode,
+            syntax_filename=document.path.name if document.path is not None else None, line_wrapping=line_wrapping, line_breaking=line_breaking,
+            indent_size=indent_size, soft_tab_size=soft_tab_size, expand_tabs=expand_tabs, shift_round=shift_round,
+        );
+        editor.configure_visibility(
+            spaces=bool(self.config.get("show_spaces", False)), tabs=bool(self.config.get("show_tabs", False)),
+            line_endings=bool(self.config.get("show_line_endings", False)), controls=bool(self.config.get("show_control_chars", False)),
+        );
+        if "fileformat" in modeline:
+            document.eol = str(modeline["fileformat"]);
+            document.preferred_eol = document.eol;
+        if "fileencoding" in modeline:
+            document.encoding = str(modeline["fileencoding"]);
+            document.encoding_label = str(modeline["fileencoding"]).upper();
+        self._set_markers_for(document, editor);
+        vscroll = _EditorVScroll(editor);
+        hscroll = _EditorHScroll(editor);
+        box = VBox(HBox(editor, vscroll, sizes=[None, 1]), hscroll, sizes=[None, 1]);
+        return {"document": document, "editor": editor, "vscroll": vscroll, "hscroll": hscroll, "box": box};
+
+    def _append_document(self, document, activate=True):
+        if document.path is not None:
+            for index, buffer in enumerate(getattr(self, "_buffers", [])):
+                if self._same_document_path(buffer["document"].path, document.path):
+                    if activate: self.activate_document(index);
+                    return buffer;
+        buffer = self._editor_for_document(document);
+        self._buffers.append(buffer);
+        if activate:
+            self.activate_document(len(self._buffers) - 1);
+        else:
+            self.app.invalidate();
+        return buffer;
+
+    def activate_document(self, index):
+        if not getattr(self, "_buffers", None):
+            return False;
+        index = max(0, min(len(self._buffers) - 1, int(index)));
+        buffer = self._buffers[index];
+        self._active_buffer_index = index;
+        self.document = buffer["document"];
+        self.editor = buffer["editor"];
+        self.vscroll = buffer["vscroll"];
+        self.hscroll = buffer["hscroll"];
+        self.panel.set_child(buffer["box"]);
+        self.panel.title = self.document.path.name if self.document.path is not None else "Untitled";
+        self._refresh_key_surfaces();
+        self.app.focus.set(self.editor);
+        self._update_status("Document {}/{}".format(index + 1, len(self._buffers)));
+        self.app.invalidate();
+        return True;
+
+    def _close_current_now(self):
+        if not getattr(self, "_buffers", None):
+            return False;
+        index = self._active_buffer_index;
+        if len(self._buffers) == 1:
+            return self._set_document(TextDocument.empty());
+        self._buffers.pop(index);
+        return self.activate_document(min(index, len(self._buffers) - 1));
+
+    def close_document(self):
+        return self._confirm_unsaved(self._close_current_now);
+
+    def _sync_document_markers(self):
+        self._set_markers_for(self.document, self.editor);
+        return self.editor;
 
     def _menus(self):
         markdown = self.symbol_language() == "markdown";
@@ -545,6 +702,7 @@ class EditApp:
                 MenuItem("Open...", self.open_dialog, self._ks("file.open")),
                 MenuItem("Save", self.save, self._ks("file.save")),
                 MenuItem("Save As...", self.save_as_dialog),
+                MenuItem("Close Document", self.close_document, self._ks("file.close")),
                 Separator(),
                 MenuItem("Compare with...", self.compare_with_dialog),
                 MenuItem("Export graphical window as PNG...", self.export_gui_png_dialog),
@@ -748,6 +906,9 @@ class EditApp:
         self.editor.configure_syntax(filename=document.path.name if document.path is not None else None);
         self._apply_document_modeline();
         self._sync_document_markers();
+        if getattr(self, "_buffers", None):
+            current = self._buffers[self._active_buffer_index];
+            current["document"] = document;
         self.panel.title = document.path.name if document.path is not None else "Untitled";
         self._refresh_key_surfaces();
         self.app.focus.set(self.editor);
@@ -934,7 +1095,9 @@ class EditApp:
         return True;
 
     def new_file(self):
-        return self._confirm_unsaved(lambda: self._set_document(TextDocument.empty()));
+        self._append_document(TextDocument.empty(), activate=True);
+        self._update_status("New document");
+        return True;
 
     def _open_dialog_now(self):
         start = self.document.path.parent if self.document.path is not None else Path.cwd();
@@ -946,7 +1109,7 @@ class EditApp:
             try:
                 doc = TextDocument.load(path, force_binary=self.force_binary);
                 close();
-                self._set_document(doc);
+                self._append_document(doc, activate=True);
             except Exception as exc:
                 close();
                 self._update_status("Open error: {}".format(exc));
@@ -956,7 +1119,7 @@ class EditApp:
         return True;
 
     def open_dialog(self):
-        return self._confirm_unsaved(self._open_dialog_now);
+        return self._open_dialog_now();
 
     def save_as_dialog(self, on_saved=None):
         default = str(self.document.path or Path.cwd() / "untitled.txt");
@@ -984,6 +1147,7 @@ class EditApp:
             self.document.text = self.editor.text;
             self.document.save(text=self.editor.text);
             self.editor.mark_saved();
+            self.panel.title = self.document.path.name if self.document.path is not None else "Untitled";
             self._update_status("Saved");
             if on_saved is not None:
                 return on_saved();
@@ -1588,8 +1752,22 @@ Copyright 2018- William Martinez Bas <metfar@gmail.com>
         self.app.stop();
         return True;
 
+    def _confirm_all_unsaved(self, callback):
+        pending = [buffer for buffer in getattr(self, "_buffers", []) if buffer["editor"].modified];
+        if not pending:
+            return callback();
+        def next_buffer():
+            if not pending:
+                return callback();
+            buffer = pending.pop(0);
+            if buffer not in self._buffers:
+                return next_buffer();
+            self.activate_document(self._buffers.index(buffer));
+            return self._confirm_unsaved(next_buffer);
+        return next_buffer();
+
     def quit(self):
-        return self._confirm_unsaved(self._quit_now);
+        return self._confirm_all_unsaved(self._quit_now);
 
     def run(self, backend="tui"):
         workspace = self._workspace();
@@ -1614,7 +1792,7 @@ def install_edit_alias(directory=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="sumedit", description="Lightweight plain-text editor built with the Sum UI application model");
-    parser.add_argument("file", nargs="?", help="text file to edit");
+    parser.add_argument("file", nargs="*", help="text files to edit");
     parser.add_argument("--theme", default=None, help="Sum theme (overrides saved editor configuration)");
     parser.add_argument("--force", action="store_true", help="open binary-looking files as text");
     add_backend_arguments(parser);
@@ -1627,7 +1805,8 @@ def main(argv=None):
         print("sumedit TUI mode requires an interactive terminal; use --gui for the graphical backend", file=sys.stderr);
         return 2;
     try:
-        application = EditApp(args.file, theme=args.theme, force_binary=args.force);
+        selected_files = args.file[0] if len(args.file) == 1 else args.file;
+        application = EditApp(selected_files, theme=args.theme, force_binary=args.force);
         return application.run(backend=backend);
     except Exception as exc:
         label = "sumedit --gui" if backend == "gui" else "sumedit";

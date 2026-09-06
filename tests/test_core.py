@@ -1719,9 +1719,9 @@ class MouseAndOverlayRegressionTests(unittest.TestCase):
         editor_app.editor.set_text("abcdefghij\nsecond", modified=False);
         console = Console(width=60, height=15, record=True, force_terminal=False, file=io.StringIO());
         console.print(editor_app.desktop, height=15);
-        self.assertTrue(editor_app.app.dispatch(MouseEvent(10, 2, button="left", action="press")));
-        self.assertTrue(editor_app.app.dispatch(MouseEvent(13, 2, button="left", action="move")));
-        self.assertTrue(editor_app.app.dispatch(MouseEvent(13, 2, button="left", action="release")));
+        self.assertTrue(editor_app.app.dispatch(MouseEvent(10, 3, button="left", action="press")));
+        self.assertTrue(editor_app.app.dispatch(MouseEvent(13, 3, button="left", action="move")));
+        self.assertTrue(editor_app.app.dispatch(MouseEvent(13, 3, button="left", action="release")));
         self.assertGreater(editor_app.editor.selection_length, 0);
 
     def test_scrollbar_mouse_track_and_drag_changes_value(self):
@@ -2576,3 +2576,47 @@ def test_r211_alt_f3_closes_standalone_editor_through_quit(monkeypatch):
     editor._install_keybindings();
     assert editor.app.dispatch(KeyEvent(Key.F3, alt=True)) is True;
     assert called == [True];
+
+
+def test_sumedit_multidocument_buffers_preserve_independent_editor_state(tmp_path):
+    first = tmp_path / "first.txt";
+    second = tmp_path / "second.txt";
+    first.write_text("one\n", encoding="utf-8");
+    second.write_text("two\n", encoding="utf-8");
+    editor = EditApp([first, second], config_path=tmp_path / "edit.json");
+    assert len(editor._buffers) == 2;
+    assert editor.document.path == first;
+    assert editor.activate_document(1) is True;
+    assert editor.document.path == second;
+    editor.editor.set_text("two changed\n", modified=True);
+    assert editor.activate_document(0) is True;
+    assert editor.editor.text == "one\n";
+    assert editor.activate_document(1) is True;
+    assert editor.editor.text == "two changed\n";
+    assert editor.editor.modified is True;
+
+
+def test_sumedit_new_document_does_not_discard_dirty_current_buffer(tmp_path):
+    path = tmp_path / "original.txt";
+    path.write_text("original\n", encoding="utf-8");
+    editor = EditApp(path, config_path=tmp_path / "edit.json");
+    editor.editor.set_text("dirty\n", modified=True);
+    assert editor.new_file() is True;
+    assert len(editor._buffers) == 2;
+    assert editor.document.path is None;
+    assert editor.activate_document(0) is True;
+    assert editor.editor.text == "dirty\n";
+    assert editor.editor.modified is True;
+
+
+def test_sumedit_ctrl_tab_cycles_open_documents(tmp_path):
+    first = tmp_path / "a.txt";
+    second = tmp_path / "b.txt";
+    first.write_text("a", encoding="utf-8");
+    second.write_text("b", encoding="utf-8");
+    editor = EditApp([first, second], config_path=tmp_path / "edit.json");
+    assert editor._active_buffer_index == 0;
+    assert editor.switch_window() is True;
+    assert editor._active_buffer_index == 1;
+    assert editor.switch_window() is True;
+    assert editor._active_buffer_index == 0;
