@@ -162,7 +162,10 @@ class TextDocument:
                         output.append(eol_sequence(self.preferred_eol));
             serialized = "".join(output);
         else:
-            sequence = eol_sequence(eol or (self.preferred_eol if self.eol == "MIXED" else self.eol));
+            current_eol = self.eol;
+            if current_eol in ("MIXED", "NONE"):
+                current_eol = self.preferred_eol or "LF";
+            sequence = eol_sequence(eol or current_eol);
             serialized = logical.replace("\n", sequence);
         codec_name = encoding or self.encoding;
         return serialized.encode(codec_name, errors="strict");

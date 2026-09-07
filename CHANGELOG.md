@@ -1,3 +1,9 @@
+# 0.8.0a17
+
+- Fixed `sumedit` Save and Save As for files that originally contain no line-ending bytes (`EOL=NONE`); such files now preserve no final newline while using the preferred EOL if new lines are inserted.
+- Key-release events no longer re-run normal editor/widget commands or application shortcuts; press/repeat remain normal input, while runtimes such as sumBASIC can still intercept releases for `KEYUP$`.
+- The optional GUI dependency now requires sumGUI 0.2.0a20 for the corrected repeat controller.
+
 - Added Kitty progressive keyboard negotiation and CSI-u decoding with press/repeat/release actions so text frontends can propagate exact key release where the terminal supports it.
 # 0.8.0a15
 

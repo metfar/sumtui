@@ -1332,6 +1332,30 @@ class AdvancedTextEditorTests(unittest.TestCase):
             self.assertEqual(kind, "MIXED");
             self.assertEqual((counts["CRLF"], counts["LF"], counts["CR"]), (1, 1, 1));
 
+    def test_document_without_line_ending_can_save_and_save_as(self):
+        from sumtui.document import TextDocument;
+        with tempfile.TemporaryDirectory() as tempdir:
+            source = Path(tempdir) / "single.txt";
+            source.write_bytes(b"one");
+            doc = TextDocument.load(source);
+            self.assertEqual(doc.eol, "NONE");
+            doc.save(text="changed");
+            self.assertEqual(source.read_bytes(), b"changed");
+            target = Path(tempdir) / "copy.txt";
+            doc.path = target;
+            doc.save(text="one\ntwo");
+            self.assertEqual(target.read_bytes(), b"one\ntwo");
+
+    def test_key_release_does_not_retrigger_normal_application_binding(self):
+        from sumtui.app import Application;
+        calls = [];
+        app = Application();
+        app.bind("ctrl+s", lambda: calls.append("save"));
+        self.assertFalse(app.dispatch(KeyEvent("s", ctrl=True, action="release")));
+        self.assertEqual(calls, []);
+        self.assertTrue(app.dispatch(KeyEvent("s", ctrl=True, action="press")));
+        self.assertEqual(calls, ["save"]);
+
 class SumInputTests(unittest.TestCase):
     def test_input_mask_formats_and_maps_cursor(self):
         from sumtui import InputMask;

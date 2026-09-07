@@ -303,6 +303,11 @@ class Application:
             return False;
         if not isinstance(event, KeyEvent):
             return False;
+        # Key release is state information, not another command/typing event.
+        # Application-specific runtimes (for example sumBASIC KEYUP$) may
+        # intercept releases before this normal widget/binding dispatcher.
+        if getattr(event, "action", "press") == "release":
+            return False;
         if event.matches("alt+f3"):
             # Alt+F3 is the SUM-wide "close current window" gesture.  A
             # modal dialog is the current window, so let its normal Escape
