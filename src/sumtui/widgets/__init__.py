@@ -26,6 +26,7 @@ from .base import Widget;
 from .basic import Label, Panel, StatusBar;
 from .commandwindow import CommandWindow, ScreenField;
 from .chart import ChartView, render_chart_lines;
+from .characterchart import CharacterChart;
 from .dialog import Dialog;
 from .editor import TextArea, TextEditor;
 from .dataforms import BrowseForm, FormField, ReadOnlyField, RecordForm;
@@ -50,7 +51,7 @@ from .textview import TextView;
 from .tree import TreeNode, TreeView;
 
 __all__ = [
-    "Widget", "Label", "Panel", "StatusBar", "CommandWindow", "ScreenField", "ChartView", "render_chart_lines", "Dialog", "GroupBox",
+    "Widget", "Label", "Panel", "StatusBar", "CommandWindow", "ScreenField", "ChartView", "render_chart_lines", "CharacterChart", "Dialog", "GroupBox",
     "FormField", "ReadOnlyField", "RecordForm", "BrowseForm", "CalendarView", "TimeView", "DateTimeView",
     "Button", "TextInput", "TextArea", "TextEditor", "CheckBox", "RadioButton", "RadioGroup", "Choice", "ComboBox",
     "ProgressBar", "Slider", "ScrollBar", "TextView", "TextViewPane", "CommandWindowPane", "MarkdownView", "MarkdownViewPane", "TableViewPane", "ListViewPane", "SyntaxView", "HexView",

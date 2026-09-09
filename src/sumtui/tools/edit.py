@@ -29,9 +29,10 @@ from pathlib import Path;
 from importlib.resources import files;
 import re;
 import sys;
+import unicodedata;
 
 from rich.text import Text;
-from sumui import add_backend_arguments, backend_from_args;
+from sumui import ASC_H_CHARACTERS, ASC_H_MAX_CODE, add_backend_arguments, backend_from_args, find_asc_h_character;
 
 from .. import __version__;
 from ..app import Application;
@@ -44,7 +45,7 @@ from ..symbols import build_symbol_map, detect_language, symbol_index_for_line;
 from ..theme import THEMES, available_theme_names, refresh_user_themes;
 from ..markdown_export import export_html, export_pdf;
 from ..modeline import scan_vim_modelines;
-from ..widgets import Button, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, MarkdownView, MarkdownViewPane, VBox, Widget;
+from ..widgets import Button, CharacterChart, CheckBox, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ScrollBar, Separator, StatusBar, TextEditor, TextInput, TextView, MarkdownView, MarkdownViewPane, VBox, Widget;
 from .edit_preferences import open_preferences;
 
 
@@ -73,6 +74,7 @@ Keyboard
   Ctrl+C / Ctrl+Ins   Copy
   Ctrl+X / Shift+Del  Cut
   Ctrl+V / Shift+Ins  Paste
+  Ctrl+Alt+C           Character Chart / extended scientific symbols
   Ctrl+S              Save
   Ctrl+O              Open another document
   Ctrl+W              Close current document
@@ -351,6 +353,7 @@ class EditApp:
             ("editor.cut", "Cut", ["ctrl+x", "shift+delete"], self.editor_cut),
             ("editor.copy", "Copy", ["ctrl+c", "ctrl+insert"], self.editor_copy),
             ("editor.paste", "Paste", ["ctrl+v", "shift+insert"], self.editor_paste),
+            ("editor.character_chart", "Character Chart", ["ctrl+alt+c"], self.character_chart_dialog),
             ("editor.select_all", "Select All", ["ctrl+a"], self.editor_select_all),
             ("search.find", "Find", ["ctrl+f"], self.find_dialog),
             ("search.next", "Find Next", ["f3"], self.find_next),
@@ -724,6 +727,8 @@ class EditApp:
                 MenuItem("Copy", self.editor_copy, self._ks("editor.copy")),
                 MenuItem("Paste", self.editor_paste, self._ks("editor.paste")),
                 Separator(),
+                MenuItem("Character Chart...", self.character_chart_dialog, self._ks("editor.character_chart")),
+                Separator(),
                 MenuItem("Tabs -> {} spaces".format(self.editor.tab_size), self.editor_tabs_to_spaces),
                 MenuItem("{} spaces -> Tabs".format(self.editor.tab_size), self.editor_spaces_to_tabs),
                 Separator(),
@@ -954,6 +959,119 @@ class EditApp:
         body = VBox(listing, HBox(Button("Go", on_press=activate, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[None, None]);
         self.app.push_modal(Dialog(body, title=dialog_title, width=68, height=min(24, max(10, len(symbols) + 7)), on_cancel=close, shadow=True));
         self.app.focus.set(listing);
+        self.app.invalidate();
+        return True;
+
+    def character_chart_dialog(self):
+        """Open the Fox-style extended character chart and insert at the caret.""";
+        info=Label("");
+        page_info=Label("", style="muted");
+        code_entry=TextInput("0", width=12, max_length=16);
+        state={"syncing": False};
+        insert_button=Button("Insert");
+
+        def close(*_args):
+            if self.app.modal_depth:
+                self.app.pop_modal();
+            self.app.focus.set(self.editor);
+            self.app.invalidate();
+            return True;
+
+        def unicode_summary(value):
+            if value is None:
+                return "reserved command/token";
+            points=[];
+            names=[];
+            for char in str(value):
+                points.append("U+{:04X}".format(ord(char)));
+                try: names.append(unicodedata.name(char));
+                except ValueError: names.append("UNNAMED");
+            visible=str(value).replace(" ", "␠");
+            return "{}   {}   {}".format(visible, " ".join(points), " + ".join(names));
+
+        def selected(code, value):
+            state["syncing"]=True;
+            code_entry.value=str(int(code));
+            code_entry.cursor=len(code_entry.value);
+            state["syncing"]=False;
+            info.set_text("ASC-H {:4d} / 0x{:04X}   {}".format(int(code), int(code), unicode_summary(value)));
+            page_info.set_text("Page {}/{}   ASC-H {:04d}-{:04d}   PgUp/PgDn page   Enter/Space insert   blank = command/token".format(
+                chart.page + 1, chart.page_count, chart.page_start, chart.page_end));
+            insert_button.enabled=value is not None;
+            self.app.invalidate();
+            return True;
+
+        def insert_value(value, code):
+            if value is None:
+                self._update_status("ASC-H {} is reserved for a command/token".format(code));
+                return False;
+            changed=self.editor.insert_text(value, kind="character_chart");
+            if changed:
+                self._update_status("Inserted ASC-H {}: {}".format(code, str(value).replace(" ", "␠")));
+                self.app.invalidate();
+            return bool(changed);
+
+        chart=CharacterChart(selected_code=0, on_change=selected, on_insert=insert_value);
+
+        def parse_code(text):
+            raw=str(text or "").strip();
+            if not raw:
+                raise ValueError("empty code");
+            upper=raw.upper();
+            if upper.startswith("U+"):
+                point=int(upper[2:], 16);
+                matches=find_asc_h_character(chr(point));
+                if not matches:
+                    raise ValueError("Unicode character is not in ASC-H");
+                return matches[0];
+            if raw.startswith("$"):
+                return int(raw[1:], 16);
+            return int(raw, 0) if raw.lower().startswith("0x") else int(raw, 10);
+
+        def go_code(*_args):
+            if state["syncing"]:
+                return False;
+            try:
+                code=parse_code(code_entry.value);
+            except (TypeError, ValueError) as exc:
+                self._update_status("Character code error: {}".format(exc));
+                return False;
+            if code < 0 or code > ASC_H_MAX_CODE:
+                self._update_status("Character code must be 0..{}".format(ASC_H_MAX_CODE));
+                return False;
+            chart.set_code(code);
+            self.app.focus.set(chart);
+            self.app.invalidate();
+            return True;
+
+        def insert_selected(*_args):
+            return chart.insert_selected();
+
+        def previous_page(*_args):
+            chart.previous_page();
+            self.app.focus.set(chart);
+            self.app.invalidate();
+            return True;
+
+        def next_page(*_args):
+            chart.next_page();
+            self.app.focus.set(chart);
+            self.app.invalidate();
+            return True;
+
+        code_entry.on_submit=lambda _value: go_code();
+        insert_button.on_press=insert_selected;
+        body=VBox(
+            chart,
+            info,
+            page_info,
+            HBox(Label("Character code:"), code_entry, Button("Go", on_press=go_code), sizes=[16, 14, 10]),
+            HBox(Button("< Page", on_press=previous_page), Button("Page >", on_press=next_page), insert_button, Button("Close", on_press=close), ratios=[1, 1, 1, 1]),
+            sizes=[17, 2, 1, 1, None],
+        );
+        self.app.push_modal(Dialog(body, title="Character Chart", width=78, height=27, on_cancel=close, shadow=True));
+        selected(chart.selected_code, chart.selected_character);
+        self.app.focus.set(chart);
         self.app.invalidate();
         return True;
 

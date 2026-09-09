@@ -384,6 +384,12 @@ class TextArea(Widget):
             return False;
         return self._replace_range(bounds[0], bounds[1], replacement, kind=kind, merge=merge);
 
+    def insert_text(self, text, kind="insert"):
+        """Insert text at the caret, replacing any active selection.""";
+        if self.readonly:
+            return False;
+        return self._insert_text(str(text), kind=str(kind or "insert"));
+
     def _insert_text(self, text, kind="typing"):
         if self.readonly or not text:
             return False;

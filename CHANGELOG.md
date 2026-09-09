@@ -1,3 +1,10 @@
+# Changelog
+
+## 0.8.0a18
+
+- Added a Fox-style **Character Chart** shared by `sumedit` and `EditApp`-derived IDEs. The 16x16 paged chart exposes the extended `asc_h` scientific/graphic character repertoire, leaves BASIC command/token ranges blank, accepts decimal/hex/`U+` code lookup, and inserts the selected Unicode character or sequence at the editor caret.
+- Added `TextEditor.insert_text()` as the public insertion primitive used by editor tools.
+
 # 0.8.0a17
 
 - Fixed `sumedit` Save and Save As for files that originally contain no line-ending bytes (`EOL=NONE`); such files now preserve no final newline while using the preferred EOL if new lines are inserted.
