@@ -30,8 +30,9 @@ from rich.text import Text;
 
 from .. import __version__;
 from ..app import Application;
-from ..theme import BUILTIN_THEME_NAMES, THEME_EDIT_ROLES, THEMES, available_theme_names, refresh_user_themes, save_user_theme, user_theme_dir;
-from ..widgets import Button, Dialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, Separator, StatusBar, TextInput, VBox, Widget;
+from ..theme import BUILTIN_THEME_NAMES, THEME_EDIT_ROLES, THEMES, available_theme_names, hidden_theme_names, refresh_user_themes, save_user_theme, set_theme_hidden, user_theme_dir;
+from ..themeio import create_theme, delete_theme, export_theme, import_theme, read_theme, record_text, search_themes, theme_records, update_theme;
+from ..widgets import Button, Dialog, FileDialog, FunctionBar, HBox, Label, ListView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, Separator, StatusBar, TextInput, VBox, Widget;
 
 
 class ThemePreview(Widget):
@@ -106,6 +107,15 @@ class ThemeEditorApp:
             Menu("File", [
                 MenuItem("Clone theme...", self.clone_dialog, "F4"),
                 MenuItem("Save", self.save, "F2"),
+                Separator(),
+                MenuItem("Import SUM JSON...", self.import_sum_dialog),
+                MenuItem("Import GTK/GNOME/XFCE...", lambda: self.import_external_dialog("gtk")),
+                MenuItem("Import KDE...", lambda: self.import_external_dialog("kde")),
+                MenuItem("Import Terminal...", lambda: self.import_external_dialog("terminal")),
+                MenuItem("Export current...", self.export_dialog),
+                Separator(),
+                MenuItem("Hide selected theme", self.hide_current),
+                MenuItem("Unhide theme...", self.unhide_dialog),
                 MenuItem("Delete user theme", self.delete_current),
                 Separator(),
                 MenuItem("Exit", self.quit, "F10"),
@@ -125,10 +135,13 @@ class ThemeEditorApp:
 
     def _reload_theme_list(self):
         self.theme_list.clear();
-        names = available_theme_names();
-        for name in names:
-            suffix = " [built-in]" if name in BUILTIN_THEME_NAMES else " [user]";
-            self.theme_list.add_item(name + suffix, value=name);
+        records = list(theme_records());
+        names = [record.name for record in records];
+        for record in records:
+            if record.scope == "builtin": suffix = " [built-in]";
+            elif record.scope == "imported": suffix = " [{}]".format(record.source);
+            else: suffix = " [user]";
+            self.theme_list.add_item(record.name + suffix, value=record.name);
         if self.current_name in names:
             self.theme_list.select(names.index(self.current_name));
         return True;
@@ -280,27 +293,128 @@ class ThemeEditorApp:
         self.app.invalidate();
         return True;
 
-    def delete_current(self):
-        if self.current_name in BUILTIN_THEME_NAMES:
-            return self._message("Built-in theme", "Built-in themes cannot be deleted.");
-        directory = user_theme_dir();
-        removed = False;
-        for path in directory.glob("*.json") if directory.exists() else []:
-            try:
-                import json;
-                data = json.loads(path.read_text(encoding="utf-8"));
-                if str(data.get("name", "")).casefold() == self.current_name.casefold():
-                    path.unlink();
-                    removed = True;
-            except (OSError, ValueError, TypeError):
-                continue;
-        old = self.current_name;
+    def _import_finished(self, path):
         refresh_user_themes();
-        self.current_name = "ZX" if "ZX" in THEMES else next(iter(THEMES));
+        try:
+            import json;
+            data = json.loads(Path(path).read_text(encoding="utf-8"));
+            name = str(data.get("name") or "");
+        except Exception:
+            name = "";
+        if name in THEMES: self.current_name = name;
+        self._reload_theme_list();
+        self._reload_roles();
+        self.app.set_theme(THEMES[self.current_name]);
+        self._update_status("Imported {}".format(path));
+        self.app.invalidate();
+        return True;
+
+    def import_sum_dialog(self):
+        def close(*_args):
+            return self._close_modal(self.theme_list);
+        def accepted(path):
+            try:
+                imported = import_theme(path, kind="sum");
+            except Exception as exc:
+                close();
+                return self._message("Import theme", "Import failed: {}".format(exc));
+            close();
+            return self._import_finished(imported);
+        self.app.push_modal(FileDialog(path=".", title="Import SUM theme JSON", on_accept=accepted, on_cancel=close, theme=self.app.theme));
+        return True;
+
+    def import_external_dialog(self, kind):
+        entry = TextInput("", placeholder="Theme name or path", width=60);
+        title_entry = TextInput("", placeholder="Optional imported title", width=60);
+        title = "Import {} theme".format(str(kind).upper());
+        def close(*_args):
+            return self._close_modal(self.theme_list);
+        def accept(*_args):
+            source = entry.value.strip();
+            imported_title = title_entry.value.strip() or None;
+            if not source: return False;
+            try:
+                imported = import_theme(source, kind=kind, title=imported_title);
+            except Exception as exc:
+                close();
+                return self._message(title, "Import failed: {}".format(exc));
+            close();
+            return self._import_finished(imported);
+        body = VBox(Label("Installed theme name or source path:"), entry, Label("Imported title (optional):"), title_entry, HBox(Button("Import", on_press=accept, default=True), Button("Cancel", on_press=close)), sizes=[1, 1, 1, 1, None]);
+        self.app.push_modal(Dialog(body, title=title, width=76, height=12, on_cancel=close, shadow=True));
+        self.app.focus.set(entry);
+        return True;
+
+    def export_dialog(self):
+        safe = "".join(char.lower() if char.isalnum() else "-" for char in self.current_name).strip("-") or "theme";
+        entry = TextInput(str(Path.cwd() / (safe + ".sumtheme.json")), width=66);
+        format_entry = TextInput("sum", width=16);
+        def close(*_args):
+            return self._close_modal(self.theme_list);
+        def accept(*_args):
+            target = entry.value.strip();
+            kind = format_entry.value.strip().lower() or "sum";
+            if not target: return False;
+            try: path = export_theme(self.current_name, target=target, kind=kind);
+            except Exception as exc:
+                close();
+                return self._message("Export theme", "Export failed: {}".format(exc));
+            close();
+            self._update_status("Exported {} -> {}".format(self.current_name, path));
+            self.app.invalidate();
+            return True;
+        body = VBox(Label("Output path:"), entry, Label("Format: sum, gtk, gnome, xfce, kde, terminal"), format_entry, HBox(Button("Export", on_press=accept, default=True), Button("Cancel", on_press=close)), sizes=[1, 1, 1, 1, None]);
+        self.app.push_modal(Dialog(body, title="Export current theme", width=82, height=12, on_cancel=close, shadow=True));
+        self.app.focus.set(entry);
+        return True;
+
+    def hide_current(self):
+        old = self.current_name;
+        set_theme_hidden(old, True);
+        names = available_theme_names();
+        if names:
+            self.current_name = names[0];
+            self.app.set_theme(THEMES[self.current_name]);
+        self._reload_theme_list();
+        self._reload_roles();
+        self._update_status("Hidden {}".format(old));
+        self.app.invalidate();
+        return True;
+
+    def unhide_dialog(self):
+        names = list(hidden_theme_names());
+        if not names: return self._message("Unhide theme", "There are no hidden themes.");
+        choices = ListView([], title="Hidden themes");
+        for name in names: choices.add_item(name, value=name);
+        choices.select(0);
+        def close(*_args):
+            return self._close_modal(self.theme_list);
+        def accept(*_args):
+            name = choices.current_value;
+            if not name: return False;
+            set_theme_hidden(name, False);
+            close();
+            self._reload_theme_list();
+            self._update_status("Unhidden {}".format(name));
+            self.app.invalidate();
+            return True;
+        body = VBox(choices, HBox(Button("Unhide", on_press=accept, default=True), Button("Cancel", on_press=close)), sizes=[None, None]);
+        self.app.push_modal(Dialog(body, title="Unhide theme", width=58, height=14, on_cancel=close, shadow=True));
+        self.app.focus.set(choices);
+        return True;
+
+    def delete_current(self):
+        old = self.current_name;
+        try:
+            delete_theme(old);
+        except (OSError, ValueError, KeyError) as exc:
+            return self._message("Delete theme", str(exc));
+        names = available_theme_names();
+        self.current_name = ("ZX" if "ZX" in names else names[0]) if names else "ZX";
         self.app.set_theme(THEMES[self.current_name]);
         self._reload_theme_list();
         self._reload_roles();
-        self._update_status("Deleted {}".format(old) if removed else "No saved file found for {}".format(old));
+        self._update_status("Deleted {}".format(old));
         self.app.invalidate();
         return True;
 
@@ -332,22 +446,113 @@ class ThemeEditorApp:
         return self.app.run();
 
 
+def _assignments(values, option):
+    result = {};
+    for raw in values or ():
+        text = str(raw);
+        if "=" not in text: raise ValueError("{} requires NAME=VALUE".format(option));
+        name, value = text.split("=", 1);
+        name = name.strip();
+        if not name: raise ValueError("{} requires NAME=VALUE".format(option));
+        result[name] = value.strip();
+    return result;
+
+
+def _print_record(record, as_json=False):
+    if as_json:
+        import json;
+        print(json.dumps({"name": record.name, "scope": record.scope, "source": record.source, "origin": record.origin, "hidden": record.hidden}, ensure_ascii=False, sort_keys=True));
+    else:
+        print(record_text(record));
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="sumtheme", description="Interactive sumTUI theme editor");
-    parser.add_argument("--theme", default=None, help="theme to preview initially");
-    parser.add_argument("--list", action="store_true", help="list built-in and user themes and exit");
-    parser.add_argument("--dir", action="store_true", help="print the user theme directory and exit");
+    parser = argparse.ArgumentParser(prog="sumtheme", description="Manage, import, export and edit sumTUI themes");
+    parser.add_argument("--theme", default=None, help="theme to preview initially in TUI mode");
+    action = parser.add_mutually_exclusive_group();
+    action.add_argument("--create", metavar="NAME", help="create a user theme from --base");
+    action.add_argument("--read", "--show", dest="read_name", metavar="NAME", help="show one theme");
+    action.add_argument("--update", metavar="NAME", help="update a user theme using --title/--set/--style");
+    action.add_argument("--delete", metavar="NAME", help="delete a user theme");
+    action.add_argument("--list", action="store_true", help="list themes");
+    action.add_argument("--search", metavar="TEXT", help="search themes by name/source/origin");
+    action.add_argument("--hide", metavar="NAME", help="hide a theme from normal lists");
+    action.add_argument("--unhide", metavar="NAME", help="restore a hidden theme");
+    action.add_argument("--import", dest="import_sum", metavar="FILE", help="import native SUM theme JSON");
+    action.add_argument("--import-gtk", metavar="THEME_OR_PATH", help="import a GTK theme");
+    action.add_argument("--import-gnome", metavar="THEME_OR_PATH", help="import a GNOME/GTK theme");
+    action.add_argument("--import-xfce", metavar="THEME_OR_PATH", help="import an XFCE/GTK theme");
+    action.add_argument("--import-kde", metavar="FILE_OR_PATH", help="import a KDE .colors scheme");
+    action.add_argument("--import-terminal", metavar="FILE", help="import a terminal color scheme");
+    action.add_argument("--export", dest="export_name", metavar="NAME", help="export a theme");
+    action.add_argument("--dir", action="store_true", help="print the user theme directory");
+    parser.add_argument("--title", default=None, help="title/name to use when creating, importing or updating");
+    parser.add_argument("--base", default="Dark", help="base theme for --create; default Dark");
+    parser.add_argument("--set", action="append", default=[], metavar="COLOR=VALUE", help="set a semantic color field during --update");
+    parser.add_argument("--style", action="append", default=[], metavar="ROLE=STYLE", help="set a Rich style override during --update");
+    parser.add_argument("--format", default="sum", choices=("sum", "json", "gtk", "gnome", "xfce", "kde", "terminal"), help="export format; default sum");
+    parser.add_argument("--output", default=None, help="output path for --export");
+    parser.add_argument("--source", default=None, help="filter --search by imported source type");
+    parser.add_argument("--hidden", action="store_true", help="with --list, list only hidden themes; with --search include hidden themes");
+    parser.add_argument("--all", action="store_true", help="with --list/--search include hidden themes");
+    parser.add_argument("--json", action="store_true", help="emit JSON for read/list/search");
+    parser.add_argument("--force", action="store_true", help="allow replacement of an existing user theme during create/import");
     args = parser.parse_args(argv);
     refresh_user_themes();
-    if args.dir:
-        print(user_theme_dir());
-        return 0;
-    if args.list:
-        for name in available_theme_names():
-            print("{}\t{}".format(name, "built-in" if name in BUILTIN_THEME_NAMES else "user"));
-        return 0;
+    try:
+        if args.dir:
+            print(user_theme_dir());
+            return 0;
+        if args.list:
+            records = theme_records(include_hidden=bool(args.all or args.hidden));
+            if args.hidden: records = tuple(item for item in records if item.hidden);
+            for record in records: _print_record(record, args.json);
+            return 0;
+        if args.search is not None:
+            for record in search_themes(args.search, include_hidden=bool(args.all or args.hidden), source=args.source): _print_record(record, args.json);
+            return 0;
+        if args.create is not None:
+            path = create_theme(args.title or args.create, base=args.base, force=args.force);
+            print(path);
+            return 0;
+        if args.read_name is not None:
+            theme = read_theme(args.read_name);
+            import json;
+            payload = __import__("sumtui.theme", fromlist=["theme_to_dict"]).theme_to_dict(theme);
+            if args.json: print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True));
+            else:
+                print("{}".format(theme.name));
+                for field in __import__("sumtui.theme", fromlist=["THEME_COLOR_FIELDS"]).THEME_COLOR_FIELDS: print("  {:16} {}".format(field, theme.color(field)));
+            return 0;
+        if args.update is not None:
+            path = update_theme(args.update, title=args.title, colors=_assignments(args.set, "--set"), styles=_assignments(args.style, "--style"));
+            print(path);
+            return 0;
+        if args.delete is not None:
+            print(delete_theme(args.delete));
+            return 0;
+        if args.hide is not None:
+            if find_theme := next((name for name in THEMES if name.casefold() == args.hide.casefold()), None): set_theme_hidden(find_theme, True);
+            else: raise KeyError("theme not found: {}".format(args.hide));
+            return 0;
+        if args.unhide is not None:
+            hidden = next((name for name in hidden_theme_names() if name.casefold() == args.unhide.casefold()), None);
+            if hidden is None: raise KeyError("hidden theme not found: {}".format(args.unhide));
+            set_theme_hidden(hidden, False);
+            return 0;
+        import_actions = (("sum", args.import_sum), ("gtk", args.import_gtk), ("gnome", args.import_gnome), ("xfce", args.import_xfce), ("kde", args.import_kde), ("terminal", args.import_terminal));
+        for kind, source in import_actions:
+            if source is not None:
+                print(import_theme(source, kind=kind, title=args.title, force=args.force));
+                return 0;
+        if args.export_name is not None:
+            print(export_theme(args.export_name, target=args.output, kind=args.format));
+            return 0;
+    except (OSError, ValueError, KeyError) as exc:
+        print("sumtheme: {}".format(exc), file=sys.stderr);
+        return 2;
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        print("sumtheme requires an interactive terminal (use --list for non-interactive use)", file=sys.stderr);
+        print("sumtheme requires an interactive terminal when no command-line action is selected", file=sys.stderr);
         return 2;
     return ThemeEditorApp(theme=args.theme).run();
 

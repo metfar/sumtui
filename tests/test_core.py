@@ -743,6 +743,13 @@ class EditorToolTests(unittest.TestCase):
             self.assertIsNotNone(options.items[1].submenu);
             self.assertIn("Dark", [item.label for item in options.items[1].submenu.items]);
             self.assertIn("Light", [item.label for item in options.items[1].submenu.items]);
+            edit_labels = [item.label for item in editor.menu.menus[1].items];
+            window_labels = [item.label for item in editor.menu.menus[5].items];
+            self.assertNotIn("Character Chart...", edit_labels);
+            self.assertIn("Character Chart...", window_labels);
+            corpus = editor._editor_help_corpus();
+            self.assertIsNotNone(corpus.find_topic("Character Chart"));
+            self.assertIsNotNone(corpus.find_topic("themes"));
             self.assertTrue(editor.help());
             self.assertEqual(editor.app.modal_depth, 1);
             self.assertIsInstance(editor.app.root, Dialog);
@@ -2653,3 +2660,28 @@ def test_sumedit_ctrl_tab_cycles_open_documents(tmp_path):
     assert editor._active_buffer_index == 1;
     assert editor.switch_window() is True;
     assert editor._active_buffer_index == 0;
+
+
+def test_sumdialog_resource_schema_bridge(tmp_path, monkeypatch):
+    import json;
+    from sumui import FieldSpec, ResourceSchema;
+    from sumtui.tools import dialog as dialog_tool;
+    schema = ResourceSchema("contacts", title="Contacts", fields=(FieldSpec("name", "Name", required=True), FieldSpec("kind", "Kind", kind="combo", options=("work", "home")))).normalize();
+    path = tmp_path / "contacts.resource.json";
+    path.write_text(schema.to_json(indent=2), encoding="utf-8");
+    captured = {};
+    class Result:
+        accepted = True;
+        status = 0;
+        value = {"name": "Ada", "kind": "work"};
+    def fake_read_form(specs, **kwargs):
+        captured["specs"] = specs;
+        captured["kwargs"] = kwargs;
+        return Result();
+    monkeypatch.setattr(dialog_tool, "read_form", fake_read_form);
+    monkeypatch.setattr(dialog_tool, "_write_form_result", lambda values, specs, output, separator: captured.update({"values": values, "output": output}));
+    assert dialog_tool.main(["--resource", str(path), "--operation", "create", "--theme", "Dark", "--values", '{"name":"Ada"}']) == 0;
+    assert captured["kwargs"]["title"] == "Create Contacts";
+    assert captured["kwargs"]["theme"] == "Dark";
+    assert captured["specs"][0].default == "Ada";
+    assert captured["output"] == "json";

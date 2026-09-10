@@ -432,10 +432,54 @@ def refresh_user_themes(path=None):
     return load_user_themes(path=path, register=True);
 
 
-def available_theme_names():
+def theme_state_path(path=None):
+    directory = user_theme_dir(path);
+    return directory / ".state.json";
+
+
+def _load_theme_state(path=None):
+    target = theme_state_path(path);
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"));
+        return data if isinstance(data, dict) else {};
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return {};
+
+
+def _save_theme_state(data, path=None):
+    target = theme_state_path(path);
+    target.parent.mkdir(parents=True, exist_ok=True);
+    temporary = target.with_name(target.name + ".tmp");
+    temporary.write_text(json.dumps(dict(data or {}), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8");
+    temporary.replace(target);
+    return target;
+
+
+def hidden_theme_names(path=None):
+    state = _load_theme_state(path);
+    return tuple(str(name) for name in state.get("hidden", ()) if str(name));
+
+
+def set_theme_hidden(name, hidden=True, path=None):
+    wanted = str(name or "").strip();
+    if not wanted:
+        raise ValueError("theme name cannot be empty");
+    state = _load_theme_state(path);
+    names = [str(item) for item in state.get("hidden", ()) if str(item).casefold() != wanted.casefold()];
+    if hidden:
+        names.append(wanted);
+    state["hidden"] = sorted(set(names), key=str.casefold);
+    _save_theme_state(state, path);
+    return bool(hidden);
+
+
+def available_theme_names(include_hidden=False):
     preferred = ("ZX", "DOS", "XBASE", "C64", "Dark", "Light");
     names = [name for name in preferred if name in THEMES];
     names.extend(name for name in THEMES if name not in names);
+    if not include_hidden:
+        hidden = {name.casefold() for name in hidden_theme_names()};
+        names = [name for name in names if name.casefold() not in hidden];
     return tuple(names);
 
 

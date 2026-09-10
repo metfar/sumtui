@@ -28,6 +28,8 @@ from pathlib import Path;
 import re;
 import sys;
 
+from sumui import ResourceSchema;
+
 from .. import __version__;
 from ..dialogs import DialogResult, FormFieldSpec, MenuItemSpec, ask_question, choose_checklist, choose_file, choose_list, choose_menu, choose_radio, read_entry, read_form, show_message, show_progress_demo, show_text;
 from ..dialogspec import DialogSpec, load_dialog_spec, parse_dialog_spec;
@@ -236,10 +238,13 @@ def _parser():
     mode.add_argument("--forms", action="store_true", help="build a multi-field form and return its values");
     mode.add_argument("--menu", action="store_true", help="show a retro vertical button menu and return the selected value");
     mode.add_argument("--demo", action="store_true", help="open an interactive launcher demonstrating sumdialog modes");
+    mode.add_argument("--resource", metavar="FILE", help="build a create/update/search form from a sum.resource/1 JSON schema");
     mode.add_argument("--check", metavar="FILE", help="validate a declarative .sdlg file and exit");
     mode.add_argument("--dump", metavar="FILE", help="parse a declarative .sdlg file and dump normalized JSON");
     parser.add_argument("items", nargs="*", help="items used by list modes, or one declarative .sdlg file when no mode is given");
     parser.add_argument("--title", default=None, help="dialog title");
+    parser.add_argument("--operation", choices=("create", "update", "search"), default="create", help="operation used by --resource; default create");
+    parser.add_argument("--values", default=None, help="JSON object or JSON file with initial values for --resource");
     parser.add_argument("--text", default="", help="message, prompt, or list description");
     parser.add_argument("--theme", default="ZX", help="sumTUI theme name");
     parser.add_argument("--width", type=int, default=None, help="dialog or entry width");
@@ -454,7 +459,7 @@ def _has_explicit_mode(args):
         args.info, args.warning, args.error, args.question, args.entry,
         args.file_selection, args.directory_selection, args.list, args.radiolist,
         args.checklist, args.text_info, args.markdown, args.progress, args.forms,
-        args.menu, args.demo, args.check is not None, args.dump is not None,
+        args.menu, args.demo, args.resource is not None, args.check is not None, args.dump is not None,
     ));
 
 
@@ -472,6 +477,17 @@ def main(argv=None):
             return 0;
         if args.demo:
             return int(_run_demo(args.theme));
+        if args.resource is not None:
+            schema = ResourceSchema.from_json(Path(args.resource).expanduser().read_text(encoding="utf-8"));
+            values = {};
+            if args.values:
+                raw = str(args.values).strip();
+                candidate = Path(raw).expanduser();
+                if not raw.startswith("{") and candidate.is_file(): raw = candidate.read_text(encoding="utf-8");
+                values = json.loads(raw);
+                if not isinstance(values, dict): raise ValueError("--values must contain a JSON object");
+            spec = schema.dialog_spec(args.operation, values=values, theme=args.theme, title=args.title);
+            return int(_execute_spec(spec));
 
         if not _has_explicit_mode(args):
             if len(args.items) > 1:

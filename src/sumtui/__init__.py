@@ -22,7 +22,7 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.8.0a18";
+__version__ = "0.8.0a19";
 
 from .app import Application, FocusManager;
 from .contracts import TUI_BACKEND, backend_capabilities, dialog_spec_to_common, field_spec_to_common, input_spec_to_common;
@@ -35,7 +35,8 @@ from .prompt import InputResult, InputSpec, read_input;
 from .textscreen import TerminalTextScreen;
 from .syntax import EditorSyntaxHighlighter, ExtendedBasicLexer, GenericLogLexer, SumXLexer, SYNTAX_MODES, detect_mode, mode_label, normalize_mode, semantic_role;
 from sumui import AxisSpec, ChartSeries, ChartSpec, GraphicsMode, modern_mode, spectrum_mode;
-from .theme import BUILTIN_THEME_NAMES, C64_COLORS, DEFAULT_THEME, DOS_COLORS, SPECTRUM_COLORS, THEME_EDIT_ROLES, THEMES, Theme, available_theme_names, load_theme_file, load_user_themes, make_theme, message_color_scheme, refresh_user_themes, save_user_theme, theme_from_dict, theme_to_dict, user_theme_dir;
+from .theme import BUILTIN_THEME_NAMES, C64_COLORS, DEFAULT_THEME, DOS_COLORS, SPECTRUM_COLORS, THEME_EDIT_ROLES, THEMES, Theme, available_theme_names, hidden_theme_names, load_theme_file, load_user_themes, make_theme, message_color_scheme, refresh_user_themes, save_user_theme, set_theme_hidden, theme_from_dict, theme_to_dict, user_theme_dir;
+from .themeio import EXPORT_KINDS, IMPORT_KINDS, ThemeRecord, create_theme, delete_theme, export_theme, import_theme, read_theme, search_themes, theme_records, update_theme;
 from .widgets import BrowseForm, Button, CharacterChart, CheckBox, Choice, Column, ComboBox, CommandWindow, CommandWindowPane, ListViewPane, ScreenField, ChartView, render_chart_lines, ContextMenu, Dialog, DirectoryDialog, FileDialog, FormField, FunctionAction, FunctionBar, GroupBox, HBox, HexView, Label, LayoutItem, ListView, MarkdownView, MarkdownViewPane, TableViewPane, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RadioButton, RadioGroup, ReadOnlyField, RecordForm, ScrollBar, Separator, Slider, Splitter, StatusBar, TableRow, TableView, TextInput, TextArea, TextEditor, TextView, TextViewPane, CalendarView, DateTimeView, TimeView, TreeNode, TreeView, VBox, Widget;
 
 __all__ = [
@@ -49,7 +50,8 @@ __all__ = [
     "detect_mode", "mode_label", "normalize_mode", "semantic_role",
     "Theme", "make_theme", "message_color_scheme", "THEMES", "DEFAULT_THEME", "BUILTIN_THEME_NAMES", "THEME_EDIT_ROLES",
     "theme_to_dict", "theme_from_dict", "load_theme_file", "load_user_themes", "refresh_user_themes",
-    "save_user_theme", "user_theme_dir", "available_theme_names",
+    "save_user_theme", "user_theme_dir", "available_theme_names", "hidden_theme_names", "set_theme_hidden",
+    "ThemeRecord", "IMPORT_KINDS", "EXPORT_KINDS", "theme_records", "search_themes", "create_theme", "read_theme", "update_theme", "delete_theme", "import_theme", "export_theme",
     "SPECTRUM_COLORS", "DOS_COLORS", "C64_COLORS",
     "Widget", "Label", "Panel", "StatusBar", "CommandWindow", "CommandWindowPane", "ScreenField", "ChartView", "render_chart_lines", "CharacterChart", "Dialog", "GroupBox",
     "FormField", "ReadOnlyField", "RecordForm", "BrowseForm",

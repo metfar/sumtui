@@ -1,4 +1,4 @@
-# sumTUI 0.7.6
+# sumTUI 0.8.0a19
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -89,6 +89,31 @@ List them with:
 ```bash
 sumtui --themes
 ```
+
+### Theme manager
+
+`sumtheme` exposes the same theme store through its interactive TUI and command line. User themes can be created, read, updated, deleted, listed and searched; built-in themes may be hidden but are protected from deletion.
+
+```bash
+sumtheme --list
+sumtheme --search dark
+sumtheme --create "Science Dark" --base Dark
+sumtheme --read "Science Dark"
+sumtheme --update "Science Dark" --set bg=#101820
+sumtheme --hide "Science Dark"
+sumtheme --unhide "Science Dark"
+sumtheme --delete "Science Dark"
+```
+
+The native portable interchange is SUM JSON. Theme adapters can also import GTK/GNOME/XFCE, KDE and terminal schemes and export to the same families. `--title` overrides the imported name.
+
+```bash
+sumtheme --import-gtk Yaru-dark --title "Yaru Dark"
+sumtheme --export "Yaru Dark" --format sum --output yaru-dark.sumtheme.json
+sumtheme --import yaru-dark.sumtheme.json
+```
+
+External theme formats do not all expose the same semantic roles, so conversion is best-effort; SUM JSON preserves the complete SUM theme representation.
 
 ## Widgets in 0.7.1
 

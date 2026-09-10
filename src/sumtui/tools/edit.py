@@ -40,6 +40,7 @@ from ..clipboard import clipboard;
 from ..document import TextDocument;
 from ..events import Key, MouseEvent;
 from ..keybindings import KeyBindingManager, format_key_spec;
+from ..helpdb import HelpCorpus, HelpTopic;
 from ..syntax import SYNTAX_MODES, normalize_mode;
 from ..symbols import build_symbol_map, detect_language, symbol_index_for_line;
 from ..theme import THEMES, available_theme_names, refresh_user_themes;
@@ -517,6 +518,8 @@ class EditApp:
         if workspace is None:
             return Menu("Window", [
                 MenuItem("Next Window", self.switch_window, self._ks("window.next")),
+                Separator(),
+                MenuItem("Character Chart...", self.character_chart_dialog, self._ks("editor.character_chart")),
             ]);
         items = [
             MenuItem("Next Window", self.switch_window, self._ks("window.next")),
@@ -525,6 +528,8 @@ class EditApp:
             MenuItem("Resize...", self.begin_workspace_resize, self._ks("window.resize"), enabled=workspace.active_window is not None and not workspace.active_window.maximized),
             MenuItem("Close current", self.close_workspace_window, self._ks("window.close"), enabled=workspace.active_window is not None),
             MenuItem("Reset Window Layout", self.reset_workspace_layout),
+            Separator(),
+            MenuItem("Character Chart...", self.character_chart_dialog, self._ks("editor.character_chart")),
             Separator(),
         ];
         for window in workspace.windows:
@@ -726,8 +731,6 @@ class EditApp:
                 MenuItem("Cut", self.editor_cut, self._ks("editor.cut")),
                 MenuItem("Copy", self.editor_copy, self._ks("editor.copy")),
                 MenuItem("Paste", self.editor_paste, self._ks("editor.paste")),
-                Separator(),
-                MenuItem("Character Chart...", self.character_chart_dialog, self._ks("editor.character_chart")),
                 Separator(),
                 MenuItem("Tabs -> {} spaces".format(self.editor.tab_size), self.editor_tabs_to_spaces),
                 MenuItem("{} spaces -> Tabs".format(self.editor.tab_size), self.editor_spaces_to_tabs),
@@ -1824,13 +1827,52 @@ class EditApp:
     def editor_select_all(self):
         return self.editor.select_all();
 
+    def _editor_help_corpus(self):
+        source = files("sumtui.tools").joinpath("edit_help.helpdb").read_text(encoding="utf-8");
+        corpus = HelpCorpus.from_helpdb(source);
+        shortcuts = tuple("{} — {}".format(label, bindings or "(unassigned)") for _name, label, bindings, _context in self.keys.rows(contexts=["editor"]));
+        dynamic = HelpTopic(
+            "Current shortcuts", "Reference", "Current effective editor shortcuts, including user overrides.", shortcuts,
+            "Open Options > Keyboard shortcuts to change bindings.",
+            notes=("This topic is generated at runtime from the active keybinding configuration.",), aliases=("keys", "bindings"), language="text",
+        );
+        return HelpCorpus(corpus.title, tuple(corpus.topics) + (dynamic,), intro=corpus.intro);
+
     def help(self):
-        source = files("sumtui.tools").joinpath("edit_help.md").read_text(encoding="utf-8");
-        shortcuts = ["## Current shortcuts", ""];
-        shortcuts.extend(["- **{}** — {}".format(label, bindings or "(unassigned)") for _name, label, bindings, _context in self.keys.rows(contexts=["editor"])]);
-        markdown = source.rstrip() + "\n\n" + "\n".join(shortcuts) + "\n";
-        view = MarkdownView(markdown, theme=self.app.theme);
+        corpus = self._editor_help_corpus();
+        topics = ListView([], title="Topics");
+        query = TextInput("", placeholder="Search topics...");
+        view = MarkdownView(corpus.index_markdown(), theme=self.app.theme);
         pane = MarkdownViewPane(view=view, theme=self.app.theme);
+        visible = [];
+
+        def render_topic(name=None):
+            topic = corpus.find_topic(name) if name else None;
+            view.set_text(topic.markdown() if topic is not None else corpus.index_markdown());
+            self.app.invalidate();
+            return True;
+
+        def refill(text=""):
+            nonlocal visible;
+            needle = str(text or "").strip().casefold();
+            visible = [];
+            topics.clear();
+            for topic in sorted(corpus.topics, key=lambda item: (item.category.casefold(), item.name.casefold())):
+                haystack = " ".join((topic.name, topic.category, topic.summary, " ".join(topic.aliases))).casefold();
+                if needle and needle not in haystack:
+                    continue;
+                visible.append(topic.name);
+                topics.add_item("{} / {}".format(topic.category, topic.name), value=topic.name);
+            if visible:
+                topics.select(0);
+                render_topic(visible[0]);
+            else:
+                view.set_text("# No help topics found\n\nSearch: `{}`".format(text));
+            self.app.invalidate();
+            return True;
+
+        topics.on_change = lambda value, _row: render_topic(value);
+        query.on_change = refill;
 
         def close(*_args):
             self.app.pop_modal();
@@ -1839,15 +1881,17 @@ class EditApp:
             return True;
 
         def copy_text(*_args):
-            clipboard.copy_text(markdown);
-            self._update_status("Help text copied");
+            clipboard.copy_text(view.markdown);
+            self._update_status("Help topic copied");
             self.app.invalidate();
             return True;
 
-        body = VBox(pane, HBox(Button("Copy", on_press=copy_text), Button("Close", on_press=close, default=True), ratios=[1, 1]), sizes=[None, None]);
-        dialog = Dialog(body, title="sumedit Help", width=90, height=28, on_cancel=close, shadow=True, maximizable=True);
+        refill();
+        left = VBox(query, topics, sizes=[1, None]);
+        body = VBox(HBox(Panel(left, title="Help topics"), Panel(pane, title="Topic"), ratios=[3, 7]), HBox(Button("Copy", on_press=copy_text), Button("Close", on_press=close, default=True), ratios=[1, 1]), sizes=[None, None]);
+        dialog = Dialog(body, title="sumedit Help", width=100, height=30, on_cancel=close, shadow=True, maximizable=True);
         self.app.push_modal(dialog, bindings={"ctrl+c": copy_text});
-        self.app.focus.set(view);
+        self.app.focus.set(topics);
         self.app.invalidate();
         return True;
 

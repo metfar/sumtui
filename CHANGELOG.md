@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0a19
+
+- Moved **Character Chart** to the Window menu while retaining `Ctrl+Alt+C`.
+- Refactored generic `sumedit` help into searchable topic help (`.helpdb`) with dedicated topics for keyboard, mouse, search, view markers, Character Chart, windows, themes, line wrapping and configuration.
+- Extended `sumtheme` into a CLI/TUI theme manager with Create/Read/Update/Delete/List/Search, hide/unhide, native SUM JSON import/export, and GTK/GNOME/XFCE, KDE and terminal theme adapters. `--title` can rename imports and `--force` explicitly replaces user themes.
+- Hidden themes are omitted from normal editor/IDE theme lists without deleting them; built-in themes are protected from deletion.
+- Added a `sumdialog --resource` bridge that renders create/update/search forms from backend-neutral `sumui.ResourceSchema` definitions.
+
 ## 0.8.0a18
 
 - Added a Fox-style **Character Chart** shared by `sumedit` and `EditApp`-derived IDEs. The 16x16 paged chart exposes the extended `asc_h` scientific/graphic character repertoire, leaves BASIC command/token ranges blank, accepts decimal/hex/`U+` code lookup, and inserts the selected Unicode character or sequence at the editor caret.
