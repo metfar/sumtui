@@ -133,3 +133,28 @@ def test_import_konsole_terminal_scheme(isolated_themes):
     assert theme.bg == (16, 24, 32);
     assert theme.cursor == (255, 180, 0);
     assert tuple(theme.palette[2]) == (0, 170, 0);
+
+
+def test_sumtheme_gui_dispatch_uses_graphical_frontend(isolated_themes, monkeypatch):
+    import sys;
+    import types;
+    from sumtui.tools.themeedit import main;
+    called = {};
+    module = types.ModuleType("sumtui.tools.themeedit_gui");
+    def run(initial=None):
+        called["initial"] = initial;
+        return 0;
+    module.run = run;
+    monkeypatch.setitem(sys.modules, "sumtui.tools.themeedit_gui", module);
+    assert main(["--gui", "--theme", "Dark"]) == 0;
+    assert called["initial"] == "Dark";
+
+
+def test_theme_state_file_is_not_loaded_as_custom_theme(isolated_themes):
+    theme_module.set_theme_hidden("Dark", True);
+    # Simulate a fresh process reload: .state.json must remain control metadata,
+    # never become a user theme named "Custom".
+    theme_module.refresh_user_themes();
+    assert "Custom" not in theme_module.available_theme_names(include_hidden=True);
+    assert "Dark" not in theme_module.available_theme_names();
+    theme_module.set_theme_hidden("Dark", False);

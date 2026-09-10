@@ -468,8 +468,9 @@ def _print_record(record, as_json=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="sumtheme", description="Manage, import, export and edit sumTUI themes");
-    parser.add_argument("--theme", default=None, help="theme to preview initially in TUI mode");
+    parser.add_argument("--theme", default=None, help="theme to preview initially");
     action = parser.add_mutually_exclusive_group();
+    action.add_argument("--gui", action="store_true", help="open the graphical SUM theme manager");
     action.add_argument("--create", metavar="NAME", help="create a user theme from --base");
     action.add_argument("--read", "--show", dest="read_name", metavar="NAME", help="show one theme");
     action.add_argument("--update", metavar="NAME", help="update a user theme using --title/--set/--style");
@@ -499,6 +500,13 @@ def main(argv=None):
     parser.add_argument("--force", action="store_true", help="allow replacement of an existing user theme during create/import");
     args = parser.parse_args(argv);
     refresh_user_themes();
+    if args.gui:
+        try:
+            from .themeedit_gui import run as run_gui;
+            return int(run_gui(initial=args.theme));
+        except Exception as exc:
+            print("sumtheme: GUI frontend unavailable: {}".format(exc), file=sys.stderr);
+            return 2;
     try:
         if args.dir:
             print(user_theme_dir());

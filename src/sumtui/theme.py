@@ -398,7 +398,10 @@ def load_user_themes(path=None, register=True):
     loaded = {};
     if not directory.exists():
         return loaded;
-    pending = list(sorted(directory.glob("*.json")));
+    # .state.json stores hidden/active theme metadata; it is not a theme.
+    # Keep control files out of user-theme discovery so merely hiding a theme
+    # cannot create a spurious theme named "Custom" on the next process start.
+    pending = [item for item in sorted(directory.glob("*.json")) if item.name != ".state.json"];
     # Multiple passes allow one user theme to derive from another already loaded theme.
     for _pass in range(max(1, len(pending) + 1)):
         if not pending:

@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a19
+# sumTUI 0.8.0a20
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -114,6 +114,15 @@ sumtheme --import yaru-dark.sumtheme.json
 ```
 
 External theme formats do not all expose the same semantic roles, so conversion is best-effort; SUM JSON preserves the complete SUM theme representation.
+
+The same canonical store is available graphically when sumGUI/Pygame is installed:
+
+```bash
+sumtheme --gui
+sumtheme --gui --theme "Yaru Dark"
+```
+
+The GUI searches/list themes, previews the selected SUM semantic colors without changing the stored theme, and routes clone/edit/import/export/hide/delete back through the same `themeio` operations used by the CLI/TUI.
 
 ## Widgets in 0.7.1
 

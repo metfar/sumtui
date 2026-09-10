@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0a20
+
+- Added the graphical `sumtheme --gui` manager with live semantic-color preview, search, clone/edit/import/export/hide/delete operations, all routed through the same canonical `themeio` store used by CLI/TUI.
+- Added the tabbed `suminfo --tui` frontend with lazy per-group detail collection and summary/detail switching.
+- Theme discovery/import infrastructure remains passive and user-space; external theme stores are inspected but not modified.
+- Fixed user-theme reload so `.state.json` (hide/active metadata) is never interpreted as a theme named `Custom`.
+
 ## 0.8.0a19
 
 - Moved **Character Chart** to the Window menu while retaining `Ctrl+Alt+C`.
