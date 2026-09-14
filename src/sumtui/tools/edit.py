@@ -141,6 +141,41 @@ def _load_config(path):
 
 
 
+def _editor_private_home():
+    for name in ("SUM_STORAGE_PRIVATE", "ANDROID_PRIVATE"):
+        raw=os.environ.get(name, "").strip();
+        if raw:
+            path=Path(raw).expanduser();
+            try: path.mkdir(parents=True, exist_ok=True);
+            except OSError: pass;
+            if path.is_dir(): return path;
+    try: return Path.home();
+    except RuntimeError: return Path.cwd();
+
+
+def _editor_shared_storage():
+    raw=os.environ.get("SUM_STORAGE_ROOT", "").strip();
+    candidates=[];
+    if raw: candidates.append(Path(raw).expanduser());
+    if os.environ.get("SUM_ANDROID") == "1" or "ANDROID_ARGUMENT" in os.environ or "ANDROID_PRIVATE" in os.environ:
+        candidates.append(Path("/storage/emulated/0"));
+    for path in candidates:
+        try:
+            if path.is_dir(): return path.resolve();
+        except OSError:
+            continue;
+    return None;
+
+
+def _write_config_file(path, data):
+    target=Path(path); target.parent.mkdir(parents=True, exist_ok=True);
+    temporary=target.with_name(target.name + ".tmp");
+    temporary.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8");
+    temporary.replace(target);
+    return True;
+
+
+
 class _ShortcutCapture(Widget):
     focusable = True;
 
@@ -339,6 +374,129 @@ class EditApp:
             except Exception: pass;
         self.app.focus.set(self.editor);
         self._update_status();
+        for startup in reversed(self._startup_paths):
+            target=Path(startup).expanduser();
+            if target.exists() and target.is_file(): self._remember_recent_file(target, refresh=False);
+        self._refresh_history_menu();
+
+    def _history_values(self, key, limit):
+        values=[];
+        for raw in self.config.get(key, []) if isinstance(self.config.get(key, []), list) else []:
+            text=str(raw).strip();
+            if text and text not in values: values.append(text);
+            if len(values) >= int(limit): break;
+        return values;
+
+    def recent_files(self):
+        return [Path(value) for value in self._history_values("recent_files", 10)];
+
+    def recent_directories(self):
+        return [Path(value) for value in self._history_values("recent_directories", 2)];
+
+    def _persist_history(self):
+        data=_load_config(self.config_path);
+        data["recent_files"]=self._history_values("recent_files", 10);
+        data["recent_directories"]=self._history_values("recent_directories", 2);
+        try:
+            _write_config_file(self.config_path, data);
+            if isinstance(getattr(self, "sumide_config", None), dict):
+                self.sumide_config["recent_files"]=list(data["recent_files"]);
+                self.sumide_config["recent_directories"]=list(data["recent_directories"]);
+            return True;
+        except OSError:
+            return False;
+
+    def _refresh_history_menu(self):
+        if getattr(self, "menu", None) is not None:
+            self.menu.menus=self._menus();
+            self.app.invalidate();
+        return True;
+
+    def _remember_recent_directory(self, path, refresh=True):
+        target=Path(path).expanduser();
+        if target.is_file(): target=target.parent;
+        try: target=target.resolve();
+        except (OSError, RuntimeError): target=target.absolute();
+        values=[str(target)] + [value for value in self._history_values("recent_directories", 2) if value != str(target)];
+        self.config["recent_directories"]=values[:2];
+        self._persist_history();
+        if refresh: self._refresh_history_menu();
+        return target;
+
+    def _remember_recent_file(self, path, refresh=True):
+        target=Path(path).expanduser();
+        try: target=target.resolve();
+        except (OSError, RuntimeError): target=target.absolute();
+        values=[str(target)] + [value for value in self._history_values("recent_files", 10) if value != str(target)];
+        self.config["recent_files"]=values[:10];
+        self._remember_recent_directory(target.parent, refresh=False);
+        self._persist_history();
+        if refresh: self._refresh_history_menu();
+        return target;
+
+    def clear_recent_files(self):
+        self.config["recent_files"]=[];
+        self._persist_history(); self._refresh_history_menu();
+        self._update_status("Recent files cleared");
+        return True;
+
+    def _drop_recent_file(self, path):
+        target=str(Path(path).expanduser());
+        self.config["recent_files"]=[value for value in self._history_values("recent_files", 10) if value != target];
+        self._persist_history(); self._refresh_history_menu();
+        return True;
+
+    def _recent_file_label(self, path, all_paths):
+        path=Path(path); names=[Path(item).name for item in all_paths];
+        if names.count(path.name) <= 1: return path.name;
+        return "{} — {}".format(path.name, path.parent.name or str(path.parent));
+
+    def _recent_files_menu(self):
+        paths=self.recent_files(); items=[];
+        if paths:
+            raw=[str(path) for path in paths];
+            for path in paths:
+                items.append(MenuItem(self._recent_file_label(path, raw), lambda selected=path: self.open_recent_file(selected)));
+            items.extend([Separator(), MenuItem("Clear Recent Files", self.clear_recent_files)]);
+        else:
+            items.append(MenuItem("(empty)", enabled=False));
+        return Menu("Recent Files", items);
+
+    def open_path(self, path, activate=True):
+        target=Path(path).expanduser();
+        document=self._load_document(target);
+        result=self._append_document(document, activate=activate);
+        if document.path is not None and Path(document.path).exists(): self._remember_recent_file(document.path);
+        self._update_status("Loaded {}".format(target.name));
+        return result;
+
+    def open_recent_file(self, path):
+        target=Path(path).expanduser();
+        if not target.exists() or not target.is_file():
+            self._drop_recent_file(target);
+            self._update_status("Recent file no longer exists: {}".format(target));
+            return False;
+        try:
+            return bool(self.open_path(target, activate=True));
+        except Exception as exc:
+            self._update_status("Open error: {}".format(exc));
+            return False;
+
+    def _open_start_directory(self):
+        for path in self.recent_directories():
+            if path.is_dir(): return path;
+        if self.document.path is not None:
+            parent=Path(self.document.path).expanduser().parent;
+            if parent.is_dir(): return parent;
+        return _editor_private_home();
+
+    def _file_dialog_quick_paths(self):
+        items=[("App Home", _editor_private_home())];
+        shared=_editor_shared_storage();
+        if shared is not None: items.append(("Storage", shared));
+        for index,path in enumerate(self.recent_directories(), start=1):
+            if path.is_dir(): items.append(("Last {}".format(index), path));
+        return items;
 
     def _register_keybindings(self):
         actions = [
@@ -708,6 +866,7 @@ class EditApp:
             Menu("File", [
                 MenuItem("New", self.new_file, self._ks("file.new")),
                 MenuItem("Open...", self.open_dialog, self._ks("file.open")),
+                MenuItem("Recent Files", submenu=self._recent_files_menu()),
                 MenuItem("Save", self.save, self._ks("file.save")),
                 MenuItem("Save As...", self.save_as_dialog),
                 MenuItem("Close Document", self.close_document, self._ks("file.close")),
@@ -1221,20 +1380,19 @@ class EditApp:
         return True;
 
     def _open_dialog_now(self):
-        start = self.document.path.parent if self.document.path is not None else Path.cwd();
+        start = self._open_start_directory();
         def close():
             self.app.pop_modal();
             self.app.focus.set(self.editor);
             self.app.invalidate();
         def accepted(path):
             try:
-                doc = TextDocument.load(path, force_binary=self.force_binary);
                 close();
-                self._append_document(doc, activate=True);
+                self.open_path(path, activate=True);
             except Exception as exc:
                 close();
                 self._update_status("Open error: {}".format(exc));
-        dialog = FileDialog(path=start, title="Open text file", on_accept=accepted, on_cancel=close, theme=self.app.theme);
+        dialog = FileDialog(path=start, title="Open text file", on_accept=accepted, on_cancel=close, quick_paths=self._file_dialog_quick_paths(), width=88, theme=self.app.theme);
         self.app.push_modal(dialog);
         self.app.invalidate();
         return True;
@@ -1243,7 +1401,7 @@ class EditApp:
         return self._open_dialog_now();
 
     def save_as_dialog(self, on_saved=None):
-        default = str(self.document.path or Path.cwd() / "untitled.txt");
+        default = str(self.document.path or (self._open_start_directory() / "untitled.txt"));
         entry = TextInput(default);
         def close():
             self.app.pop_modal();
@@ -1254,7 +1412,9 @@ class EditApp:
             self.editor.configure_syntax(filename=self.document.path.name);
             self._refresh_key_surfaces();
             close();
-            self.save(on_saved=on_saved);
+            result=self.save(on_saved=on_saved);
+            if result: self._remember_recent_file(self.document.path);
+            return result;
         body = VBox(entry, HBox(Button("Save", on_press=accepted, default=True), Button("Cancel", on_press=close), ratios=[1, 1]), sizes=[1, None]);
         self.app.push_modal(Dialog(body, title="Save As", width=72, height=7, on_cancel=close));
         self.app.focus.set(entry);
@@ -1269,6 +1429,7 @@ class EditApp:
             self.document.save(text=self.editor.text);
             self.editor.mark_saved();
             self.panel.title = self.document.path.name if self.document.path is not None else "Untitled";
+            if self.document.path is not None: self._remember_recent_file(self.document.path);
             self._update_status("Saved");
             if on_saved is not None:
                 return on_saved();
@@ -1767,10 +1928,7 @@ class EditApp:
             "keybindings": self.keys.overrides(),
         });
         try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True);
-            temporary = self.config_path.with_name(self.config_path.name + ".tmp");
-            temporary.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8");
-            temporary.replace(self.config_path);
+            _write_config_file(self.config_path, data);
             self.config = data;
             self._update_status("Configuration saved: {}".format(self.config_path));
             return True;

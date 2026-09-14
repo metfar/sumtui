@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0a21
+
+- Added persistent **File -> Recent Files** history to the common `EditApp`; up to ten files are kept in MRU order and inherited by sumIDE, sumBASIC, sumX and other `EditApp` hosts.
+- File Open now remembers the two most recently used directories. The common file dialog accepts quick-path buttons; Android builds expose **App Home**, **Storage**, **Last 1**, and **Last 2** when available.
+- Missing recent files are pruned when selected; **Clear Recent Files** clears the MRU without affecting editor preferences.
+- Save/Save As update recent-file and recent-directory history using the same persistent configuration.
+
 ## 0.8.0a20
 
 - Added the graphical `sumtheme --gui` manager with live semantic-color preview, search, clone/edit/import/export/hide/delete operations, all routed through the same canonical `themeio` store used by CLI/TUI.

@@ -2685,3 +2685,41 @@ def test_sumdialog_resource_schema_bridge(tmp_path, monkeypatch):
     assert captured["kwargs"]["theme"] == "Dark";
     assert captured["specs"][0].default == "Ada";
     assert captured["output"] == "json";
+
+
+def test_a21_filedialog_quick_paths(tmp_path):
+    first=tmp_path / "first"; second=tmp_path / "second"; first.mkdir(); second.mkdir();
+    dialog=FileDialog(path=first,quick_paths=[("First",first),("Second",second)]);
+    assert [label for label,_path in dialog.quick_paths] == ["First","Second"];
+    assert dialog.jump_to(second) is True;
+    assert dialog.path == second.resolve();
+
+
+def test_a21_recent_files_and_two_directories_persist(tmp_path):
+    config=tmp_path / "edit.json";
+    one=tmp_path / "one"; two=tmp_path / "two"; one.mkdir(); two.mkdir();
+    first=one / "first.py"; second=two / "second.py";
+    first.write_text("print(1)\n",encoding="utf-8"); second.write_text("print(2)\n",encoding="utf-8");
+    app=EditApp(config_path=config);
+    app._remember_recent_file(first);
+    app._remember_recent_file(second);
+    loaded=EditApp(config_path=config);
+    assert [path.name for path in loaded.recent_files()[:2]] == ["second.py","first.py"];
+    assert [path.resolve() for path in loaded.recent_directories()] == [two.resolve(),one.resolve()];
+    recent_item=next(item for item in loaded._menus()[0].items if item.label == "Recent Files");
+    assert recent_item.submenu is not None;
+    assert any(item.label == "second.py" for item in recent_item.submenu.items);
+
+
+def test_a21_android_open_quick_paths_include_app_home_storage_and_last_dirs(tmp_path,monkeypatch):
+    private=tmp_path / "private"; shared=tmp_path / "storage"; last1=tmp_path / "last1"; last2=tmp_path / "last2";
+    for path in (private,shared,last1,last2): path.mkdir();
+    monkeypatch.setenv("SUM_ANDROID","1"); monkeypatch.setenv("SUM_STORAGE_PRIVATE",str(private)); monkeypatch.setenv("SUM_STORAGE_ROOT",str(shared));
+    config=tmp_path / "edit.json";
+    config.write_text(json.dumps({"recent_directories":[str(last1),str(last2)]}),encoding="utf-8");
+    app=EditApp(config_path=config);
+    quick=dict(app._file_dialog_quick_paths());
+    assert quick["App Home"].resolve() == private.resolve();
+    assert quick["Storage"].resolve() == shared.resolve();
+    assert quick["Last 1"].resolve() == last1.resolve();
+    assert quick["Last 2"].resolve() == last2.resolve();

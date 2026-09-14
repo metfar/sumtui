@@ -33,15 +33,31 @@ from .table import Column, TableRow, TableView;
 
 class FileDialog(Dialog):
     def __init__(self, path=".", title="Open file", directory_only=False, on_accept=None, on_cancel=None,
-                 width=76, height=24, button_width=None, button_height=1, theme=None):
+                 width=76, height=24, button_width=None, button_height=1, quick_paths=None, theme=None):
         self.path = Path(path).expanduser().resolve();
         self.directory_only = bool(directory_only);
         self.on_accept = on_accept;
+        self.quick_paths = [];
+        for item in list(quick_paths or []):
+            try:
+                label, value = item;
+                candidate = Path(value).expanduser();
+            except (TypeError, ValueError):
+                continue;
+            self.quick_paths.append((str(label), candidate));
         self.path_input = TextInput(str(self.path), on_submit=self._path_submit, theme=theme);
         self.table = TableView([Column("Name", ratio=4), Column("Size", width=12, justify="right"), Column("Type", width=12)], on_activate=self._activate, theme=theme);
         self.ok_button = Button("Open" if not directory_only else "Select", on_press=self.accept, default=True, width=button_width, height=button_height, theme=theme);
         self.cancel_button = Button("Cancel", on_press=on_cancel, width=button_width, height=button_height, theme=theme);
-        body = VBox(self.path_input, self.table, HBox(self.ok_button, self.cancel_button, ratios=[1, 1], theme=theme), sizes=[1, None, None], theme=theme);
+        rows = [self.path_input];
+        sizes = [1];
+        if self.quick_paths:
+            buttons = [Button(label, on_press=(lambda _button=None, target=value: self.jump_to(target)), theme=theme) for label, value in self.quick_paths];
+            rows.append(HBox(*buttons, ratios=[1] * len(buttons), theme=theme));
+            sizes.append(None);
+        rows.extend([self.table, HBox(self.ok_button, self.cancel_button, ratios=[1, 1], theme=theme)]);
+        sizes.extend([None, None]);
+        body = VBox(*rows, sizes=sizes, theme=theme);
         super().__init__(body, title=title, width=width, height=height, on_cancel=on_cancel, padding=(0, 1), theme=theme);
         self.refresh();
 
@@ -50,6 +66,14 @@ class FileDialog(Dialog):
         if candidate.is_dir():
             self.path = candidate.resolve();
             self.refresh();
+
+    def jump_to(self, path):
+        candidate = Path(path).expanduser();
+        if not candidate.is_dir():
+            return False;
+        self.path = candidate.resolve();
+        self.refresh();
+        return True;
 
     def refresh(self):
         self.path_input.value = str(self.path);
@@ -103,8 +127,8 @@ class FileDialog(Dialog):
 
 
 class DirectoryDialog(FileDialog):
-    def __init__(self, path=".", title="Select directory", on_accept=None, on_cancel=None, width=76, height=24, button_width=None, button_height=1, theme=None):
-        super().__init__(path=path, title=title, directory_only=True, on_accept=on_accept, on_cancel=on_cancel, width=width, height=height, button_width=button_width, button_height=button_height, theme=theme);
+    def __init__(self, path=".", title="Select directory", on_accept=None, on_cancel=None, width=76, height=24, button_width=None, button_height=1, quick_paths=None, theme=None):
+        super().__init__(path=path, title=title, directory_only=True, on_accept=on_accept, on_cancel=on_cancel, width=width, height=height, button_width=button_width, button_height=button_height, quick_paths=quick_paths, theme=theme);
 
 
 def _format_size(size):
