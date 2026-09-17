@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a21
+# sumTUI 0.8.0a23
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -7,6 +7,10 @@ The project is a console-side sibling of SumGUI. It keeps the same general philo
 **Architecture note:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
 
 `CommandWindow` READ forms support `Tab`/`Shift+Tab` navigation between absolute `ScreenField` inputs. Bounded fields distinguish viewport width from logical maximum length. With confirmation enabled, printable input at the logical end continuously overwrites the final logical character instead of being discarded; confirmation can be disabled for automatic field-to-field advance. Fixed-width deletion still shifts remaining text left and pads the right edge.
+
+## Reusable help browser
+
+`sumTUI 0.8.0a23` adds a reusable two-pane `HelpBrowser` for keyboard-first contextual help.  It consumes the existing SUM help corpus model, provides a searchable topic list plus scrollable Markdown topic pane, and exposes classic function-key navigation (`F1` Contents, `F2` Topics, `F3` Search, `F4` Read, `Esc` Close).  The browser is intentionally generic so shells, editors and language environments can reuse the same help presentation while SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
 
 ## Goals
 

@@ -22,12 +22,13 @@
 #
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
-__version__ = "0.8.0a21";
+__version__ = "0.8.0a23";
 
 from .app import Application, FocusManager;
 from .contracts import TUI_BACKEND, backend_capabilities, dialog_spec_to_common, field_spec_to_common, input_spec_to_common;
 from .events import Key, KeyEvent, MouseEvent, ResizeEvent, normalize_key_spec;
 from .inputmask import InputMask, parse_input_mask;
+from .helpbrowser import HelpBrowser, run_help_browser;
 from .keybindings import KeyBindingAction, KeyBindingManager, format_key_spec;
 from .dialogs import DialogResult, FormFieldSpec, MenuItemSpec, ask_question, choose_checklist, choose_file, choose_list, choose_menu, choose_radio, read_entry, read_form, show_message, show_progress_demo, show_text;
 from .dialogspec import DialogSpec, load_dialog_spec, parse_dialog_spec;
@@ -40,7 +41,7 @@ from .themeio import EXPORT_KINDS, IMPORT_KINDS, ThemeRecord, create_theme, dele
 from .widgets import BrowseForm, Button, CharacterChart, CheckBox, Choice, Column, ComboBox, CommandWindow, CommandWindowPane, ListViewPane, ScreenField, ChartView, render_chart_lines, ContextMenu, Dialog, DirectoryDialog, FileDialog, FormField, FunctionAction, FunctionBar, GroupBox, HBox, HexView, Label, LayoutItem, ListView, MarkdownView, MarkdownViewPane, TableViewPane, SyntaxView, Menu, MenuBar, MenuDesktop, MenuItem, Panel, ProgressBar, RadioButton, RadioGroup, ReadOnlyField, RecordForm, ScrollBar, Separator, Slider, Splitter, StatusBar, TableRow, TableView, TextInput, TextArea, TextEditor, TextView, TextViewPane, CalendarView, DateTimeView, TimeView, TreeNode, TreeView, VBox, Widget;
 
 __all__ = [
-    "__version__", "Application", "FocusManager", "TUI_BACKEND", "backend_capabilities", "dialog_spec_to_common", "field_spec_to_common", "input_spec_to_common",
+    "__version__", "Application", "FocusManager", "HelpBrowser", "run_help_browser", "TUI_BACKEND", "backend_capabilities", "dialog_spec_to_common", "field_spec_to_common", "input_spec_to_common",
     "AxisSpec", "ChartSeries", "ChartSpec", "GraphicsMode", "modern_mode", "spectrum_mode",
     "Key", "KeyEvent", "MouseEvent", "ResizeEvent", "normalize_key_spec",
     "InputMask", "parse_input_mask", "InputSpec", "InputResult", "read_input", "TerminalTextScreen",

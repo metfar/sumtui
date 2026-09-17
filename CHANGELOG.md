@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0a23
+
+- Added the reusable two-pane `HelpBrowser` with searchable topics, scrollable Markdown content and classic function-key navigation for consumers such as `sumbash`.
+- Kept runtime help rendering independent from SumDoc conversion; compiled `.helpdb` data remains consumable directly by sumTUI.
+
+## 0.8.0a22
+
+- Fixed flexible HBox/VBox sizing used by `sumedit Preferences`, so flexible content fills the available window and action buttons remain at the bottom.
+
 ## 0.8.0a21
 
 - Added persistent **File -> Recent Files** history to the common `EditApp`; up to ten files are kept in MRU order and inherited by sumIDE, sumBASIC, sumX and other `EditApp` hosts.
