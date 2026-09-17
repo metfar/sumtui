@@ -40,14 +40,15 @@ class EditPreferencesDialog:
             ("Advanced", "advanced"),
         ];
         self.sections = ListView(sections, title="Section", on_change=self._section_changed);
-        content = HBox(self.sections, self.page_box, sizes=[24, None]);
+        content = HBox(self.sections, self.page_box, sizes=[24, None], use_preferred_sizes=False);
         buttons = HBox(
             Button("Apply", on_press=self.apply, height=3),
             Button("Cancel", on_press=self.close, height=3),
             Button("OK", on_press=self.ok, default=True, height=3),
             ratios=[1, 1, 1],
         );
-        self.dialog = Dialog(VBox(content, buttons, sizes=[None, 3]), title="sumedit Preferences", width=92, height=28, on_cancel=self.close, shadow=True);
+        body = VBox(content, buttons, sizes=[None, 3], use_preferred_sizes=False);
+        self.dialog = Dialog(body, title="sumedit Preferences", width=92, height=28, on_cancel=self.close, shadow=True);
         self._show_page("general");
 
     @staticmethod

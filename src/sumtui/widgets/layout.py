@@ -41,10 +41,11 @@ class LayoutItem:
 class _Box(Widget):
     direction = "column";
 
-    def __init__(self, *children, theme=None, sizes=None, ratios=None):
+    def __init__(self, *children, theme=None, sizes=None, ratios=None, use_preferred_sizes=True):
         super().__init__(theme=theme);
         sizes = list(sizes or []);
         ratios = list(ratios or []);
+        self.use_preferred_sizes = bool(use_preferred_sizes);
         self.items = [];
         self._mouse_rects = [];
         for index, child in enumerate(children):
@@ -144,11 +145,11 @@ class _Box(Widget):
         ratios = [];
         for index, item in enumerate(self.items):
             size = item.size;
-            if size is None and self.direction == "row" and hasattr(item.widget, "preferred_width"):
+            if size is None and self.use_preferred_sizes and self.direction == "row" and hasattr(item.widget, "preferred_width"):
                 preferred = item.widget.preferred_width(options.height or options.max_height);
                 if preferred is not None:
                     size = max(1, int(preferred));
-            if size is None and self.direction == "column" and hasattr(item.widget, "preferred_height"):
+            if size is None and self.use_preferred_sizes and self.direction == "column" and hasattr(item.widget, "preferred_height"):
                 preferred = item.widget.preferred_height(options.max_width);
                 if preferred is not None:
                     size = max(1, int(preferred));

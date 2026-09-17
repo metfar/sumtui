@@ -2723,3 +2723,15 @@ def test_a21_android_open_quick_paths_include_app_home_storage_and_last_dirs(tmp
     assert quick["Storage"].resolve() == shared.resolve();
     assert quick["Last 1"].resolve() == last1.resolve();
     assert quick["Last 2"].resolve() == last2.resolve();
+
+
+class FlexibleLayoutRegressionTests(unittest.TestCase):
+    def test_explicit_flexible_vbox_item_fills_remaining_height(self):
+        body = TextView("body"); buttons = HBox(Button("Apply", height=3), Button("OK", height=3), ratios=[1, 1]); root = VBox(body, buttons, sizes=[None, 3], use_preferred_sizes=False);
+        console = Console(width=60, height=12, record=True, force_terminal=False, file=io.StringIO()); console.print(root, height=12);
+        self.assertEqual(body.layout_height, 9); self.assertEqual(buttons.layout_height, 3); self.assertEqual(buttons.y, 9);
+
+    def test_explicit_flexible_hbox_item_fills_remaining_width(self):
+        left = TextView("left"); right = TextView("right"); root = HBox(left, right, sizes=[24, None], use_preferred_sizes=False);
+        console = Console(width=80, height=8, record=True, force_terminal=False, file=io.StringIO()); console.print(root, height=8);
+        self.assertEqual(left.layout_width, 24); self.assertEqual(right.layout_width, 56); self.assertEqual(right.x, 24);
