@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sumtui
-Version: 0.8.0a20
+Version: 0.8.0a26
 Summary: A tiny, portable and retro-flavored TUI toolkit for Python and Rich.
 Author-email: William Martinez Bas <metfar@gmail.com>
 License: GPL-2.0-or-later
@@ -20,7 +20,7 @@ Provides-Extra: gui
 Requires-Dist: sumgui>=0.2.0a23; extra == "gui"
 Dynamic: license-file
 
-# sumTUI 0.8.0a20
+# sumTUI 0.8.0a26
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -29,6 +29,10 @@ The project is a console-side sibling of SumGUI. It keeps the same general philo
 **Architecture note:** the multi-language IDE has moved to the independent `sumIDE` package. `sumTUI` keeps the reusable editor engine and the standalone `sumedit` application. The historical `sumtui.tools.ide` import remains only as a compatibility bridge when `sumIDE` is installed; console-script ownership now belongs to `sumIDE`.
 
 `CommandWindow` READ forms support `Tab`/`Shift+Tab` navigation between absolute `ScreenField` inputs. Bounded fields distinguish viewport width from logical maximum length. With confirmation enabled, printable input at the logical end continuously overwrites the final logical character instead of being discarded; confirmation can be disabled for automatic field-to-field advance. Fixed-width deletion still shifts remaining text left and pads the right edge.
+
+## Reusable help browser
+
+`sumTUI 0.8.0a26` extends the reusable two-pane `HelpBrowser` with selectable rendered help text.  Left-drag or Shift+arrows extends the selection, `Ctrl+A` selects all rendered text, `Ctrl+C` or `Ctrl+Insert` copies the selection, and right-click opens a compact **Copy / Select all** context menu.  The reading pane remains read-only and keeps independent vertical/horizontal scrolling, category/topic breadcrumbs and the classic `F1` Contents, `F2` Topics, `F3` Search, `F4` Read and `Esc` Close navigation.  SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
 
 ## Goals
 
@@ -136,6 +140,15 @@ sumtheme --import yaru-dark.sumtheme.json
 ```
 
 External theme formats do not all expose the same semantic roles, so conversion is best-effort; SUM JSON preserves the complete SUM theme representation.
+
+The same canonical store is available graphically when sumGUI/Pygame is installed:
+
+```bash
+sumtheme --gui
+sumtheme --gui --theme "Yaru Dark"
+```
+
+The GUI searches/list themes, previews the selected SUM semantic colors without changing the stored theme, and routes clone/edit/import/export/hide/delete back through the same `themeio` operations used by the CLI/TUI.
 
 ## Widgets in 0.7.1
 
@@ -540,7 +553,9 @@ Application-level IDE launchers and `hello.*` programming examples now belong to
 
 ## Generic editor and text-file tools
 
-`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. The terminal frontend remains the default. `sumedit --gui FILE` explicitly selects the optional Pygame/sumGUI frontend while reusing the same encoding/EOL-aware `TextDocument`; install it with `pip install 'sumtui[gui]'`. **Alt+W** deletes forward through the next word boundary without crossing the current line; **Ctrl+Alt+W** deletes one backward word/separator segment. With a multiline selection, **Tab** indents every touched line and **Shift+Tab** unindents it; a selection ending at column 0 of the following line does not include that following line. The Edit menu also provides whole-document **Tabs -> N spaces** and **N spaces -> Tabs** conversions using the current Tab width. **Alt+I** opens the Window menu, leaving Alt+W exclusively available for editing. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, and **Ctrl+F4** closes the active workspace window. Mouse users can drag a window title to move it and drag its lower-right corner to resize it. **Alt+M** enters keyboard Move and **Alt+Z** enters keyboard Resize; arrows adjust one cell, Shift+arrows five cells, Enter accepts, and Escape cancels. **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
+`sumedit FILE` opens a lightweight plain-text editor built from sumTUI widgets. File history is persistent: **File -> Recent Files** keeps the ten most recently used paths, while Open remembers the two most recently used directories. The file dialog can expose quick-path buttons; Android SUM runtimes use **App Home**, **Storage**, **Last 1**, and **Last 2** when those locations are available.
+
+`sumedit FILE` The terminal frontend remains the default. `sumedit --gui FILE` explicitly selects the optional Pygame/sumGUI frontend while reusing the same encoding/EOL-aware `TextDocument`; install it with `pip install 'sumtui[gui]'`. **Alt+W** deletes forward through the next word boundary without crossing the current line; **Ctrl+Alt+W** deletes one backward word/separator segment. With a multiline selection, **Tab** indents every touched line and **Shift+Tab** unindents it; a selection ending at column 0 of the following line does not include that following line. The Edit menu also provides whole-document **Tabs -> N spaces** and **N spaces -> Tabs** conversions using the current Tab width. **Alt+I** opens the Window menu, leaving Alt+W exclusively available for editing. It supports keyboard selection, system/internal clipboard integration, undo/redo, word navigation, document-edge navigation, scrollbars, encoding/EOL status, search/replace, semantic syntax highlighting, and optional visualization of spaces, tabs, line endings and control characters. **Ctrl+Home** jumps to the beginning of the document and **Ctrl+End** to the end. **Shift+Up/Down** and **Shift+PageUp/PageDown** extend the current selection while moving vertically or by a page. On terminals with SGR mouse reporting, a left click places the caret, click-drag selects text, the wheel scrolls vertically, and the vertical/horizontal scrollbar tracks and thumbs are mouse-operable. Its top `File / Edit / Search / View / Options / Window / Help` menu is always visible; **F2** opens the Program Map, **F6 / Ctrl+Tab** is **Next Window**, **F11 / Alt+Enter** is **Maximize/Restore Window**, and **Ctrl+F4** closes the active workspace window. Mouse users can drag a window title to move it and drag its lower-right corner to resize it. **Alt+M** enters keyboard Move and **Alt+Z** enters keyboard Resize; arrows adjust one cell, Shift+arrows five cells, Enter accepts, and Escape cancels. **F9** opens the menu and **F10 / Ctrl+Q** exits. **Ctrl+S** saves, **Ctrl+O** opens, **Ctrl+F** searches, and **Ctrl+X** remains Cut. Dropdowns overlay the editing panel rather than being clipped by it. **F1** opens editor help in a modal dialog, and `Help -> About...` shows version/license information.
 
 Syntax highlighting is enabled by default and uses `Auto` detection from filename/extension, exact names such as `README`, and shebangs where useful. `View -> Syntax highlighting` can disable it without changing the file, while `View -> Syntax` can override the detected language. The editor maps lexer-specific tokens onto stable semantic roles, so a keyword, string, number, comment, function, type, variable, operator, and error keep the same visual meaning across languages even when the selected theme changes. Built-in modes include Markdown, sumX, xBase/FoxPro, Python, Bash/shell, C/C++, R, Ruby, BASIC, Java, PHP, SQL, HTML, JavaScript, VBScript, CSS, JSON, YAML, TOML, INI/config, XML, and generic logs.
 

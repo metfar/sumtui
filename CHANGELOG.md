@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0a26
+
+- Added a right-click context menu to `MarkdownView` with **Copy** and **Select all**, preserving the current rendered-text selection while the menu is open.
+- Added `Ctrl+Insert` as an alternative copy shortcut for rendered Markdown selections, matching the classic editor convention already used elsewhere in SUM.
+
+## 0.8.0a25
+
+- Added rendered-text selection to `MarkdownView`: left-drag or Shift+arrows selects, Ctrl+A selects all, and Ctrl+C copies the selected rendered text while preserving the Markdown view as read-only.
+- HelpBrowser now captures control-key input so Ctrl+C reaches the reading pane instead of acting as the terminal interrupt/close gesture; Escape remains the normal close key.
+
 ## 0.8.0a24
 
 - Grouped HelpBrowser topics by category with short leaf titles and a category/topic breadcrumb.

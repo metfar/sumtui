@@ -103,3 +103,37 @@ def test_help_browser_both_panes_support_horizontal_scroll():
     browser.app.focus.set(browser.view);
     assert browser.view.handle_event(KeyEvent(Key.RIGHT)) is True;
     assert browser.view.x_offset==1;
+
+
+def test_help_browser_markdown_text_can_be_selected_and_copied():
+    from sumtui.events import KeyEvent, MouseEvent;
+
+    class Clipboard:
+        def __init__(self):
+            self.text="";
+        def copy_text(self,text):
+            self.text=str(text);
+            return self.text;
+
+    browser=_browser(topic="GREP");
+    browser.view.clipboard=Clipboard();
+    browser.app.console.print(browser.app.root);
+    rendered=[browser.view._segments_text(line) for line in browser.view._rendered_lines];
+    line_index=next(index for index,line in enumerate(rendered) if "Search text." in line);
+    start=rendered[line_index].index("Search text.");
+    y=line_index-browser.view.offset;
+    assert browser.view.handle_event(MouseEvent(start,y,button="left",action="press")) is True;
+    assert browser.view.handle_event(MouseEvent(start+len("Search text."),y,button="left",action="release")) is True;
+    assert browser.view.selected_text=="Search text.";
+    assert browser.view.handle_event(KeyEvent("c",ctrl=True)) is True;
+    assert browser.view.clipboard.text=="Search text.";
+
+
+def test_help_browser_ctrl_a_selects_rendered_text_not_markdown_source():
+    from sumtui.events import KeyEvent;
+    browser=_browser(topic="GREP");
+    browser.app.console.print(browser.app.root);
+    assert browser.app.capture_control_keys is True;
+    assert browser.view.handle_event(KeyEvent("a",ctrl=True)) is True;
+    assert "Search text." in browser.view.selected_text;
+    assert "# GREP" not in browser.view.selected_text;

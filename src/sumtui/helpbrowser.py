@@ -58,7 +58,7 @@ class HelpBrowser:
         right=VBox(self.breadcrumb,self.topic_pane,sizes=[1,None],use_preferred_sizes=False);
         center=HBox(Panel(left,title="Help topics"),Panel(right,title="Topic"),sizes=[32,None],use_preferred_sizes=False);
         root=VBox(center,self.status,self.functions,sizes=[None,1,1],use_preferred_sizes=False);
-        self.app=Application(title=self.title,root=root,theme=theme,console=console,capture_control_keys=False,mouse=True);
+        self.app=Application(title=self.title,root=root,theme=theme,console=console,capture_control_keys=True,mouse=True);
         self.functions.install(self.app);
         self.app.bind("ctrl+f",self.focus_search);
         self.app.bind("alt+left",self.focus_topics);
@@ -171,7 +171,7 @@ class HelpBrowser:
 
     def focus_topic(self,*_args):
         self.app.focus.set(self.view);
-        self.status.set("Read: arrows/PgUp/PgDn scroll, Shift+wheel or Left/Right moves horizontally");
+        self.status.set("Read: drag/Shift+arrows selects, Ctrl+C/Ctrl+Ins copies, right-click opens menu");
         self.app.invalidate();
         return True;
 

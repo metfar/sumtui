@@ -2396,6 +2396,41 @@ def test_markdown_view_exposes_and_copies_fenced_code_blocks():
     assert clip.paste_text() == 'PRINT "hello"';
 
 
+def test_markdown_view_ctrl_insert_copies_rendered_selection():
+    from sumtui.clipboard import ClipboardService;
+    clip = ClipboardService();
+    view = MarkdownView("# Help\n\n**copy me**", clipboard=clip);
+    console = Console(width=60, height=12, record=True);
+    console.print(view);
+    assert view.select_all();
+    expected = view.selected_text;
+    assert expected;
+    assert view.handle_event(KeyEvent(Key.INSERT, ctrl=True));
+    assert clip.paste_text() == expected;
+
+
+def test_markdown_view_right_click_context_menu_copy_and_select_all():
+    from sumtui.clipboard import ClipboardService;
+    clip = ClipboardService();
+    view = MarkdownView("# Help\n\nRendered text", clipboard=clip);
+    console = Console(width=60, height=12, record=True);
+    console.print(view);
+    assert view.handle_event(MouseEvent(4, 2, button="right", action="press"));
+    assert view.context_menu_open;
+    console.print(view);
+    assert view._context_menu_bounds is not None;
+    left, top, _width, _height = view._context_menu_bounds;
+    assert view.handle_event(MouseEvent(left + 2, top + 2, button="left", action="press"));
+    assert view.has_selection;
+    assert not view.context_menu_open;
+    assert view.handle_event(MouseEvent(4, 2, button="right", action="press"));
+    console.print(view);
+    left, top, _width, _height = view._context_menu_bounds;
+    assert view.handle_event(MouseEvent(left + 2, top + 1, button="left", action="press"));
+    assert clip.paste_text() == view.selected_text;
+    assert not view.context_menu_open;
+
+
 def test_compiled_helpdb_runtime_model_and_aliases():
     from sumtui.helpdb import HelpCorpus;
     compiled = """{
