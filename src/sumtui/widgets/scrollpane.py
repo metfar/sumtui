@@ -24,6 +24,7 @@ from .layout import HBox, VBox;
 from .scrollbar import ScrollBar;
 from .markdownview import MarkdownView;
 from .textview import TextView;
+from .tree import TreeView;
 
 
 class _TextVScroll(ScrollBar):
@@ -168,6 +169,50 @@ class CommandWindowPane(VBox):
         self.view = view if view is not None else CommandWindow(prompt=prompt, on_submit=on_submit, theme=theme);
         self.vscroll = _CommandVScroll(self.view, theme=theme);
         self.hscroll = _CommandHScroll(self.view, theme=theme);
+        self.row = HBox(self.view, self.vscroll, sizes=[None, 1], theme=theme);
+        super().__init__(self.row, self.hscroll, sizes=[None, 1], theme=theme);
+
+
+class _TreeVScroll(ScrollBar):
+    def __init__(self, view, **kwargs):
+        self.view = view;
+        kwargs.setdefault("on_change", self._changed);
+        super().__init__(orientation="vertical", **kwargs);
+
+    def _changed(self, _bar, value):
+        self.view.offset = max(0, int(value));
+        return True;
+
+    def __rich_console__(self, console, options):
+        self.page = max(1, int(self.view.page_size));
+        self.maximum = max(0, len(self.view._flatten()) - self.page);
+        self.value = max(0, min(self.maximum, int(self.view.offset)));
+        yield from super().__rich_console__(console, options);
+
+
+class _TreeHScroll(ScrollBar):
+    def __init__(self, view, **kwargs):
+        self.view = view;
+        kwargs.setdefault("on_change", self._changed);
+        super().__init__(orientation="horizontal", **kwargs);
+
+    def _changed(self, _bar, value):
+        self.view.x_offset = max(0, int(value));
+        return True;
+
+    def __rich_console__(self, console, options):
+        self.page = max(1, int(self.view.page_width));
+        self.maximum = max(0, int(self.view.content_width) - self.page);
+        self.value = max(0, min(self.maximum, int(self.view.x_offset)));
+        yield from super().__rich_console__(console, options);
+
+
+class TreeViewPane(VBox):
+    """Tree view plus visible vertical and horizontal scrollbars.""";
+    def __init__(self, view=None, roots=None, theme=None):
+        self.view = view if view is not None else TreeView(roots=roots, theme=theme);
+        self.vscroll = _TreeVScroll(self.view, theme=theme);
+        self.hscroll = _TreeHScroll(self.view, theme=theme);
         self.row = HBox(self.view, self.vscroll, sizes=[None, 1], theme=theme);
         super().__init__(self.row, self.hscroll, sizes=[None, 1], theme=theme);
 

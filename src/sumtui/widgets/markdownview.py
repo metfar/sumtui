@@ -32,7 +32,7 @@ from rich.table import Table;
 from rich.text import Text;
 
 from ..clipboard import clipboard as default_clipboard;
-from ..events import Key;
+from ..events import Key, MouseEvent;
 from ._viewport import horizontal_delta, line_cell_length, slice_segments, text_cell_length;
 from .base import Widget;
 
@@ -273,6 +273,17 @@ class MarkdownView(Widget):
         return self.x_offset != old;
 
     def handle_event(self, event):
+        if isinstance(event, MouseEvent):
+            if event.action in ("scroll_up", "scroll_down"):
+                amount = -3 if event.action == "scroll_up" else 3;
+                if event.shift and not self.wrap:
+                    return self.scroll_horizontal(amount);
+                return self.scroll(amount);
+            if event.action == "press" and event.button == "left":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                return True;
+            return False;
         horizontal = horizontal_delta(event, self.page_width);
         if horizontal is not None and not self.wrap:
             return self.scroll_horizontal(horizontal);

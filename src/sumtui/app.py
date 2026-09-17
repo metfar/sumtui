@@ -295,12 +295,11 @@ class Application:
         if isinstance(event, ResizeEvent):
             return True;
         if isinstance(event, MouseEvent):
-            if self.root is not None and self.root.handle_event(event):
-                return True;
-            current = self.focus.current;
-            if current is not None and current is not self.root and current.handle_event(event):
-                return True;
-            return False;
+            # Mouse coordinates are routed through the layout tree so each
+            # descendant receives local coordinates.  Do not re-dispatch an
+            # unhandled global mouse event to the currently focused widget:
+            # doing so can make a click/wheel over one pane act on another.
+            return bool(self.root is not None and self.root.handle_event(event));
         if not isinstance(event, KeyEvent):
             return False;
         # Key release is state information, not another command/typing event.

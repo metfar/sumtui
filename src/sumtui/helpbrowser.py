@@ -29,7 +29,7 @@ sumTUI only renders the compiled runtime data.
 """;
 
 from .app import Application;
-from .widgets import FunctionAction, FunctionBar, HBox, ListView, ListViewPane, MarkdownView, MarkdownViewPane, Panel, StatusBar, TextInput, VBox;
+from .widgets import FunctionAction, FunctionBar, HBox, Label, MarkdownView, MarkdownViewPane, Panel, StatusBar, TextInput, TreeNode, TreeView, TreeViewPane, VBox;
 
 
 class HelpBrowser:
@@ -41,10 +41,11 @@ class HelpBrowser:
         self.visible=[];
         self.current_topic=None;
         self.query=TextInput(str(query or ""),placeholder="Search topics...");
-        self.topics=ListView([],title="Contents");
-        self.view=MarkdownView(self.corpus.index_markdown(),wrap=True);
+        self.topics=TreeView([],select_leaves_only=True);
+        self.view=MarkdownView(self.corpus.index_markdown(),wrap=False);
         self.topic_pane=MarkdownViewPane(view=self.view);
-        self.topic_list=ListViewPane(self.topics);
+        self.topic_list=TreeViewPane(self.topics);
+        self.breadcrumb=Label("Contents",style="muted");
         self.status=StatusBar("Ready");
         self.functions=FunctionBar([
             FunctionAction("f1","Contents",self.show_contents),
@@ -54,15 +55,16 @@ class HelpBrowser:
             FunctionAction("escape","Close",self.close),
         ]);
         left=VBox(self.query,self.topic_list,sizes=[1,None],use_preferred_sizes=False);
-        center=HBox(Panel(left,title="Help topics"),Panel(self.topic_pane,title="Topic"),sizes=[32,None],use_preferred_sizes=False);
+        right=VBox(self.breadcrumb,self.topic_pane,sizes=[1,None],use_preferred_sizes=False);
+        center=HBox(Panel(left,title="Help topics"),Panel(right,title="Topic"),sizes=[32,None],use_preferred_sizes=False);
         root=VBox(center,self.status,self.functions,sizes=[None,1,1],use_preferred_sizes=False);
         self.app=Application(title=self.title,root=root,theme=theme,console=console,capture_control_keys=False,mouse=True);
         self.functions.install(self.app);
         self.app.bind("ctrl+f",self.focus_search);
         self.app.bind("alt+left",self.focus_topics);
         self.app.bind("ctrl+home",self.show_contents);
-        self.topics.on_change=lambda value,_row:self.render_topic(value);
-        self.topics.on_activate=lambda _value,_row:self.focus_topic();
+        self.topics.on_change=self._topic_changed;
+        self.topics.on_activate=lambda _node:self.focus_topic();
         self.query.on_change=self.refill;
         self.refill(self.query.value);
         if topic:
@@ -76,23 +78,45 @@ class HelpBrowser:
     def _ordered_topics(self):
         return sorted(self.corpus.topics,key=lambda item:(item.category.casefold(),item.name.casefold()));
 
+    @staticmethod
+    def _topic_roots(topics):
+        roots=[];
+        current_category=None;
+        current_root=None;
+        for topic in topics:
+            category=str(topic.category or "Other");
+            if current_root is None or category!=current_category:
+                current_category=category;
+                current_root=TreeNode(category,value=None,expanded=True);
+                roots.append(current_root);
+            current_root.add(TreeNode(str(topic.name),value=topic.name));
+        return roots;
+
+    def _topic_changed(self,node):
+        if node is not None and node.value is not None:
+            return self.render_topic(node.value);
+        return False;
+
     def refill(self,text=""):
         needle=str(text or "").strip().casefold();
-        self.visible=[];
-        self.topics.clear();
+        matches=[];
         for topic in self._ordered_topics():
             haystack=" ".join((topic.name,topic.category,topic.summary," ".join(topic.aliases)," ".join(topic.see_also))).casefold();
             if needle and needle not in haystack:
                 continue;
-            self.visible.append(topic.name);
-            self.topics.add_item("{} / {}".format(topic.category,topic.name),value=topic.name);
+            matches.append(topic);
+        self.visible=[topic.name for topic in matches];
+        self.topics.set_roots(self._topic_roots(matches));
         if self.visible:
-            self.topics.select(0);
-            self.render_topic(self.visible[0]);
+            if not self.topics.select_value(self.visible[0]):
+                self.render_topic(self.visible[0]);
+            else:
+                self.render_topic(self.visible[0]);
             self.status.set("{} topic{}".format(len(self.visible),"" if len(self.visible)==1 else "s"));
         else:
             self.current_topic=None;
             self.view.set_text("# No help topics found\n\nSearch: `{}`".format(text));
+            self.breadcrumb.set_text("Search > No matches");
             self.status.set("No topics match '{}'".format(text));
         self.app.invalidate();
         return True;
@@ -102,8 +126,11 @@ class HelpBrowser:
         self.current_topic=topic.name if topic is not None else None;
         self.view.set_text(topic.markdown() if topic is not None else self.corpus.index_markdown());
         if topic is not None:
-            self.status.set("{} / {}".format(topic.category,topic.name));
+            crumb="{} > {}".format(topic.category,topic.name);
+            self.breadcrumb.set_text(crumb);
+            self.status.set(crumb);
         else:
+            self.breadcrumb.set_text("Contents");
             self.status.set("Contents");
         self.app.invalidate();
         return True;
@@ -112,23 +139,18 @@ class HelpBrowser:
         topic=self.corpus.find_topic(name);
         if topic is None:
             return False;
-        for index,row in enumerate(self.topics.rows):
-            if row.value==topic.name:
-                self.topics.select(index);
-                self.render_topic(topic.name);
-                return True;
-        self.query.set("");
-        self.refill("");
-        for index,row in enumerate(self.topics.rows):
-            if row.value==topic.name:
-                self.topics.select(index);
-                self.render_topic(topic.name);
-                return True;
-        return False;
+        if topic.name not in self.visible:
+            self.query.set("");
+            self.refill("");
+        if not self.topics.select_value(topic.name):
+            return False;
+        self.render_topic(topic.name);
+        return True;
 
     def show_contents(self,*_args,focus=True):
         self.current_topic=None;
         self.view.set_text(self.corpus.index_markdown());
+        self.breadcrumb.set_text("Contents");
         self.status.set("Contents");
         if focus:
             self.app.focus.set(self.topics);
@@ -137,7 +159,7 @@ class HelpBrowser:
 
     def focus_topics(self,*_args):
         self.app.focus.set(self.topics);
-        self.status.set("Topics: arrows move, Enter reads");
+        self.status.set("Topics: arrows move, Enter reads, Left/Right scroll horizontally");
         self.app.invalidate();
         return True;
 
@@ -149,7 +171,7 @@ class HelpBrowser:
 
     def focus_topic(self,*_args):
         self.app.focus.set(self.view);
-        self.status.set("Read: arrows/PgUp/PgDn scroll, Tab changes pane");
+        self.status.set("Read: arrows/PgUp/PgDn scroll, Shift+wheel or Left/Right moves horizontally");
         self.app.invalidate();
         return True;
 

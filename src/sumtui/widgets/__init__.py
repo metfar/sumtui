@@ -42,7 +42,7 @@ from .markdownview import MarkdownView, fenced_code_blocks;
 from .menu import ContextMenu, Menu, MenuBar, MenuDesktop, MenuItem, Separator;
 from .progress import ProgressBar;
 from .scrollbar import ScrollBar;
-from .scrollpane import CommandWindowPane, ListViewPane, MarkdownViewPane, TableViewPane, TextViewPane;
+from .scrollpane import CommandWindowPane, ListViewPane, MarkdownViewPane, TableViewPane, TextViewPane, TreeViewPane;
 from .slider import Slider;
 from .splitter import Splitter;
 from .syntaxview import SyntaxView;
@@ -54,7 +54,7 @@ __all__ = [
     "Widget", "Label", "Panel", "StatusBar", "CommandWindow", "ScreenField", "ChartView", "render_chart_lines", "CharacterChart", "Dialog", "GroupBox",
     "FormField", "ReadOnlyField", "RecordForm", "BrowseForm", "CalendarView", "TimeView", "DateTimeView",
     "Button", "TextInput", "TextArea", "TextEditor", "CheckBox", "RadioButton", "RadioGroup", "Choice", "ComboBox",
-    "ProgressBar", "Slider", "ScrollBar", "TextView", "TextViewPane", "CommandWindowPane", "MarkdownView", "MarkdownViewPane", "TableViewPane", "ListViewPane", "SyntaxView", "HexView",
+    "ProgressBar", "Slider", "ScrollBar", "TextView", "TextViewPane", "CommandWindowPane", "MarkdownView", "MarkdownViewPane", "TableViewPane", "ListViewPane", "TreeViewPane", "SyntaxView", "HexView",
     "FunctionAction", "FunctionBar", "MenuItem", "Separator", "Menu", "MenuBar", "MenuDesktop", "ContextMenu",
     "HBox", "LayoutItem", "VBox", "Splitter",
     "Column", "TableRow", "TableView", "ListView", "TreeNode", "TreeView",

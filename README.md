@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a23
+# sumTUI 0.8.0a24
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -10,7 +10,7 @@ The project is a console-side sibling of SumGUI. It keeps the same general philo
 
 ## Reusable help browser
 
-`sumTUI 0.8.0a23` adds a reusable two-pane `HelpBrowser` for keyboard-first contextual help.  It consumes the existing SUM help corpus model, provides a searchable topic list plus scrollable Markdown topic pane, and exposes classic function-key navigation (`F1` Contents, `F2` Topics, `F3` Search, `F4` Read, `Esc` Close).  The browser is intentionally generic so shells, editors and language environments can reuse the same help presentation while SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
+`sumTUI 0.8.0a24` refines the reusable two-pane `HelpBrowser` for keyboard and mouse use.  The topic pane is now a category tree with short leaf labels and a breadcrumb in the reading pane; both panes have independent vertical and horizontal scrolling.  Mouse hit-testing follows the pane under the pointer instead of falling back to the previously focused widget, and the Markdown pane can be focused/scrolled directly.  Classic navigation remains `F1` Contents, `F2` Topics, `F3` Search, `F4` Read and `Esc` Close.  SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
 
 ## Goals
 

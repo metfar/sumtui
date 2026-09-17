@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0a24
+
+- Grouped HelpBrowser topics by category with short leaf titles and a category/topic breadcrumb.
+- Added independent horizontal scrolling and visible horizontal scrollbars to both HelpBrowser panes; the Markdown reading pane now renders unwrapped content so wide syntax/examples remain reachable.
+- Added mouse focus/scroll handling to MarkdownView and mouse/horizontal scrolling to TreeView.
+- Fixed application mouse dispatch so an event over one pane is never re-sent with global coordinates to a different focused pane.
+
 ## 0.8.0a23
 
 - Added the reusable two-pane `HelpBrowser` with searchable topics, scrollable Markdown content and classic function-key navigation for consumers such as `sumbash`.
