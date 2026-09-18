@@ -20,43 +20,8 @@
 #  MA 02110-1301, USA.
 #  
 #
-#import warnings;
-#warnings.filterwarnings("ignore", category=UserWarning);
 
-
-class ClipboardService:
-    """Text clipboard with an always-available internal fallback."""
-    def __init__(self):
-        self._text = "";
-        self._system = None;
-        try:
-            import clipboard as system_clipboard;
-            self._system = system_clipboard;
-        except Exception:
-            self._system = None;
-
-    @property
-    def system_available(self):
-        return self._system is not None;
-
-    def copy_text(self, text):
-        self._text = str(text);
-        if self._system is not None:
-            try:
-                self._system.copy(self._text);
-            except Exception:
-                pass;
-        return self._text;
-
-    def paste_text(self):
-        if self._system is not None:
-            try:
-                value = self._system.paste();
-                if value is not None:
-                    self._text = str(value);
-            except Exception:
-                pass;
-        return self._text;
+from sumui.clipboard import ClipboardService, clipboard;
 
 
 def trim_selected_text(text):
@@ -69,4 +34,4 @@ def trim_selected_text(text):
     return "\n".join(line.rstrip(" \t") for line in str(text).split("\n"));
 
 
-clipboard = ClipboardService();
+__all__ = ["ClipboardService", "clipboard", "trim_selected_text"];

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0a29
+
+- Use the shared sumUI desktop clipboard service for cross-application Copy/Paste.
+- Freeze editor context-menu contents while the menu is open, avoiding repeated X11 clipboard probes during rendering.
+
 ## 0.8.0a28
 
 - Added a standard right-click editor context menu to `TextArea` / `TextEditor`: **Undo, Redo, Cut, Copy, Paste, Select all**. `sumedit`, `sumIDE`, sumX editor mode and sumBASIC IDE inherit it from the common editor engine, including through the GUI backend.

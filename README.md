@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a28
+# sumTUI 0.8.0a29
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -10,7 +10,11 @@ The project is a console-side sibling of SumGUI. It keeps the same general philo
 
 ## Reusable help browser
 
-`sumTUI 0.8.0a28` extends the reusable two-pane `HelpBrowser` with selectable rendered help text.  Left-drag or Shift+arrows extends the selection, `Ctrl+A` selects all rendered text, `Ctrl+C` or `Ctrl+Insert` copies the selection, and right-click opens a compact **Copy / Select all** context menu.  The reading pane remains read-only and keeps independent vertical/horizontal scrolling, category/topic breadcrumbs and the classic `F1` Contents, `F2` Topics, `F3` Search, `F4` Read and `Esc` Close navigation.  SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
+`sumTUI 0.8.0a29` extends the reusable two-pane `HelpBrowser` with selectable rendered help text.  Left-drag or Shift+arrows extends the selection, `Ctrl+A` selects all rendered text, `Ctrl+C` or `Ctrl+Insert` copies the selection, and right-click opens a compact **Copy / Select all** context menu.  The reading pane remains read-only and keeps independent vertical/horizontal scrolling, category/topic breadcrumbs and the classic `F1` Contents, `F2` Topics, `F3` Search, `F4` Read and `Esc` Close navigation.  SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
+
+## Clipboard and context menus
+
+Copy/Paste now uses the shared `sumUI` system clipboard service, so text copied in `sumedit`, `sumIDE`, `sumX` or `sumBASIC` is available to applications outside SUM and vice versa.  Editor context menus snapshot their Paste/Paste Special choices when opened instead of re-querying the X11 clipboard on every redraw.
 
 ## Goals
 

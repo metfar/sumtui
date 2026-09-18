@@ -87,6 +87,7 @@ class TextArea(Widget):
         self.context_menu_x = 0;
         self.context_menu_y = 0;
         self._context_menu_bounds = None;
+        self._context_menu_items_cache = None;
 
     @staticmethod
     def _split_text(text):
@@ -399,12 +400,14 @@ class TextArea(Widget):
         return self._insert_text(normalized, kind="paste-special");
 
     def _context_menu_items(self):
+        if self.context_menu_open and self._context_menu_items_cache is not None:
+            return self._context_menu_items_cache;
         items = [
             ("Undo", "Ctrl+Z", (not self.readonly) and bool(self._undo), self.undo),
             ("Redo", "Ctrl+Y", (not self.readonly) and bool(self._redo), self.redo),
             ("Cut", "Ctrl+X", (not self.readonly) and self.has_selection, self.cut),
             ("Copy", "Ctrl+C / Ctrl+Ins", self.has_selection, self.copy),
-            ("Paste", "Ctrl+V / Shift+Ins", (not self.readonly) and self._clipboard_has_text(), self.paste),
+            ("Paste", "Ctrl+V / Shift+Ins", not self.readonly, self.paste),
         ];
         for kind, label in self._special_paste_options():
             shortcut = "Ctrl+Shift+V" if kind == "markdown" else "";
@@ -419,6 +422,8 @@ class TextArea(Widget):
         return 0;
 
     def open_context_menu(self, x=0, y=0):
+        self._context_menu_items_cache = None;
+        self._context_menu_items_cache = list(self._context_menu_items());
         self.context_menu_open = True;
         self.context_menu_x = max(0, int(x));
         self.context_menu_y = max(0, int(y));
@@ -430,6 +435,7 @@ class TextArea(Widget):
         changed = self.context_menu_open;
         self.context_menu_open = False;
         self._context_menu_bounds = None;
+        self._context_menu_items_cache = None;
         return changed;
 
     def _move_context_menu(self, delta):
