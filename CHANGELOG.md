@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0a28
+
+- Added a standard right-click editor context menu to `TextArea` / `TextEditor`: **Undo, Redo, Cut, Copy, Paste, Select all**. `sumedit`, `sumIDE`, sumX editor mode and sumBASIC IDE inherit it from the common editor engine, including through the GUI backend.
+- Added the compact **Copy / Select all** right-click menu and `Ctrl+Insert` copy shortcut to `TextView`, covering shared Output/read-only text panes used by the IDE family.
+- Copied rendered selections now trim visual spaces and tabs at the right edge of each line while preserving line breaks and leading whitespace. Source-editor copies remain byte-for-byte faithful to selected document text because editor selection never includes virtual cells beyond end-of-line.
+
 ## 0.8.0a26
 
 - Added a right-click context menu to `MarkdownView` with **Copy** and **Select all**, preserving the current rendered-text selection while the menu is open.

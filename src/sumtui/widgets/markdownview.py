@@ -33,7 +33,7 @@ from rich.style import Style;
 from rich.table import Table;
 from rich.text import Text;
 
-from ..clipboard import clipboard as default_clipboard;
+from ..clipboard import clipboard as default_clipboard, trim_selected_text;
 from ..events import Key, MouseEvent;
 from ._viewport import horizontal_delta, line_cell_length, slice_segments, text_cell_length;
 from .base import Widget;
@@ -357,7 +357,7 @@ class MarkdownView(Widget):
     def copy_selection(self):
         if not self.has_selection:
             return False;
-        self.clipboard.copy_text(self.selected_text);
+        self.clipboard.copy_text(trim_selected_text(self.selected_text));
         return True;
 
     def _context_menu_items(self):

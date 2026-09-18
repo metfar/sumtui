@@ -24,12 +24,16 @@
 #warnings.filterwarnings("ignore", category=UserWarning);
 import unicodedata;
 
+from rich.console import Group;
+from rich.panel import Panel as RichPanel;
 from rich.segment import Segment;
 from rich.style import Style;
+from rich.text import Text;
 
 from ..clipboard import clipboard as default_clipboard;
 from ..events import Key, MouseEvent;
 from ..syntax import EditorSyntaxHighlighter;
+from ._viewport import line_cell_length, slice_segments;
 from .base import Widget;
 
 
@@ -78,6 +82,11 @@ class TextArea(Widget):
         self._undo = [];
         self._redo = [];
         self._mouse_selecting = False;
+        self.context_menu_open = False;
+        self.context_menu_index = 0;
+        self.context_menu_x = 0;
+        self.context_menu_y = 0;
+        self._context_menu_bounds = None;
 
     @staticmethod
     def _split_text(text):
@@ -359,6 +368,149 @@ class TextArea(Widget):
         if text is None or text == "":
             return False;
         return self._insert_text(str(text).replace("\r\n", "\n").replace("\r", "\n"), kind="paste");
+
+    def _clipboard_has_text(self):
+        try:
+            value = self.clipboard.paste_text();
+        except Exception:
+            return False;
+        return value is not None and str(value) != "";
+
+    def _special_paste_options(self):
+        if self.readonly:
+            return [];
+        try:
+            from sumdoc.clipboard import special_paste_options;
+            return list(special_paste_options());
+        except Exception:
+            return [];
+
+    def paste_special(self, kind="markdown"):
+        if self.readonly:
+            return False;
+        try:
+            from sumdoc.clipboard import special_paste_text;
+            text = special_paste_text(kind);
+        except Exception:
+            return False;
+        if text is None or text == "":
+            return False;
+        normalized = str(text).replace("\r\n", "\n").replace("\r", "\n");
+        return self._insert_text(normalized, kind="paste-special");
+
+    def _context_menu_items(self):
+        items = [
+            ("Undo", "Ctrl+Z", (not self.readonly) and bool(self._undo), self.undo),
+            ("Redo", "Ctrl+Y", (not self.readonly) and bool(self._redo), self.redo),
+            ("Cut", "Ctrl+X", (not self.readonly) and self.has_selection, self.cut),
+            ("Copy", "Ctrl+C / Ctrl+Ins", self.has_selection, self.copy),
+            ("Paste", "Ctrl+V / Shift+Ins", (not self.readonly) and self._clipboard_has_text(), self.paste),
+        ];
+        for kind, label in self._special_paste_options():
+            shortcut = "Ctrl+Shift+V" if kind == "markdown" else "";
+            items.append(("Paste special: " + label, shortcut, True, lambda value=kind: self.paste_special(value)));
+        items.append(("Select all", "Ctrl+A", True, self.select_all));
+        return items;
+
+    def _first_context_menu_index(self):
+        for index, (_label, _shortcut, enabled, _action) in enumerate(self._context_menu_items()):
+            if enabled:
+                return index;
+        return 0;
+
+    def open_context_menu(self, x=0, y=0):
+        self.context_menu_open = True;
+        self.context_menu_x = max(0, int(x));
+        self.context_menu_y = max(0, int(y));
+        self.context_menu_index = self._first_context_menu_index();
+        self._context_menu_bounds = None;
+        return True;
+
+    def close_context_menu(self):
+        changed = self.context_menu_open;
+        self.context_menu_open = False;
+        self._context_menu_bounds = None;
+        return changed;
+
+    def _move_context_menu(self, delta):
+        items = self._context_menu_items();
+        choices = [index for index, (_label, _shortcut, enabled, _action) in enumerate(items) if enabled];
+        if not choices:
+            return False;
+        try:
+            position = choices.index(self.context_menu_index);
+        except ValueError:
+            position = 0;
+        self.context_menu_index = choices[(position + int(delta)) % len(choices)];
+        return True;
+
+    def _activate_context_menu(self, index=None):
+        items = self._context_menu_items();
+        target = self.context_menu_index if index is None else int(index);
+        if target < 0 or target >= len(items):
+            return False;
+        _label, _shortcut, enabled, action = items[target];
+        if not enabled:
+            return False;
+        result = bool(action());
+        self.close_context_menu();
+        return result;
+
+    def _context_menu_hit(self, event):
+        if self._context_menu_bounds is None:
+            return None;
+        left, top, width, height = self._context_menu_bounds;
+        x = int(event.x);
+        y = int(event.y);
+        if not (left <= x < left + width and top <= y < top + height):
+            return None;
+        row = y - top - 1;
+        items = self._context_menu_items();
+        if 0 <= row < len(items):
+            return row;
+        return -1;
+
+    def _context_menu_renderable(self):
+        rows = [];
+        items = self._context_menu_items();
+        content_width = max([len(label) + len(shortcut) + 3 for label, shortcut, _enabled, _action in items] or [12]);
+        for index, (label, shortcut, enabled, _action) in enumerate(items):
+            gap = max(1, content_width - len(label) - len(shortcut));
+            row = Text(label + (" " * gap) + shortcut);
+            if not enabled:
+                row.stylize(self.theme.style("disabled"));
+            elif index == self.context_menu_index:
+                row.stylize(self.theme.style("menu_selection"));
+            else:
+                row.stylize(self.theme.style("menu"));
+            rows.append(row);
+        return RichPanel(
+            Group(*rows),
+            padding=(0, 0),
+            border_style=self.theme.style("menu_border"),
+            style=self.theme.style("menu"),
+            width=content_width + 2,
+        );
+
+    @staticmethod
+    def _overlay_line(base_line, overlay_line, left, width):
+        left = max(0, int(left));
+        width = max(1, int(width));
+        overlay_width = min(width - left, line_cell_length(overlay_line));
+        if overlay_width <= 0:
+            return base_line;
+        prefix = slice_segments(base_line, 0, left);
+        middle = slice_segments(overlay_line, 0, overlay_width);
+        suffix_start = left + overlay_width;
+        suffix = slice_segments(base_line, suffix_start, max(0, width - suffix_start));
+        return prefix + middle + suffix;
+
+    def _position_is_selected(self, row, column):
+        bounds = self.selection_offsets();
+        if bounds is None:
+            return False;
+        offset = self._offset(row, column);
+        return bounds[0] <= offset <= bounds[1];
 
     def _replace_range(self, start, end, replacement, kind="edit", merge=False):
         if self.readonly:
@@ -751,6 +903,34 @@ class TextArea(Widget):
 
     def handle_event(self, event):
         if isinstance(event, MouseEvent):
+            if event.action == "press" and event.button == "right":
+                if self._focus_manager is not None:
+                    self._focus_manager.set(self);
+                row, column = self._mouse_position(event.x, event.y);
+                if not self._position_is_selected(row, column):
+                    self._apply_move(row, column, selecting=False);
+                self._mouse_selecting = False;
+                return self.open_context_menu(event.x, event.y);
+            if self.context_menu_open:
+                if event.action in ("scroll_up", "scroll_down"):
+                    return self._move_context_menu(-1 if event.action == "scroll_up" else 1);
+                if event.action == "press" and event.button == "left":
+                    hit = self._context_menu_hit(event);
+                    if hit is None:
+                        self.close_context_menu();
+                        return True;
+                    if hit >= 0:
+                        self.context_menu_index = hit;
+                        return self._activate_context_menu(hit);
+                    return True;
+                if event.action in ("move", "drag"):
+                    hit = self._context_menu_hit(event);
+                    if hit is not None and hit >= 0:
+                        items = self._context_menu_items();
+                        if items[hit][2]:
+                            self.context_menu_index = hit;
+                    return True;
+                return True;
             if event.action == "scroll_up":
                 old = self.y_offset;
                 self.y_offset = max(0, self.y_offset - 3);
@@ -762,6 +942,7 @@ class TextArea(Widget):
                 self._clamp_viewport();
                 return self.y_offset != old;
             if event.button == "left" and event.action == "press":
+                self.close_context_menu();
                 if self._focus_manager is not None:
                     self._focus_manager.set(self);
                 row, column = self._mouse_position(event.x, event.y);
@@ -788,6 +969,22 @@ class TextArea(Widget):
         ctrl = bool(getattr(event, "ctrl", False));
         shift = bool(getattr(event, "shift", False));
         alt = bool(getattr(event, "alt", False));
+        if self.context_menu_open:
+            if key == Key.ESCAPE:
+                return self.close_context_menu();
+            if key == Key.UP:
+                return self._move_context_menu(-1);
+            if key == Key.DOWN:
+                return self._move_context_menu(1);
+            if key == Key.ENTER:
+                return self._activate_context_menu();
+            if ctrl and key == "c":
+                self.close_context_menu();
+                return self.copy();
+            if ctrl and key == Key.INSERT:
+                self.close_context_menu();
+                return self.copy();
+            return True;
         if alt and key == "w":
             if ctrl:
                 return self.delete_to_previous_word();
@@ -803,6 +1000,8 @@ class TextArea(Widget):
                 return self.copy();
             if (ctrl and key == "x") or (shift and key == Key.DELETE):
                 return self.cut() if self.has_selection else (self._delete() if shift and key == Key.DELETE else False);
+            if ctrl and shift and key == "v":
+                return self.paste_special("markdown");
             if (ctrl and key == "v") or (shift and key == Key.INSERT):
                 return self.paste();
         if key == Key.LEFT:
@@ -908,6 +1107,7 @@ class TextArea(Widget):
         syntax_roles = self.syntax.highlight(self.text) if self.syntax_highlighting else None;
         wrapping = self.line_wrapping != 0;
         visual_map = self._visual_map(body_width) if wrapping else None;
+        output_lines = [];
         for visible_index in range(self.page_height):
             if wrapping:
                 map_index = self.y_offset + visible_index;
@@ -920,6 +1120,7 @@ class TextArea(Widget):
                 segment_start = self.x_offset;
                 segment_end = segment_start + body_width;
                 segment_last = True;
+            output_line = [];
             if self.line_numbers:
                 if line_index < len(self.lines):
                     if wrapping and segment_start > 0:
@@ -928,7 +1129,7 @@ class TextArea(Widget):
                         prefix = (str(line_index + 1) + " │").rjust(gutter);
                 else:
                     prefix = "".rjust(gutter);
-                yield Segment(prefix[:gutter], gutter_style);
+                output_line.append(Segment(prefix[:gutter], gutter_style));
             source = self.lines[line_index] if line_index < len(self.lines) else "";
             cells = [];
             for screen_column in range(body_width):
@@ -963,8 +1164,24 @@ class TextArea(Widget):
                         style = cursor_style;
                 cells.append((shown[:1] if shown else " ", style));
             for shown, style in cells:
-                yield Segment(shown, style);
-            if visible_index + 1 < self.page_height:
+                output_line.append(Segment(shown, style));
+            output_lines.append(output_line);
+        if self.context_menu_open and output_lines:
+            menu = self._context_menu_renderable();
+            requested_width = max(1, int(getattr(menu, "width", 1) or 1));
+            menu_width = min(self.page_width, requested_width);
+            menu_lines = console.render_lines(menu, options.update(width=menu_width), pad=True, new_lines=False);
+            menu_height = min(len(output_lines), len(menu_lines));
+            left = max(0, min(self.context_menu_x, max(0, self.page_width - menu_width)));
+            top = max(0, min(self.context_menu_y, max(0, len(output_lines) - menu_height)));
+            self._context_menu_bounds = (left, top, menu_width, menu_height);
+            for row in range(menu_height):
+                output_lines[top + row] = self._overlay_line(output_lines[top + row], menu_lines[row], left, self.page_width);
+        else:
+            self._context_menu_bounds = None;
+        for visible_index, output_line in enumerate(output_lines):
+            yield from output_line;
+            if visible_index + 1 < len(output_lines):
                 yield Segment.line();
 
 

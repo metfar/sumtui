@@ -59,4 +59,14 @@ class ClipboardService:
         return self._text;
 
 
+def trim_selected_text(text):
+    """Remove visual right-side padding from copied selection lines.
+
+    Selection in rendered terminal cells may include blank cells to the right of
+    the last visible character.  Strip only spaces/tabs at the right edge of
+    each copied line while preserving line breaks and all leading whitespace.
+    """;
+    return "\n".join(line.rstrip(" \t") for line in str(text).split("\n"));
+
+
 clipboard = ClipboardService();

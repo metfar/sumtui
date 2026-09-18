@@ -2403,7 +2403,8 @@ def test_markdown_view_ctrl_insert_copies_rendered_selection():
     console = Console(width=60, height=12, record=True);
     console.print(view);
     assert view.select_all();
-    expected = view.selected_text;
+    from sumtui.clipboard import trim_selected_text;
+    expected = trim_selected_text(view.selected_text);
     assert expected;
     assert view.handle_event(KeyEvent(Key.INSERT, ctrl=True));
     assert clip.paste_text() == expected;
@@ -2426,8 +2427,9 @@ def test_markdown_view_right_click_context_menu_copy_and_select_all():
     assert view.handle_event(MouseEvent(4, 2, button="right", action="press"));
     console.print(view);
     left, top, _width, _height = view._context_menu_bounds;
+    from sumtui.clipboard import trim_selected_text;
     assert view.handle_event(MouseEvent(left + 2, top + 1, button="left", action="press"));
-    assert clip.paste_text() == view.selected_text;
+    assert clip.paste_text() == trim_selected_text(view.selected_text);
     assert not view.context_menu_open;
 
 
@@ -2770,3 +2772,73 @@ class FlexibleLayoutRegressionTests(unittest.TestCase):
         left = TextView("left"); right = TextView("right"); root = HBox(left, right, sizes=[24, None], use_preferred_sizes=False);
         console = Console(width=80, height=8, record=True, force_terminal=False, file=io.StringIO()); console.print(root, height=8);
         self.assertEqual(left.layout_width, 24); self.assertEqual(right.layout_width, 56); self.assertEqual(right.x, 24);
+
+
+def test_trim_selected_text_removes_only_right_padding_per_line():
+    from sumtui.clipboard import trim_selected_text;
+    assert trim_selected_text("  alpha   \n\tbeta\t  \n") == "  alpha\n\tbeta\n";
+
+
+def test_textview_right_click_context_menu_and_trimmed_copy():
+    from rich.console import Console;
+    from sumtui.clipboard import clipboard;
+    from sumtui.widgets.textview import TextView;
+    view = TextView("alpha   \nbeta   ");
+    console = Console(width=40, height=8, record=True);
+    console.print(view);
+    view.select_all();
+    assert view.copy_selection();
+    assert clipboard.paste_text() == "alpha\nbeta";
+    assert view.handle_event(MouseEvent(2, 1, button="right", action="press"));
+    assert view.context_menu_open;
+    console.print(view);
+    assert view._context_menu_bounds is not None;
+
+
+def test_texteditor_right_click_context_menu_copy_paste_and_selection():
+    from rich.console import Console;
+    from sumtui.widgets.editor import TextEditor;
+
+    class Clipboard:
+        def __init__(self):
+            self.text = "paste me";
+        def copy_text(self, text):
+            self.text = str(text);
+            return self.text;
+        def paste_text(self):
+            return self.text;
+
+    clip = Clipboard();
+    editor = TextEditor("alpha beta", clipboard=clip);
+    console = Console(width=50, height=10, record=True);
+    console.print(editor);
+    editor.select_offsets(0, 5);
+    assert editor.handle_event(MouseEvent(2, 0, button="right", action="press"));
+    assert editor.context_menu_open;
+    console.print(editor);
+    left, top, _width, _height = editor._context_menu_bounds;
+    # Copy is the fourth item; panel border occupies the first row.
+    assert editor.handle_event(MouseEvent(left + 2, top + 4, button="left", action="press"));
+    assert clip.text == "alpha";
+    assert not editor.context_menu_open;
+    editor.clear_selection();
+    editor.row = 0; editor.column = len(editor.lines[0]);
+    clip.text = "!";
+    assert editor.handle_event(MouseEvent(15, 0, button="right", action="press"));
+    console.print(editor);
+    left, top, _width, _height = editor._context_menu_bounds;
+    # Paste is the fifth item.
+    assert editor.handle_event(MouseEvent(left + 2, top + 5, button="left", action="press"));
+    assert editor.text.endswith("!");
+
+
+def test_texteditor_paste_special_uses_sumdoc(monkeypatch):
+    from sumtui.widgets.editor import TextEditor;
+    import sumdoc.clipboard as clip;
+    monkeypatch.setattr(clip,"special_paste_options",lambda:[("markdown","As Markdown")]);
+    monkeypatch.setattr(clip,"special_paste_text",lambda kind:"**rich**" if kind=="markdown" else "");
+    editor=TextEditor("");
+    labels=[item[0] for item in editor._context_menu_items()];
+    assert "Paste special: As Markdown" in labels;
+    assert editor.paste_special("markdown");
+    assert editor.text == "**rich**";

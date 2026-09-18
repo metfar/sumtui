@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a26
+# sumTUI 0.8.0a28
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -10,7 +10,7 @@ The project is a console-side sibling of SumGUI. It keeps the same general philo
 
 ## Reusable help browser
 
-`sumTUI 0.8.0a26` extends the reusable two-pane `HelpBrowser` with selectable rendered help text.  Left-drag or Shift+arrows extends the selection, `Ctrl+A` selects all rendered text, `Ctrl+C` or `Ctrl+Insert` copies the selection, and right-click opens a compact **Copy / Select all** context menu.  The reading pane remains read-only and keeps independent vertical/horizontal scrolling, category/topic breadcrumbs and the classic `F1` Contents, `F2` Topics, `F3` Search, `F4` Read and `Esc` Close navigation.  SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
+`sumTUI 0.8.0a28` extends the reusable two-pane `HelpBrowser` with selectable rendered help text.  Left-drag or Shift+arrows extends the selection, `Ctrl+A` selects all rendered text, `Ctrl+C` or `Ctrl+Insert` copies the selection, and right-click opens a compact **Copy / Select all** context menu.  The reading pane remains read-only and keeps independent vertical/horizontal scrolling, category/topic breadcrumbs and the classic `F1` Contents, `F2` Topics, `F3` Search, `F4` Read and `Esc` Close navigation.  SumDoc remains the owner of Markdown ↔ `.helpdb` conversion.
 
 ## Goals
 
@@ -47,6 +47,8 @@ The multi-source `sumIDE` adds **Compare with open buffer** and **Compare all op
 `TextArea` is the reusable multiline editing engine and `TextEditor` is its source-oriented form with line numbers enabled by default. They provide cursor movement, insert/delete, Home/End, PageUp/PageDown, Ctrl+Home/Ctrl+End, vertical/horizontal scrolling, Tab/newline editing and a modified flag suitable for IDE-style hosts.
 
 Shift+Up/Down and Shift+PageUp/PageDown extend the current selection while moving the caret. On POSIX, sumTUI consults the active terminfo entry for shifted cursor/page sequences and also keeps xterm/rxvt fallbacks, because terminal families do not encode these combinations identically.
+
+Right-click inside `TextArea` / `TextEditor` opens a standard **Undo / Redo / Cut / Copy / Paste / Select all** menu. The behavior is inherited by `sumedit`, `sumIDE`, sumX editor mode and the sumBASIC IDE because all of them use the same editor engine. `TextView` exposes a smaller **Copy / Select all** menu for output/read-only text. Rendered-view copy removes right-side visual padding on every copied line; editor source copy preserves real document whitespace exactly.
 
 POSIX applications may opt in to SGR mouse reporting with `Application(..., mouse=True)`. `sumedit`, `sumdialog`, `suminput`, and `sumtheme` enable it while they own the terminal and disable it again on exit. Mouse events are normalized as `MouseEvent` objects: left-click can focus controls, editor clicks place the caret, drag extends a text selection, the wheel scrolls supported views, and scrollbars accept track clicks and thumb dragging. Keyboard operation remains complete when the terminal does not provide mouse reporting.
 
