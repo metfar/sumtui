@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a29
+# sumTUI 0.8.0a30
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -994,3 +994,7 @@ Both commands construct the same `EditApp`, with the same document, menus, statu
 `sumtui.conio.install()` selects the terminal implementation of the shared `sumui.conio` API. This preserves keyboard, cursor, color and window semantics on the TUI backend while allowing the same application code to select a graphical conio backend under sumGUI.
 
 <p align=center><b>- oOo -<b></p>
+
+## Coloured text output (0.8.0a30)
+
+ANSI SGR colours are represented as display attributes, not printed escape sequences. TextView accepts per-cell styled rows with set_styled_rows().

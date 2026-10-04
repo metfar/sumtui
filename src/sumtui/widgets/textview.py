@@ -40,6 +40,7 @@ class TextView(Widget):
     def __init__(self, text="", on_activate=None, theme=None):
         super().__init__(theme=theme);
         self.lines = self._split_text(text);
+        self._styled_rows = None;
         self.offset = 0;
         self.x_offset = 0;
         self.page_size = 1;
@@ -73,10 +74,15 @@ class TextView(Widget):
         return max([text_cell_length(line.expandtabs(4)) for line in self.lines] or [0]);
 
     def set_text(self, text):
+        self._styled_rows = None;
         self.lines = self._split_text(text);
         self.offset = min(self.offset, max(0, len(self.lines) - 1));
         self.content_width = self._measure_width();
         self.x_offset = min(self.x_offset, self.max_x_offset);
+        return self;
+
+    def set_styled_rows(self, rows):
+        self._styled_rows = [list(attrs) for _text, attrs in rows];
         return self;
 
     def append_text(self, text):
@@ -393,6 +399,27 @@ class TextView(Widget):
             raw_line = visible[index] if index < len(visible) else "";
             line = raw_line.expandtabs(4);
             segments = [Segment(line, style)];
+            if self._styled_rows is not None and absolute_line < len(self._styled_rows):
+                attrs = self._styled_rows[absolute_line];
+                palette = ("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white");
+                def ansi_color(code, background=False):
+                    if code is None: return None;
+                    offset = 40 if background else 30;
+                    if code >= 100: offset = 100;
+                    elif code >= 90: offset = 90;
+                    index = code - offset;
+                    if 0 <= index < 8:
+                        color = palette[index];
+                        if offset >= 90: color = "bright_" + color;
+                        return color;
+                    return None;
+                segments = [];
+                for col, char in enumerate(line):
+                    fg, bg = attrs[col] if col < len(attrs) else (None, None);
+                    cell_style = style + Style(color=ansi_color(fg), bgcolor=ansi_color(bg, True));
+                    if segments and segments[-1].style == cell_style:
+                        prev = segments[-1]; segments[-1] = Segment(prev.text + char, cell_style);
+                    else: segments.append(Segment(char, cell_style));
             if bounds is not None and absolute_line < len(self.lines):
                 (line1, col1), (line2, col2) = bounds;
                 if line1 <= absolute_line <= line2:
