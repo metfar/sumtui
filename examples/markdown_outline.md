@@ -40,3 +40,5 @@ Setext headings are included in the same outline.
 ### Final notes
 
 Move the cursor into this section and press F2: the outline opens on **Final notes**.
+
+<p align=center><b>- oOo -</b></p>

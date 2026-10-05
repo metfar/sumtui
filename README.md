@@ -998,3 +998,9 @@ Both commands construct the same `EditApp`, with the same document, menus, statu
 ## Coloured text output (0.8.0a30)
 
 ANSI SGR colours are represented as display attributes, not printed escape sequences. TextView accepts per-cell styled rows with set_styled_rows().
+
+## Alphabetical help topics
+
+`HelpCorpus.topic_names()` now returns one global A-Z list. Applications keep `About` as application metadata/dialog content rather than mixing it into command/function help topics.
+
+<p align=center><b>- oOo -</b></p>

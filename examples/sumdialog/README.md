@@ -89,3 +89,5 @@ The retro menu returns only the selected action value on stdout, so Bash can use
 `--version` is demonstrated by the dispatcher `version` action.
 
 <p align=center><b>- oOo -<b></p>
+
+<p align=center><b>- oOo -</b></p>

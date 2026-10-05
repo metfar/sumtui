@@ -729,3 +729,5 @@ Commander-oriented widget expansion.
 - Added `sumedit`, a lightweight generic plain-text editor with menus, status bar, horizontal/vertical scrollbars, EOL/encoding status and visibility toggles.
 - `sumedit --install-alias` installs a safe `$HOME/bin/edit` wrapper using `"$@"`.
 - Added `sumeol` line-ending inspector/converter plus optional `$HOME/bin` compatibility wrappers for dos2unix/unix2dos/mac2unix/unix2mac.
+
+<p align=center><b>- oOo -</b></p>

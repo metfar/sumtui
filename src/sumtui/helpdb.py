@@ -75,7 +75,7 @@ class HelpCorpus:
                 self._aliases[str(alias).strip().upper()] = topic.name.upper();
 
     def topic_names(self):
-        return [topic.name for topic in sorted(self.topics, key=lambda item: (item.category.casefold(), item.name.casefold()))];
+        return [topic.name for topic in sorted(self.topics, key=lambda item: item.name.casefold())];
 
     def find_topic(self, name):
         raw = str(name or "").strip().upper();
