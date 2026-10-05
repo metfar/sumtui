@@ -1,4 +1,4 @@
-# sumTUI 0.8.0a30
+# sumTUI 0.8.0a32
 
 A tiny, portable, retro-flavoured TUI toolkit for Python, built on Rich rendering with a small cross-platform input layer.
 
@@ -1002,5 +1002,8 @@ ANSI SGR colours are represented as display attributes, not printed escape seque
 ## Alphabetical help topics
 
 `HelpCorpus.topic_names()` now returns one global A-Z list. Applications keep `About` as application metadata/dialog content rather than mixing it into command/function help topics.
+## Shared help model
+
+sumTUI renders the backend-neutral `sumui.HelpCorpus`; compatibility imports from `sumtui.helpdb` remain available. `About` is an application action/dialog, not a help topic.
 
 <p align=center><b>- oOo -</b></p>

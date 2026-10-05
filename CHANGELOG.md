@@ -1,3 +1,5 @@
+- 0.8.0a32: HelpTopic/HelpCorpus now come from sumUI, keeping sumTUI as a presentation adapter while preserving compatibility imports.
+
 # Changelog
 
 ## 0.8.0a29
