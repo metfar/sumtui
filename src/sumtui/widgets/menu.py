@@ -23,13 +23,16 @@
 #import warnings;
 #warnings.filterwarnings("ignore", category=UserWarning);
 from dataclasses import dataclass;
+import time;
+
+from sumui import DEFAULT_ALT_MENU_HOLD_MS, MenuInteractionConfig, parse_mnemonic;
 
 from rich.columns import Columns;
 from rich.console import Group;
 from rich.panel import Panel as RichPanel;
 from rich.text import Text;
 
-from ..events import Key, MouseEvent, normalize_key_spec;
+from ..events import Key, KeyEvent, MouseEvent, normalize_key_spec;
 from ..overlay import ModalOverlay;
 from .base import Widget;
 from .layout import VBox;
@@ -44,6 +47,18 @@ class MenuItem:
     checked: object = None;
     radio: object = None;
     submenu: object = None;
+
+    @property
+    def mnemonic_label(self):
+        return parse_mnemonic(self.label, implicit=True);
+
+    @property
+    def display_label(self):
+        return self.mnemonic_label.text;
+
+    @property
+    def mnemonic(self):
+        return self.mnemonic_label.mnemonic;
 
     def invoke(self):
         if not self.enabled or self.submenu is not None:
@@ -63,6 +78,18 @@ class Menu:
         self.title = str(title);
         self.items = list(items or []);
 
+    @property
+    def mnemonic_label(self):
+        return parse_mnemonic(self.title, implicit=True);
+
+    @property
+    def display_title(self):
+        return self.mnemonic_label.text;
+
+    @property
+    def mnemonic(self):
+        return self.mnemonic_label.mnemonic;
+
     def selectable_indices(self):
         return [index for index, item in enumerate(self.items) if item.enabled and not isinstance(item, Separator)];
 
@@ -70,7 +97,8 @@ class Menu:
 class MenuBar(Widget):
     focusable = True;
 
-    def __init__(self, menus=None, on_close=None, activation_key="f9", mnemonics=True, theme=None):
+    def __init__(self, menus=None, on_close=None, activation_key="f9", mnemonics=True, theme=None,
+                 alt_menu_hold_ms=DEFAULT_ALT_MENU_HOLD_MS, shortcut_available=None, clock=None):
         super().__init__(theme=theme);
         self.menus = list(menus or []);
         self.active = False;
@@ -79,6 +107,15 @@ class MenuBar(Widget):
         self.on_close = on_close;
         self.activation_key = normalize_key_spec(activation_key);
         self.mnemonics = bool(mnemonics);
+        self.interaction = MenuInteractionConfig(alt_menu_hold_ms=alt_menu_hold_ms);
+        self.shortcut_available = shortcut_available;
+        self._clock = clock or time.monotonic;
+        self._alt_down_since = None;
+        self._alt_chorded = False;
+
+    def set_alt_menu_hold_ms(self, value):
+        self.interaction = MenuInteractionConfig(alt_menu_hold_ms=value);
+        return self.interaction.normalized_hold_ms();
 
     @property
     def current_menu(self):
@@ -103,6 +140,8 @@ class MenuBar(Widget):
         if index is not None:
             self.menu_index = int(index) % len(self.menus);
         self.active = True;
+        if self._focus_manager is not None:
+            self._focus_manager.set(self);
         first = self._first(self.menus[self.menu_index]);
         self.path = [first] if first >= 0 else [];
         return True;
@@ -173,6 +212,29 @@ class MenuBar(Widget):
             self.close();
         return done;
 
+    def _menu_for_mnemonic(self, needle):
+        key = str(needle or "").casefold();
+        for index, menu in enumerate(self.menus):
+            if menu.mnemonic and menu.mnemonic == key:
+                return index;
+        return None;
+
+    def _item_for_mnemonic(self, menu, needle):
+        key = str(needle or "").casefold();
+        if menu is None:
+            return None;
+        for index, item in enumerate(menu.items):
+            if item.enabled and not isinstance(item, Separator) and item.mnemonic and item.mnemonic == key:
+                return index;
+        return None;
+
+    def _alt_shortcut_available(self, mnemonic):
+        if not mnemonic:
+            return False;
+        if self.shortcut_available is None:
+            return True;
+        return bool(self.shortcut_available("alt+{}".format(mnemonic)));
+
     def handle_event(self, event):
         if isinstance(event, MouseEvent):
             if event.action in ("scroll_up", "scroll_down") and self.active:
@@ -182,7 +244,7 @@ class MenuBar(Widget):
             if event.y == 0:
                 cursor = 0;
                 for index, menu in enumerate(self.menus):
-                    span = len(" {} ".format(menu.title));
+                    span = len(" {} ".format(menu.display_title));
                     if cursor <= event.x < cursor + span:
                         if self._focus_manager is not None:
                             self._focus_manager.set(self);
@@ -221,14 +283,32 @@ class MenuBar(Widget):
                 return self.close();
             return False;
         key = getattr(event, "key", "");
+        action = getattr(event, "action", "press");
+        if key in ("alt", "left_alt", "right_alt"):
+            if action == "press":
+                self._alt_down_since = self._clock();
+                self._alt_chorded = False;
+                return True;
+            if action == "release":
+                started = self._alt_down_since;
+                self._alt_down_since = None;
+                if started is None or self._alt_chorded:
+                    return True;
+                hold_ms = self.interaction.normalized_hold_ms();
+                if hold_ms is not None and ((self._clock() - started) * 1000.0) >= hold_ms:
+                    return self.close() if self.active else self.open();
+                return True;
+        if action == "release":
+            return False;
         if self.activation_key and getattr(event, "name", "") == self.activation_key:
             return self.close() if self.active else self.open();
         if not self.active:
             if self.mnemonics and getattr(event, "alt", False) and getattr(event, "text", ""):
-                needle = event.text.lower();
-                for index, menu in enumerate(self.menus):
-                    if menu.title.lower().startswith(needle):
-                        return self.open(index);
+                self._alt_chorded = True;
+                needle = event.text.casefold();
+                index = self._menu_for_mnemonic(needle);
+                if index is not None and self._alt_shortcut_available(needle):
+                    return self.open(index);
             return False;
         if key == Key.ESCAPE:
             return self._close_submenu() or self.close();
@@ -263,14 +343,23 @@ class MenuBar(Widget):
                     item.invoke();
                     return True;
         text = getattr(event, "text", "");
-        if text:
+        if text and self.mnemonics:
+            needle = text.casefold();
+            if len(self.path) <= 1:
+                menu_index = self._menu_for_mnemonic(needle);
+                if menu_index is not None:
+                    return self.open(menu_index);
             menu = self.current_menu;
-            if menu is not None:
-                needle = text.lower();
-                for index, item in enumerate(menu.items):
-                    if item.enabled and item.label.lower().startswith(needle):
-                        self.path[-1] = index;
-                        return True;
+            index = self._item_for_mnemonic(menu, needle);
+            if index is not None:
+                if self.path:
+                    self.path[-1] = index;
+                else:
+                    self.path = [index];
+                item = menu.items[index];
+                if item.submenu is not None:
+                    return self._open_submenu();
+                return self.activate();
         return False;
 
     def _menu_content_width(self, menu):
@@ -281,14 +370,14 @@ class MenuBar(Widget):
             marker_width = 4;
             shortcut_width = (2 + len(item.shortcut)) if item.shortcut else 0;
             arrow_width = 2 if item.submenu is not None else 0;
-            widths.append(marker_width + len(item.label) + shortcut_width + arrow_width + 1);
+            widths.append(marker_width + len(item.display_label) + shortcut_width + arrow_width + 1);
         return max(widths);
 
     @property
     def popup_left(self):
         if not self.menus:
             return 0;
-        return sum(len(" {} ".format(menu.title)) for menu in self.menus[:self.menu_index]);
+        return sum(len(" {} ".format(menu.display_title)) for menu in self.menus[:self.menu_index]);
 
     def _visible_menu_path(self):
         output = [];
@@ -355,7 +444,7 @@ class MenuBar(Widget):
                 marker = "    ";
             arrow = " ▶" if item.submenu is not None else "";
             shortcut = ("  " + item.shortcut) if item.shortcut else "";
-            body = (marker + item.label);
+            body = (marker + item.display_label);
             space = max(1, content_width - len(body) - len(shortcut) - len(arrow));
             text = Text(body + (" " * space) + shortcut + arrow);
             if not item.enabled:
@@ -364,6 +453,10 @@ class MenuBar(Widget):
                 text.stylize(self.theme.style("menu_selection"));
             else:
                 text.stylize(self.theme.style("menu"));
+            mnemonic = item.mnemonic_label;
+            if mnemonic.index >= 0 and item.enabled:
+                offset = len(marker) + mnemonic.index;
+                text.stylize("underline", offset, offset + 1);
             rows.append(text);
         return RichPanel(Group(*rows), padding=(0, 0), border_style=self.theme.style("menu_border"), style=self.theme.style("menu"), width=panel_width);
 
@@ -371,7 +464,11 @@ class MenuBar(Widget):
         labels = [];
         for index, menu in enumerate(self.menus):
             style = self.theme.style("menu_title_active" if self.active and index == self.menu_index else "menu_title");
-            labels.append(Text(" {} ".format(menu.title), style=style));
+            label = Text(" {} ".format(menu.display_title), style=style);
+            mnemonic = menu.mnemonic_label;
+            if mnemonic.index >= 0:
+                label.stylize("underline", 1 + mnemonic.index, 2 + mnemonic.index);
+            labels.append(label);
         bar = Text();
         for label in labels:
             bar.append_text(label);
@@ -434,6 +531,16 @@ class MenuDesktop(Widget):
     def items(self):
         """Compatibility view of body layout items for simple hosts/tests.""";
         return getattr(self.body, "items", []);
+
+    def capture_event(self, event):
+        if not isinstance(event, KeyEvent):
+            return False;
+        key = getattr(event, "key", "");
+        if key in ("alt", "left_alt", "right_alt"):
+            return bool(self.menu.handle_event(event));
+        if self.menu.mnemonics and getattr(event, "alt", False) and getattr(event, "text", ""):
+            return bool(self.menu.handle_event(event));
+        return False;
 
     def handle_event(self, event):
         if isinstance(event, MouseEvent):

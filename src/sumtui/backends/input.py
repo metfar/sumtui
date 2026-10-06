@@ -240,6 +240,7 @@ class AnsiDecoder:
         if text_field:
             try: text = "".join(chr(int(item)) for item in text_field.split(b":") if item);
             except (TypeError, ValueError, OverflowError): text = "";
+        if key_code in (57443, 57449): return KeyEvent("alt", ctrl=ctrl, alt=False, shift=shift, action=action);
         if key_code == 27: return KeyEvent(Key.ESCAPE, ctrl=ctrl, alt=alt, shift=shift, action=action);
         if key_code == 13: return KeyEvent(Key.ENTER, text="\r" if text else "", ctrl=ctrl, alt=alt, shift=shift, action=action);
         if key_code == 9: return KeyEvent(Key.TAB, text="\t" if text else "", ctrl=ctrl, alt=alt, shift=shift, action=action);

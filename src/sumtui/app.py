@@ -302,9 +302,17 @@ class Application:
             return bool(self.root is not None and self.root.handle_event(event));
         if not isinstance(event, KeyEvent):
             return False;
+        if getattr(event, "action", "press") != "release" and getattr(event, "alt", False):
+            callback = self.bindings.get(event.name);
+            if callback is not None:
+                callback();
+                return True;
+        capture = getattr(self.root, "capture_event", None) if self.root is not None else None;
+        if capture is not None and capture(event):
+            return True;
         # Key release is state information, not another command/typing event.
-        # Application-specific runtimes (for example sumBASIC KEYUP$) may
-        # intercept releases before this normal widget/binding dispatcher.
+        # Root-level capture handlers may consume releases for interaction
+        # state machines such as held-Alt menu activation.
         if getattr(event, "action", "press") == "release":
             return False;
         if event.matches("alt+f3"):
@@ -321,9 +329,6 @@ class Application:
             if callback is not None:
                 callback();
                 return True;
-        capture = getattr(self.root, "capture_event", None) if self.root is not None else None;
-        if capture is not None and capture(event):
-            return True;
         current = self.focus.current;
         if event.key == Key.TAB:
             # Focused widgets get first refusal on Tab.  This is required by

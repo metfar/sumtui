@@ -2842,3 +2842,39 @@ def test_texteditor_paste_special_uses_sumdoc(monkeypatch):
     assert "Paste special: As Markdown" in labels;
     assert editor.paste_special("markdown");
     assert editor.text == "**rich**";
+
+
+class MenuMnemonicContractTests(unittest.TestCase):
+    def test_explicit_item_mnemonic_invokes_action(self):
+        called=[];
+        bar=MenuBar([Menu("&File",[MenuItem("&Save",lambda:called.append("save")),MenuItem("S&ave as",lambda:called.append("save-as"))])]);
+        self.assertTrue(bar.handle_event(KeyEvent("f",text="f",alt=True)));
+        self.assertTrue(bar.handle_event(KeyEvent("a",text="a")));
+        self.assertEqual(called,["save-as"]);
+        self.assertFalse(bar.active);
+
+    def test_menu_bar_active_uses_contextual_mnemonic_without_alt(self):
+        bar=MenuBar([Menu("&File",[MenuItem("&New")]),Menu("&Edit",[MenuItem("&Undo")])]);
+        self.assertTrue(bar.open(0));
+        self.assertTrue(bar.handle_event(KeyEvent("e",text="e")));
+        self.assertEqual(bar.menu_index,1);
+
+    def test_alt_shortcut_can_be_reserved_while_contextual_mnemonic_stays_available(self):
+        bar=MenuBar([Menu("&File",[MenuItem("&New")])],shortcut_available=lambda spec: spec != "alt+f");
+        self.assertFalse(bar.handle_event(KeyEvent("f",text="f",alt=True)));
+        self.assertFalse(bar.active);
+        self.assertTrue(bar.open());
+        self.assertTrue(bar.handle_event(KeyEvent("f",text="f")));
+        self.assertTrue(bar.active);
+
+    def test_held_alt_uses_configurable_threshold(self):
+        now=[10.0];
+        bar=MenuBar([Menu("&File",[MenuItem("&New")])],alt_menu_hold_ms=1500,clock=lambda:now[0]);
+        self.assertTrue(bar.handle_event(KeyEvent("alt",action="press")));
+        now[0]=11.0;
+        self.assertTrue(bar.handle_event(KeyEvent("alt",action="release")));
+        self.assertFalse(bar.active);
+        self.assertTrue(bar.handle_event(KeyEvent("alt",action="press")));
+        now[0]=12.6;
+        self.assertTrue(bar.handle_event(KeyEvent("alt",action="release")));
+        self.assertTrue(bar.active);
